@@ -31,6 +31,7 @@ export class AudioStreamer {
   public analyserNode!: AnalyserNode;
   public source!: AudioBufferSourceNode;
   private endOfQueueAudioSource: AudioBufferSourceNode | null = null;
+  private timeDomainData: Uint8Array<ArrayBuffer>;
 
   /** Called when the queue has been fully drained and the last buffer finishes. */
   public onComplete = () => {};
@@ -46,6 +47,10 @@ export class AudioStreamer {
     this.gainNode = this.context.createGain();
     this.analyserNode = this.context.createAnalyser();
     this.analyserNode.fftSize = 2048;
+    this.analyserNode.smoothingTimeConstant = 0.2;
+    this.timeDomainData = new Uint8Array(
+      this.analyserNode.fftSize,
+    ) as Uint8Array<ArrayBuffer>;
     this.source = this.context.createBufferSource();
     this.gainNode.connect(this.analyserNode);
     this.analyserNode.connect(this.context.destination);
@@ -176,17 +181,22 @@ export class AudioStreamer {
   /** Gets real-time volume (0 to 1) from the hardware AnalyserNode */
   getVolume(): number {
     if (!this.analyserNode) return 0;
-    
-    const data = new Uint8Array(this.analyserNode.frequencyBinCount);
-    this.analyserNode.getByteFrequencyData(data);
-    
-    let sum = 0;
-    for (let i = 0; i < data.length; i++) {
-       sum += data[i];
+
+    if (this.timeDomainData.length !== this.analyserNode.fftSize) {
+      this.timeDomainData = new Uint8Array(
+        this.analyserNode.fftSize,
+      ) as Uint8Array<ArrayBuffer>;
     }
-    const avg = sum / data.length;
-    // Normalize byte (0-255) to float (0-1)
-    return avg / 255;
+
+    this.analyserNode.getByteTimeDomainData(this.timeDomainData);
+
+    let sumSquares = 0;
+    for (let i = 0; i < this.timeDomainData.length; i++) {
+      const sample = (this.timeDomainData[i] - 128) / 128;
+      sumSquares += sample * sample;
+    }
+    const rms = Math.sqrt(sumSquares / this.timeDomainData.length);
+    return Math.max(0, Math.min(1, rms * 2.1));
   }
 
   // ── Internal scheduling ──────────────────────────────────────────────────

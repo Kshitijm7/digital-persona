@@ -12,7 +12,6 @@ import React, { useRef, useEffect, useState } from "react";
 import { useGraph, useFrame } from "@react-three/fiber";
 import { useGLTF, useAnimations } from "@react-three/drei";
 import { GLTF, SkeletonUtils } from "three-stdlib";
-import { PHYSICS_SMOOTHING } from "@/lib/constants";
 import { SkinPreset } from "@/lib/skinConfig";
 import { useSkinTexture } from "@/hooks/useSkinTexture";
 import { normaliseFbxAnimations } from "@/lib/animationUtils";
@@ -200,10 +199,14 @@ export function Avatar({ audioLevelRef, avatarUrl, currentExpression, skinPreset
 
     const rawLevel = audioLevelRef.current ?? 0;
 
-    // Smooth the audio level to avoid jitter
+    // Fast attack + slower release keeps onset aligned while avoiding jitter.
+    const attackAlpha = 1 - Math.exp(-delta * 24);
+    const releaseAlpha = 1 - Math.exp(-delta * 8);
+    const smoothingAlpha = rawLevel > smoothedLevel.current ? attackAlpha : releaseAlpha;
     smoothedLevel.current +=
-      (rawLevel - smoothedLevel.current) * PHYSICS_SMOOTHING.lerp_factor;
+      (rawLevel - smoothedLevel.current) * smoothingAlpha;
     const level = smoothedLevel.current;
+    const lipSyncLevel = Math.max(rawLevel, level);
     const isSpeaking = level > 0.05;
 
     // Keep body idle subtle while speaking so visemes remain the visual focus.
@@ -221,7 +224,12 @@ export function Avatar({ audioLevelRef, avatarUrl, currentExpression, skinPreset
 
     // Drive jaw/mouth morph targets for lip-sync using LipSyncEngine
     if (featureToggles.lipSync) {
-      lipsyncEngine.updateFromAudioLevel(level, delta, nodes, useLipSyncStore.getState().wawaLipsync);
+      lipsyncEngine.updateFromAudioLevel(
+        lipSyncLevel,
+        delta,
+        nodes,
+        useLipSyncStore.getState().wawaLipsync,
+      );
     }
 
     // Execute Emotion Engine (handles UI override, sentiments, and hover effects)

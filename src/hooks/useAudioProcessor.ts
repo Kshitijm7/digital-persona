@@ -261,6 +261,9 @@ export function useAudioProcessor() {
         playbackCtxRef.current,
         AUDIO_CONFIG.output_hz,
       );
+      streamer.analyserNode.smoothingTimeConstant = 0.18;
+      streamer.analyserNode.minDecibels = -90;
+      streamer.analyserNode.maxDecibels = -10;
       audioStreamerRef.current = streamer;
       streamer.onComplete = () => {
         cancelAnimationFrame(playbackAnimFrameRef.current);
@@ -272,7 +275,10 @@ export function useAudioProcessor() {
       };
 
       // Ensure Lipsync is correctly instantiated and mapped to AudioStreamer
-      const wawa = new Lipsync();
+      const wawa = new Lipsync({
+        fftSize: streamer.analyserNode.fftSize,
+        historySize: 6,
+      });
       
       // Patch private properties to safely integrate without relying on HTMLAudioElement
       // @ts-expect-error - patching private context to match AudioStreamer
@@ -284,7 +290,9 @@ export function useAudioProcessor() {
       // @ts-expect-error - override sampleRate for wawa
       wawa.sampleRate = streamer.context.sampleRate;
       // @ts-expect-error - recompute binWidth
-      wawa.binWidth = wawa.sampleRate / 2048;
+      wawa.binWidth = wawa.sampleRate / streamer.analyserNode.fftSize;
+      // @ts-expect-error - tighten persistence to reduce viseme lag on rapid speech transitions
+      wawa.maxVisemeDuration = 85;
 
       useLipSyncStore.getState().setWawaLipsync(wawa);
     }
