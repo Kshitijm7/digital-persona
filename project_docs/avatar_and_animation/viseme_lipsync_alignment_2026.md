@@ -57,6 +57,20 @@ Reduce "mouth not matching audio" artifacts in realtime avatar playback by combi
 - Replaced single lerp with **fast attack / slower release** smoothing for audio level.
 - Lip-sync now uses `max(rawLevel, smoothedLevel)` to preserve quick consonant onsets while remaining stable.
 
+### 5) `src/components/chat/ConfigPanel.tsx` + `src/store/useLipSyncStore.ts`
+- Added runtime **Lip Sync Tuning** controls for:
+  - clock compensation ratio / clamp
+  - anticipation window
+  - anticipation weight
+  - silence hold
+  - state-specific switch intervals
+  - state-specific viseme lambdas
+  - analyser smoothing + viseme persistence
+  - adaptive noise-floor thresholding
+- Added one-click presets: **Low Latency**, **Balanced**, **Noisy Room**.
+- Added persistent in-memory tuning store so values apply instantly during live sessions.
+- Persisted settings in `src/config/camera.json` under `lipSyncTuning`.
+
 ## Tuning Guide
 
 If mouth moves **too early**:

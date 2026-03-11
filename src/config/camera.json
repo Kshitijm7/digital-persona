@@ -70,5 +70,28 @@
     "headMovement": true,
     "googleSearch": true,
     "proactiveAudio": true
+  },
+  "lipSyncTuning": {
+    "clockCompensationRatio": 0.6,
+    "maxClockCompensationMs": 70,
+    "anticipationWindowMs": 65,
+    "anticipationWeightMax": 0.24,
+    "resetSilenceHoldMs": 240,
+    "minSwitchMsPlosive": 12,
+    "minSwitchMsFricative": 22,
+    "minSwitchMsVowel": 30,
+    "minSwitchMsSilence": 38,
+    "lambdaPlosive": 34,
+    "lambdaFricative": 24,
+    "lambdaVowel": 18,
+    "lambdaSilence": 16,
+    "adaptiveNoiseFloor": true,
+    "speechThresholdOffset": 0.018,
+    "noiseFloorAdaptLambda": 2.6,
+    "noiseFloorReleaseLambda": 0.55,
+    "noiseFloorMin": 0.006,
+    "noiseFloorMax": 0.08,
+    "analyserSmoothing": 0.18,
+    "visemePersistenceMs": 85
   }
 }

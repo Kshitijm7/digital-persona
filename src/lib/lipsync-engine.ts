@@ -3,6 +3,7 @@ import { PHYSICS_SMOOTHING } from "@/lib/constants";
 import { OCULUS_VISEMES } from './viseme-map';
 import { Lipsync } from 'wawa-lipsync';
 import { createLogger } from '@/lib/logging/logger';
+import { DEFAULT_LIPSYNC_TUNING, type LipSyncTuning } from '@/store/useLipSyncStore';
 
 const log = createLogger("lipsync-engine");
 
@@ -45,10 +46,6 @@ const ACTIVE_VOWEL_WEIGHT = 0.58;
 const ACTIVE_CONSONANT_WEIGHT = 0.5;
 const ACTIVE_WEIGHT_BOOST = 0.22;
 const MAX_PENDING_VISEMES = 72;
-const MAX_CLOCK_COMPENSATION_MS = 70;
-const CLOCK_COMPENSATION_RATIO = 0.6;
-const ANTICIPATION_WINDOW_MS = 65;
-const RESET_SILENCE_HOLD_MS = 240;
 
 type LipState = "vowel" | "plosive" | "fricative" | "silence";
 
@@ -61,13 +58,16 @@ interface ScheduledViseme {
 }
 
 export class LipSyncEngine {
+  private currentTuning: LipSyncTuning = { ...DEFAULT_LIPSYNC_TUNING };
   private lastViseme = 'viseme_sil';
   private previousViseme = 'viseme_sil';
   private transitionCarry = 0;
   private warnedNoNativeVisemes = false;
+  private consecutiveSilentDetections = 0;
   private lastDetectedViseme = 'viseme_sil';
   private lastDetectedAtMs = 0;
   private lastNonSilenceAtMs = 0;
+  private dynamicNoiseFloor = LIPSYNC_LEVEL_FLOOR;
   private pendingVisemes: ScheduledViseme[] = [];
   private activeScheduledViseme: ScheduledViseme = {
     viseme: "viseme_sil",
@@ -86,7 +86,9 @@ export class LipSyncEngine {
     delta: number,
     nodes: Record<string, THREE.Object3D | undefined>,
     wawaLipsync: Lipsync | null = null,
+    tuning: LipSyncTuning = DEFAULT_LIPSYNC_TUNING,
   ) {
+    this.currentTuning = tuning;
     const head = nodes.Wolf3D_Head as THREE.SkinnedMesh;
     const teeth = nodes.Wolf3D_Teeth as THREE.SkinnedMesh;
 
@@ -98,21 +100,30 @@ export class LipSyncEngine {
         const state = this.normalizeState(
           (wawaLipsync as unknown as { state?: string }).state,
         );
-        const { clockMs, clockCompensationMs } = this.getAudioClock(wawaLipsync);
+        const { clockMs, clockCompensationMs } = this.getAudioClock(wawaLipsync, tuning);
         const detectedVisemeRaw = (wawaLipsync.viseme as string) || "viseme_sil";
         const spectralLevel = this.getSpectralLevel(wawaLipsync);
         const levelSource = Math.max(level, spectralLevel);
+        const effectiveFloor = this.getEffectiveFloor(levelSource, delta, tuning);
         const levelNorm = THREE.MathUtils.clamp(
-          (levelSource - LIPSYNC_LEVEL_FLOOR) / LIPSYNC_LEVEL_RANGE,
+          (levelSource - effectiveFloor) / LIPSYNC_LEVEL_RANGE,
           0,
           1,
         );
         const speakingGain = Math.pow(levelNorm, 0.82);
+        const robustDetectedViseme = this.getRobustDetectedViseme(
+          detectedVisemeRaw,
+          state,
+          speakingGain,
+          levelSource,
+          spectralLevel,
+        );
         const detectedViseme = this.stabilizeDetectedViseme(
-          speakingGain < 0.035 ? "viseme_sil" : detectedVisemeRaw,
+          speakingGain < 0.035 ? "viseme_sil" : robustDetectedViseme,
           state,
           speakingGain,
           clockMs,
+          tuning,
         );
 
         this.enqueueViseme({
@@ -126,11 +137,14 @@ export class LipSyncEngine {
 
         const scheduled = this.activeScheduledViseme;
         const activeViseme = scheduled.viseme;
-        const activeState = scheduled.state;
+        const activeState: LipState =
+          scheduled.state === "silence" && activeViseme !== "viseme_sil"
+            ? "vowel"
+            : scheduled.state;
         const activeGain = scheduled.speakingGain;
         if (activeViseme !== "viseme_sil") {
           this.lastNonSilenceAtMs = clockMs;
-        } else if (clockMs - this.lastNonSilenceAtMs > RESET_SILENCE_HOLD_MS) {
+        } else if (clockMs - this.lastNonSilenceAtMs > tuning.resetSilenceHoldMs) {
           this.pendingVisemes.length = 0;
         }
 
@@ -157,7 +171,7 @@ export class LipSyncEngine {
           ? 0
           : activeWeight * (activeState === "vowel" ? 0.24 : 0.18) * this.transitionCarry;
         const visemeLambda = this.getVisemeLambda(activeState);
-        const anticipation = this.getAnticipation(clockMs, activeViseme);
+        const anticipation = this.getAnticipation(clockMs, activeViseme, tuning);
         const anticipatedViseme = anticipation.viseme;
         const anticipationWeight = anticipatedViseme
           ? activeWeight * anticipation.weight
@@ -203,6 +217,11 @@ export class LipSyncEngine {
     }
 
     this.pendingVisemes.length = 0;
+    if (tuning.adaptiveNoiseFloor) {
+      this.getEffectiveFloor(level, delta, tuning);
+    } else {
+      this.dynamicNoiseFloor = LIPSYNC_LEVEL_FLOOR;
+    }
     this.applyVolumeFallback(head, teeth, level, delta);
   }
 
@@ -277,16 +296,19 @@ export class LipSyncEngine {
     return THREE.MathUtils.clamp(volume, 0, 1);
   }
 
-  private getAudioClock(wawaLipsync: Lipsync): { clockMs: number; clockCompensationMs: number } {
+  private getAudioClock(
+    wawaLipsync: Lipsync,
+    tuning: LipSyncTuning,
+  ): { clockMs: number; clockCompensationMs: number } {
     const context = (wawaLipsync as unknown as { audioContext?: AudioContext }).audioContext;
     if (!context) {
       return { clockMs: performance.now(), clockCompensationMs: 0 };
     }
 
     const outputLatencyMs = Number.isFinite(context.outputLatency)
-      ? THREE.MathUtils.clamp(context.outputLatency * 1000, 0, MAX_CLOCK_COMPENSATION_MS)
+      ? THREE.MathUtils.clamp(context.outputLatency * 1000, 0, tuning.maxClockCompensationMs)
       : 0;
-    const clockCompensationMs = outputLatencyMs * CLOCK_COMPENSATION_RATIO;
+    const clockCompensationMs = outputLatencyMs * tuning.clockCompensationRatio;
 
     let clockMs = context.currentTime * 1000;
     try {
@@ -312,6 +334,7 @@ export class LipSyncEngine {
     state: LipState,
     speakingGain: number,
     clockMs: number,
+    tuning: LipSyncTuning,
   ): string {
     if (detectedViseme === this.lastDetectedViseme) {
       return detectedViseme;
@@ -320,12 +343,12 @@ export class LipSyncEngine {
     const elapsed = clockMs - this.lastDetectedAtMs;
     const minIntervalMs =
       state === "plosive"
-        ? 12
+        ? tuning.minSwitchMsPlosive
         : state === "fricative"
-          ? 22
+          ? tuning.minSwitchMsFricative
           : state === "vowel"
-            ? 30
-            : 38;
+            ? tuning.minSwitchMsVowel
+            : tuning.minSwitchMsSilence;
     const allowImmediateSwitch = speakingGain > 0.72 || detectedViseme === "viseme_sil";
     if (elapsed < minIntervalMs && !allowImmediateSwitch) {
       return this.lastDetectedViseme;
@@ -362,29 +385,97 @@ export class LipSyncEngine {
   }
 
   private getVisemeLambda(state: LipState): number {
-    if (state === "plosive") return 34;
-    if (state === "fricative") return 24;
-    if (state === "vowel") return 18;
-    return 16;
+    const tuning = (this.currentTuning ?? DEFAULT_LIPSYNC_TUNING);
+    if (state === "plosive") return tuning.lambdaPlosive;
+    if (state === "fricative") return tuning.lambdaFricative;
+    if (state === "vowel") return tuning.lambdaVowel;
+    return tuning.lambdaSilence;
   }
 
   private getAnticipation(
     clockMs: number,
     activeViseme: string,
+    tuning: LipSyncTuning,
   ): { viseme: string | null; weight: number } {
     const next = this.pendingVisemes[0];
     if (!next || next.viseme === activeViseme || next.viseme === "viseme_sil") {
       return { viseme: null, weight: 0 };
     }
 
+    const windowMs = Math.max(1, tuning.anticipationWindowMs);
     const timeUntilApply = next.applyAtMs - clockMs;
-    if (timeUntilApply <= 0 || timeUntilApply > ANTICIPATION_WINDOW_MS) {
+    if (timeUntilApply <= 0 || timeUntilApply > windowMs) {
       return { viseme: null, weight: 0 };
     }
 
-    const blendProgress = 1 - timeUntilApply / ANTICIPATION_WINDOW_MS;
-    const weight = THREE.MathUtils.clamp(blendProgress * 0.24, 0, 0.24);
+    const blendProgress = 1 - timeUntilApply / windowMs;
+    const maxWeight = THREE.MathUtils.clamp(tuning.anticipationWeightMax, 0, 0.5);
+    const weight = THREE.MathUtils.clamp(blendProgress * maxWeight, 0, maxWeight);
     return { viseme: next.viseme, weight };
+  }
+
+  private getEffectiveFloor(
+    levelSource: number,
+    delta: number,
+    tuning: LipSyncTuning,
+  ): number {
+    if (!tuning.adaptiveNoiseFloor) {
+      this.dynamicNoiseFloor = LIPSYNC_LEVEL_FLOOR;
+      return LIPSYNC_LEVEL_FLOOR;
+    }
+
+    const minFloor = tuning.noiseFloorMin;
+    const maxFloor = tuning.noiseFloorMax;
+    const clampedLevel = THREE.MathUtils.clamp(levelSource, minFloor, maxFloor);
+    const quietBand = this.dynamicNoiseFloor + tuning.speechThresholdOffset * 1.5;
+
+    if (levelSource <= quietBand) {
+      this.dynamicNoiseFloor = THREE.MathUtils.damp(
+        this.dynamicNoiseFloor,
+        clampedLevel,
+        tuning.noiseFloorAdaptLambda,
+        delta,
+      );
+    } else {
+      this.dynamicNoiseFloor = THREE.MathUtils.damp(
+        this.dynamicNoiseFloor,
+        minFloor,
+        tuning.noiseFloorReleaseLambda,
+        delta,
+      );
+    }
+
+    this.dynamicNoiseFloor = THREE.MathUtils.clamp(this.dynamicNoiseFloor, minFloor, maxFloor);
+    return THREE.MathUtils.clamp(
+      this.dynamicNoiseFloor + tuning.speechThresholdOffset,
+      minFloor,
+      maxFloor + tuning.speechThresholdOffset,
+    );
+  }
+
+  private getRobustDetectedViseme(
+    detectedVisemeRaw: string,
+    state: LipState,
+    speakingGain: number,
+    levelSource: number,
+    spectralLevel: number,
+  ): string {
+    if (detectedVisemeRaw !== "viseme_sil") {
+      this.consecutiveSilentDetections = 0;
+      return detectedVisemeRaw;
+    }
+
+    this.consecutiveSilentDetections += 1;
+    const hasAudibleSpeech = speakingGain > 0.12 || levelSource > 0.09 || spectralLevel > 0.03;
+    if (!hasAudibleSpeech || this.consecutiveSilentDetections < 3) {
+      return "viseme_sil";
+    }
+
+    if (state === "fricative") return "viseme_SS";
+    if (state === "plosive") return "viseme_DD";
+    if (levelSource > 0.25) return "viseme_aa";
+    if (levelSource > 0.16) return "viseme_E";
+    return "viseme_O";
   }
 
   private applyMorph(

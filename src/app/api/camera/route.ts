@@ -32,6 +32,7 @@ export async function POST(req: Request) {
       avatar: { ...(e.avatar || {}), ...(i.avatar || {}) },
       lighting: { ...(e.lighting || {}), ...(i.lighting || {}) },
       features: { ...(e.features || {}), ...(i.features || {}) },
+      lipSyncTuning: { ...(e.lipSyncTuning || {}), ...(i.lipSyncTuning || {}) },
     };
     
     // Write back to the config file

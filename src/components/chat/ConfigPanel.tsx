@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import {
   useSceneConfig,
@@ -11,6 +11,12 @@ import {
 import { Copy, Save, ChevronDown, ChevronRight } from "lucide-react";
 import { useAnimationStore } from "@/store/useAnimationStore";
 import { type AnimationMeta } from "@/lib/animationRegistry.types";
+import {
+  DEFAULT_LIPSYNC_TUNING,
+  LIPSYNC_PRESETS,
+  type LipSyncPresetKey,
+  useLipSyncStore,
+} from "@/store/useLipSyncStore";
 
 /* ─── Helpers ──────────────────────────────────────────────────────────────── */
 
@@ -232,6 +238,10 @@ function LightEditor({
 
 export function ConfigPanel() {
   const { config, setConfig, avatarRegistry } = useSceneConfig();
+  const lipSyncTuning = useLipSyncStore((state) => state.tuning);
+  const updateLipSyncTuning = useLipSyncStore((state) => state.updateTuning);
+  const resetLipSyncTuning = useLipSyncStore((state) => state.resetTuning);
+  const [activePreset, setActivePreset] = useState<LipSyncPresetKey>("balanced");
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -290,6 +300,37 @@ export function ConfigPanel() {
     setDraft(next);
     setConfig(next);
   };
+
+  const patchLipSync = (patch: Partial<typeof lipSyncTuning>) => {
+    const merged = { ...lipSyncTuning, ...patch };
+    updateLipSyncTuning(patch);
+    setDraft((prev) => {
+      const next = { ...prev, lipSyncTuning: merged };
+      setConfig(next);
+      return next;
+    });
+  };
+
+  const applyLipSyncPreset = (preset: LipSyncPresetKey) => {
+    const values = LIPSYNC_PRESETS[preset].values;
+    setActivePreset(preset);
+    updateLipSyncTuning(values);
+    setDraft((prev) => {
+      const next = { ...prev, lipSyncTuning: { ...values } };
+      setConfig(next);
+      return next;
+    });
+  };
+
+  const earlyGuide = useMemo(
+    () => [
+      "If mouth moves too early: lower Clock Ratio or Max Clock.",
+      "If mouth moves too late: increase Clock Ratio slightly, lower analyzer smoothing, or lower persistence.",
+      "If motion is jittery: increase Min Switch intervals or slightly increase Antic ms.",
+      "If motion is robotic: increase Antic ms/Antic Weight or reduce Lambda P only if closures look abrupt.",
+    ],
+    [],
+  );
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-black/10">
@@ -459,6 +500,324 @@ export function ConfigPanel() {
             />
           );
         }))}
+      </Section>
+
+      <Section title="Lip Sync Tuning" accent="#fb7185" defaultOpen={false}>
+        <div className="grid grid-cols-3 gap-1">
+          {(Object.keys(LIPSYNC_PRESETS) as LipSyncPresetKey[]).map((presetKey) => (
+            <button
+              key={presetKey}
+              onClick={() => applyLipSyncPreset(presetKey)}
+              className={cn(
+                "rounded-md border px-2 py-1.5 text-[9.5px] font-semibold transition-colors",
+                activePreset === presetKey
+                  ? "border-rose-300/70 bg-rose-500/25 text-rose-100"
+                  : "border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10",
+              )}
+            >
+              {LIPSYNC_PRESETS[presetKey].label}
+            </button>
+          ))}
+        </div>
+        <ToggleSwitch
+          label="Adaptive Noise Floor"
+          checked={lipSyncTuning.adaptiveNoiseFloor}
+          onChange={() =>
+            patchLipSync({ adaptiveNoiseFloor: !lipSyncTuning.adaptiveNoiseFloor })
+          }
+          description="Auto-calibrate speech threshold to current room noise."
+        />
+        <NumInput
+          label="Clock Ratio"
+          value={lipSyncTuning.clockCompensationRatio}
+          onChange={(v) =>
+            patchLipSync({
+              clockCompensationRatio: Math.max(0, Math.min(1.2, v)),
+            })
+          }
+          step={0.01}
+          min={0}
+          max={1.2}
+          description="How much output-device latency is compensated in viseme timing."
+        />
+        <NumInput
+          label="Max Clock"
+          value={lipSyncTuning.maxClockCompensationMs}
+          onChange={(v) =>
+            patchLipSync({
+              maxClockCompensationMs: Math.max(0, Math.min(200, v)),
+            })
+          }
+          step={1}
+          min={0}
+          max={200}
+          description="Hard limit for latency compensation (milliseconds)."
+        />
+        <NumInput
+          label="Antic ms"
+          value={lipSyncTuning.anticipationWindowMs}
+          onChange={(v) =>
+            patchLipSync({
+              anticipationWindowMs: Math.max(8, Math.min(180, v)),
+            })
+          }
+          step={1}
+          min={8}
+          max={180}
+          description="Lookahead blend window for co-articulation."
+        />
+        <NumInput
+          label="Antic W"
+          value={lipSyncTuning.anticipationWeightMax}
+          onChange={(v) =>
+            patchLipSync({
+              anticipationWeightMax: Math.max(0, Math.min(0.5, v)),
+            })
+          }
+          step={0.01}
+          min={0}
+          max={0.5}
+          description="Max co-articulation carry weight for next viseme."
+        />
+        <NumInput
+          label="Sil Hold"
+          value={lipSyncTuning.resetSilenceHoldMs}
+          onChange={(v) =>
+            patchLipSync({
+              resetSilenceHoldMs: Math.max(80, Math.min(900, v)),
+            })
+          }
+          step={5}
+          min={80}
+          max={900}
+          description="How long to keep transition context after silence."
+        />
+        <NumInput
+          label="Speech+"
+          value={lipSyncTuning.speechThresholdOffset}
+          onChange={(v) =>
+            patchLipSync({
+              speechThresholdOffset: Math.max(0, Math.min(0.08, v)),
+            })
+          }
+          step={0.001}
+          min={0}
+          max={0.08}
+          description="Margin above noise floor to classify active speech."
+        />
+        <NumInput
+          label="Adapt"
+          value={lipSyncTuning.noiseFloorAdaptLambda}
+          onChange={(v) =>
+            patchLipSync({
+              noiseFloorAdaptLambda: Math.max(0.1, Math.min(12, v)),
+            })
+          }
+          step={0.1}
+          min={0.1}
+          max={12}
+          description="How quickly ambient floor tracks background audio."
+        />
+        <NumInput
+          label="Release"
+          value={lipSyncTuning.noiseFloorReleaseLambda}
+          onChange={(v) =>
+            patchLipSync({
+              noiseFloorReleaseLambda: Math.max(0.05, Math.min(6, v)),
+            })
+          }
+          step={0.05}
+          min={0.05}
+          max={6}
+          description="How quickly floor drifts back after louder speech."
+        />
+        <NumInput
+          label="FloorMin"
+          value={lipSyncTuning.noiseFloorMin}
+          onChange={(v) =>
+            patchLipSync({
+              noiseFloorMin: Math.max(0.001, Math.min(0.2, v)),
+            })
+          }
+          step={0.001}
+          min={0.001}
+          max={0.2}
+          description="Lower bound for adaptive ambient-noise floor."
+        />
+        <NumInput
+          label="FloorMax"
+          value={lipSyncTuning.noiseFloorMax}
+          onChange={(v) =>
+            patchLipSync({
+              noiseFloorMax: Math.max(0.01, Math.min(0.35, v)),
+            })
+          }
+          step={0.001}
+          min={0.01}
+          max={0.35}
+          description="Upper bound for adaptive ambient-noise floor."
+        />
+        <NumInput
+          label="Sw P"
+          value={lipSyncTuning.minSwitchMsPlosive}
+          onChange={(v) =>
+            patchLipSync({
+              minSwitchMsPlosive: Math.max(0, Math.min(80, v)),
+            })
+          }
+          step={1}
+          min={0}
+          max={80}
+          description="Minimum switch interval for plosives (ms)."
+        />
+        <NumInput
+          label="Sw F"
+          value={lipSyncTuning.minSwitchMsFricative}
+          onChange={(v) =>
+            patchLipSync({
+              minSwitchMsFricative: Math.max(0, Math.min(120, v)),
+            })
+          }
+          step={1}
+          min={0}
+          max={120}
+          description="Minimum switch interval for fricatives (ms)."
+        />
+        <NumInput
+          label="Sw V"
+          value={lipSyncTuning.minSwitchMsVowel}
+          onChange={(v) =>
+            patchLipSync({
+              minSwitchMsVowel: Math.max(0, Math.min(140, v)),
+            })
+          }
+          step={1}
+          min={0}
+          max={140}
+          description="Minimum switch interval for vowels (ms)."
+        />
+        <NumInput
+          label="Sw Sil"
+          value={lipSyncTuning.minSwitchMsSilence}
+          onChange={(v) =>
+            patchLipSync({
+              minSwitchMsSilence: Math.max(0, Math.min(200, v)),
+            })
+          }
+          step={1}
+          min={0}
+          max={200}
+          description="Minimum switch interval near silence (ms)."
+        />
+        <NumInput
+          label="Lambda P"
+          value={lipSyncTuning.lambdaPlosive}
+          onChange={(v) =>
+            patchLipSync({
+              lambdaPlosive: Math.max(1, Math.min(80, v)),
+            })
+          }
+          step={1}
+          min={1}
+          max={80}
+          description="Plosive damping speed (lower = softer closures)."
+        />
+        <NumInput
+          label="Lambda F"
+          value={lipSyncTuning.lambdaFricative}
+          onChange={(v) =>
+            patchLipSync({
+              lambdaFricative: Math.max(1, Math.min(80, v)),
+            })
+          }
+          step={1}
+          min={1}
+          max={80}
+          description="Fricative damping speed."
+        />
+        <NumInput
+          label="Lambda V"
+          value={lipSyncTuning.lambdaVowel}
+          onChange={(v) =>
+            patchLipSync({
+              lambdaVowel: Math.max(1, Math.min(80, v)),
+            })
+          }
+          step={1}
+          min={1}
+          max={80}
+          description="Vowel damping speed."
+        />
+        <NumInput
+          label="Lambda S"
+          value={lipSyncTuning.lambdaSilence}
+          onChange={(v) =>
+            patchLipSync({
+              lambdaSilence: Math.max(1, Math.min(80, v)),
+            })
+          }
+          step={1}
+          min={1}
+          max={80}
+          description="Silence damping speed."
+        />
+        <NumInput
+          label="Smooth"
+          value={lipSyncTuning.analyserSmoothing}
+          onChange={(v) =>
+            patchLipSync({
+              analyserSmoothing: Math.max(0, Math.min(0.95, v)),
+            })
+          }
+          step={0.01}
+          min={0}
+          max={0.95}
+          description="Audio analyser smoothing (higher can feel later)."
+        />
+        <NumInput
+          label="Persist"
+          value={lipSyncTuning.visemePersistenceMs}
+          onChange={(v) =>
+            patchLipSync({
+              visemePersistenceMs: Math.max(20, Math.min(260, v)),
+            })
+          }
+          step={1}
+          min={20}
+          max={260}
+          description="How long visemes are kept stable before switching."
+        />
+        <div className="rounded-md border border-white/10 bg-white/5 px-2 py-2">
+          <p className="text-[9.5px] font-semibold uppercase tracking-[0.12em] text-rose-200/90">
+            Tuning Guide
+          </p>
+          <div className="mt-1 space-y-1">
+            {earlyGuide.map((line) => (
+              <p key={line} className="text-[9px] leading-tight text-muted-foreground/75">
+                {line}
+              </p>
+            ))}
+          </div>
+        </div>
+        <div className="pt-1">
+          <button
+            onClick={() => {
+              resetLipSyncTuning();
+              setActivePreset("balanced");
+              setDraft((prev) => {
+                const next = {
+                  ...prev,
+                  lipSyncTuning: { ...DEFAULT_LIPSYNC_TUNING },
+                };
+                setConfig(next);
+                return next;
+              });
+            }}
+            className="w-full rounded-md border border-rose-400/30 bg-rose-500/10 px-2 py-1.5 text-[10px] font-semibold text-rose-300 transition-colors hover:bg-rose-500/20"
+          >
+            Reset Lip-Sync Tuning
+          </button>
+        </div>
       </Section>
 
       </div>

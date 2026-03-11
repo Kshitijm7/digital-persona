@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from "react";
 import initialConfig from "@/config/camera.json";
+import { DEFAULT_LIPSYNC_TUNING, type LipSyncTuning, useLipSyncStore } from "@/store/useLipSyncStore";
 import {
   type AvatarEntry,
   DEFAULT_AVATARS,
@@ -43,6 +44,7 @@ export interface SceneConfig {
     rimLight: LightConfig;
   };
   features: FeatureToggles;
+  lipSyncTuning: LipSyncTuning;
 }
 
 export interface FeatureToggles {
@@ -84,12 +86,17 @@ const SceneConfigCtx = createContext<SceneConfigContextValue | null>(null);
 /* ─── Provider ─────────────────────────────────────────────────────────────── */
 
 export function SceneConfigProvider({ children }: { children: ReactNode }) {
+  const setLipSyncTuning = useLipSyncStore((state) => state.updateTuning);
   // Ensure default features exist if loading from older JSON without them
   const initial: SceneConfig = {
     ...initialConfig,
     features: {
       ...DEFAULT_FEATURES,
       ...((initialConfig as Record<string, unknown>).features as Partial<FeatureToggles> || {}),
+    },
+    lipSyncTuning: {
+      ...DEFAULT_LIPSYNC_TUNING,
+      ...((initialConfig as Record<string, unknown>).lipSyncTuning as Partial<LipSyncTuning> || {}),
     },
   } as SceneConfig;
 
@@ -103,6 +110,9 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
       avatar: patch.avatar ? { ...prev.avatar, ...patch.avatar } : prev.avatar,
       lighting: patch.lighting ? { ...prev.lighting, ...patch.lighting } : prev.lighting,
       features: patch.features ? { ...prev.features, ...patch.features } : prev.features,
+      lipSyncTuning: patch.lipSyncTuning
+        ? { ...prev.lipSyncTuning, ...patch.lipSyncTuning }
+        : prev.lipSyncTuning,
     }));
   }, []);
 
@@ -148,6 +158,10 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
     const saved = removeClientAvatarFromStorage(id);
     setClientAvatarRegistry(saved);
   }, []);
+
+  useEffect(() => {
+    setLipSyncTuning(config.lipSyncTuning);
+  }, [config.lipSyncTuning, setLipSyncTuning]);
 
   return (
     <SceneConfigCtx.Provider

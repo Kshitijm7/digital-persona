@@ -224,11 +224,13 @@ export function Avatar({ audioLevelRef, avatarUrl, currentExpression, skinPreset
 
     // Drive jaw/mouth morph targets for lip-sync using LipSyncEngine
     if (featureToggles.lipSync) {
+      const { wawaLipsync, tuning } = useLipSyncStore.getState();
       lipsyncEngine.updateFromAudioLevel(
         lipSyncLevel,
         delta,
         nodes,
-        useLipSyncStore.getState().wawaLipsync,
+        wawaLipsync,
+        tuning,
       );
     }
 

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AUDIO_CONFIG } from "@/lib/constants";
 import { AudioStreamer } from "@/lib/audio-streamer";
 import { Lipsync } from "wawa-lipsync";
-import { useLipSyncStore } from "@/store/useLipSyncStore";
+import { DEFAULT_LIPSYNC_TUNING, useLipSyncStore } from "@/store/useLipSyncStore";
 import { createLogger } from "@/lib/logging/logger";
 
 const log = createLogger("useAudioProcessor");
@@ -51,6 +51,7 @@ export function useAudioProcessor() {
   // Playback via AudioStreamer
   const playbackCtxRef = useRef<AudioContext | null>(null);
   const audioStreamerRef = useRef<AudioStreamer | null>(null);
+  const wawaRef = useRef<Lipsync | null>(null);
   // rAF handle for playback-level animation loop
   const playbackAnimFrameRef = useRef<number>(0);
   const onAudioScheduledRef = useRef<((startMs: number, durationMs: number) => void) | null>(null);
@@ -250,6 +251,7 @@ export function useAudioProcessor() {
    * Get or create the AudioStreamer instance (single shared AudioContext).
    */
   const getStreamer = useCallback((): AudioStreamer => {
+    const tuning = useLipSyncStore.getState().tuning ?? DEFAULT_LIPSYNC_TUNING;
     if (!audioStreamerRef.current) {
       if (!playbackCtxRef.current) {
         playbackCtxRef.current = new AudioContext({
@@ -261,9 +263,9 @@ export function useAudioProcessor() {
         playbackCtxRef.current,
         AUDIO_CONFIG.output_hz,
       );
-      streamer.analyserNode.smoothingTimeConstant = 0.18;
-      streamer.analyserNode.minDecibels = -90;
-      streamer.analyserNode.maxDecibels = -10;
+      streamer.analyserNode.smoothingTimeConstant = tuning.analyserSmoothing;
+      streamer.analyserNode.minDecibels = -100;
+      streamer.analyserNode.maxDecibels = -30;
       audioStreamerRef.current = streamer;
       streamer.onComplete = () => {
         cancelAnimationFrame(playbackAnimFrameRef.current);
@@ -291,15 +293,22 @@ export function useAudioProcessor() {
       wawa.sampleRate = streamer.context.sampleRate;
       // @ts-expect-error - recompute binWidth
       wawa.binWidth = wawa.sampleRate / streamer.analyserNode.fftSize;
-      // @ts-expect-error - tighten persistence to reduce viseme lag on rapid speech transitions
-      wawa.maxVisemeDuration = 85;
+      // @ts-expect-error - configurable persistence to reduce viseme lag on rapid speech transitions
+      wawa.maxVisemeDuration = tuning.visemePersistenceMs;
 
+      wawaRef.current = wawa;
       useLipSyncStore.getState().setWawaLipsync(wawa);
     }
-    audioStreamerRef.current.onAudioScheduled = (start, duration) => {
+    const streamer = audioStreamerRef.current;
+    streamer.analyserNode.smoothingTimeConstant = tuning.analyserSmoothing;
+    if (wawaRef.current) {
+      // @ts-expect-error - runtime tuning for persistence
+      wawaRef.current.maxVisemeDuration = tuning.visemePersistenceMs;
+    }
+    streamer.onAudioScheduled = (start, duration) => {
       onAudioScheduledRef.current?.(start, duration);
     };
-    return audioStreamerRef.current;
+    return streamer;
   }, [syncCombinedLevel]);
 
   /**
