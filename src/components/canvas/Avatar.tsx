@@ -293,7 +293,7 @@ export function Avatar({
     }
 
     // Execute Emotion Engine (handles UI override, sentiments, and hover effects)
-    /* eslint-disable */
+     
     emotionEngine.update(
       delta,
       nodes,
@@ -306,7 +306,7 @@ export function Avatar({
         aiStyleControl,
       },
     );
-    /* eslint-enable */
+     
 
     // Execute procedural idle engines only for enabled channels.
     idleEngine.update(delta, nodes, {

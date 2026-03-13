@@ -7,6 +7,10 @@ import { useWebcam } from "./useWebcam";
 import { createLogger } from "@/lib/logging/logger";
 
 const log = createLogger("useSessionManager");
+const AMBIENT_INPUT_FLOOR = 0.02;
+const ASSISTANT_ECHO_BLOCK_THRESHOLD = 0.35;
+const ASSISTANT_ECHO_RELEASE_THRESHOLD = 0.6;
+const ASSISTANT_HOLDOFF_MS = 900;
 
 /**
  * Centralized session management hook.
@@ -35,6 +39,7 @@ export function useSessionManager() {
   const isConnected = gemini.status === "connected";
   const micSuppressedChunksRef = useRef(0);
   const micForwardedChunksRef = useRef(0);
+  const assistantHoldoffUntilRef = useRef(0);
 
   // ── Wire up built-in tool handlers ────────────────────────────────────────
   // Registered once; stable because `registerTool` is memoised with useCallback.
@@ -53,7 +58,19 @@ export function useSessionManager() {
 
   const forwardMicChunk = useCallback((chunk: string) => {
     const inputLevel = audio.inputAudioLevelRef.current ?? 0;
-    if (audio.isAssistantSpeakingRef.current && inputLevel < 0.2) {
+    const now = performance.now();
+
+    if (inputLevel < AMBIENT_INPUT_FLOOR) {
+      micSuppressedChunksRef.current += 1;
+      return;
+    }
+
+    const inAssistantHoldoff = now < assistantHoldoffUntilRef.current;
+    const shouldBlockBecauseAssistantAudio =
+      (audio.isAssistantSpeakingRef.current && inputLevel < ASSISTANT_ECHO_BLOCK_THRESHOLD) ||
+      (inAssistantHoldoff && inputLevel < ASSISTANT_ECHO_RELEASE_THRESHOLD);
+
+    if (shouldBlockBecauseAssistantAudio) {
       micSuppressedChunksRef.current += 1;
       if (
         micSuppressedChunksRef.current === 1 ||
@@ -64,6 +81,7 @@ export function useSessionManager() {
             suppressedChunks: micSuppressedChunksRef.current,
             forwardedChunks: micForwardedChunksRef.current,
             inputLevel,
+            inAssistantHoldoff,
           },
           "Suppressed microphone chunk to prevent assistant self-interruption.",
         );
@@ -93,6 +111,7 @@ export function useSessionManager() {
     if (!isInitialized) return;
     log.debug("Attached Gemini audio callback.");
     onAudioDataRef.current = (b64) => {
+      assistantHoldoffUntilRef.current = performance.now() + ASSISTANT_HOLDOFF_MS;
       audio.playAudioChunk(b64);
     };
     return () => {
@@ -109,6 +128,7 @@ export function useSessionManager() {
     if (!isInitialized) return;
     log.debug("Attached interruption callback.");
     onInterruptedRef.current = () => {
+      assistantHoldoffUntilRef.current = 0;
       audio.stopPlayback();
     };
     return () => {
@@ -123,6 +143,10 @@ export function useSessionManager() {
     if (!isInitialized) return;
     log.debug("Attached turn-complete callback.");
     onTurnCompleteRef.current = () => {
+      assistantHoldoffUntilRef.current = Math.max(
+        assistantHoldoffUntilRef.current,
+        performance.now() + ASSISTANT_HOLDOFF_MS,
+      );
       audio.markAssistantTurnComplete();
     };
     return () => {
@@ -168,6 +192,7 @@ export function useSessionManager() {
       setIsInitialized(true);
       micSuppressedChunksRef.current = 0;
       micForwardedChunksRef.current = 0;
+      assistantHoldoffUntilRef.current = 0;
       log.info("Starting session.");
       
       // Proactively initialize and resume the playback AudioContext during 
@@ -202,6 +227,7 @@ export function useSessionManager() {
     setIsInitialized(false);
     micSuppressedChunksRef.current = 0;
     micForwardedChunksRef.current = 0;
+    assistantHoldoffUntilRef.current = 0;
   }, [gemini, audio, webcam]);
 
   // Synchronous lock to prevent dual invocations

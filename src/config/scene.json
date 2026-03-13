@@ -64,7 +64,7 @@
   "features": {
     "lipSync": true,
     "breathing": true,
-    "gazeDrift": true,
+    "gazeDrift": false,
     "blinking": true,
     "hoverEffect": false,
     "headMovement": true,

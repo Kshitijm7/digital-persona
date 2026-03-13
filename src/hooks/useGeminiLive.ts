@@ -18,8 +18,29 @@ const log = createLogger("useGeminiLive");
 const TOOL_HANDLER_TIMEOUT_MS = 10_000;
 const DUPLICATE_AUDIO_WINDOW_MS = 2500;
 const AUDIO_SIGNATURE_TTL_MS = 10_000;
+const TOOL_AUDIO_SUPPRESSION_WINDOW_MS = 1200;
+const TOOL_RESPONSE_GRACE_MS = 450;
+const TEXT_DEDUP_WINDOW_MS = 1200;
+const TRANSCRIPT_DUPLICATE_WINDOW_MS = 10_000;
+
+const TOOL_SILENCE_POLICY = [
+  "TOOL_EXECUTION_RULES:",
+  "- Produce exactly one spoken answer per user turn.",
+  "- When a tool is required, call the tool immediately without speaking filler.",
+  "- Do not say placeholders like 'let me check' before or during tool execution.",
+  "- Speak only after tool results are available.",
+  "- If a sentence has already been spoken this turn, do not paraphrase/restart it.",
+].join("\n");
+
+const normalizeTranscript = (value: string): string =>
+  value
+    .toLowerCase()
+    .replace(/[\p{P}\p{S}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
 export type GeminiStatus = "disconnected" | "connecting" | "connected" | "error";
+type LiveCompatibilityProfile = "full" | "safe" | "minimal";
 
 export interface ToolCallPayload {
   name: string;
@@ -78,6 +99,12 @@ export function useGeminiLive(): UseGeminiLiveReturn {
   const activeConnectionIdRef = useRef<number | null>(null);
   const forwardedAudioChunkCountRef = useRef(0);
   const droppedAudioChunkCountRef = useRef(0);
+  const toolAudioSuppressionUntilRef = useRef(0);
+  const interruptedAwaitingTurnCompleteRef = useRef(false);
+  const pendingToolCallIdsRef = useRef<Set<string>>(new Set());
+  const lastTextPayloadRef = useRef<{ text: string; sentAt: number } | null>(null);
+  const lastAssistantTranscriptRef = useRef<{ text: string; at: number } | null>(null);
+  const compatibilityProfileRef = useRef<LiveCompatibilityProfile>("full");
   const turnGuardRef = useRef<{
     inTurn: boolean;
     suppressCurrentTurn: boolean;
@@ -97,6 +124,25 @@ export function useGeminiLive(): UseGeminiLiveReturn {
     log.debug({ toolName: name }, "Registered tool handler.");
   }, []);
 
+  const downgradeCompatibilityProfile = useCallback((): LiveCompatibilityProfile | null => {
+    const current = compatibilityProfileRef.current;
+    const nextProfile: LiveCompatibilityProfile | null =
+      current === "full" ? "safe" : current === "safe" ? "minimal" : null;
+
+    if (nextProfile) {
+      compatibilityProfileRef.current = nextProfile;
+      log.warn(
+        {
+          previousProfile: current,
+          nextProfile,
+        },
+        "Downgraded Live compatibility profile due unsupported operation.",
+      );
+    }
+
+    return nextProfile;
+  }, []);
+
   const disconnect = useCallback(() => {
     const connectionId = activeConnectionIdRef.current;
     if (sessionRef.current) {
@@ -108,6 +154,11 @@ export function useGeminiLive(): UseGeminiLiveReturn {
     recentAudioSignaturesRef.current.clear();
     forwardedAudioChunkCountRef.current = 0;
     droppedAudioChunkCountRef.current = 0;
+    toolAudioSuppressionUntilRef.current = 0;
+    interruptedAwaitingTurnCompleteRef.current = false;
+    pendingToolCallIdsRef.current.clear();
+    lastTextPayloadRef.current = null;
+    lastAssistantTranscriptRef.current = null;
     turnGuardRef.current.inTurn = false;
     turnGuardRef.current.suppressCurrentTurn = false;
     turnGuardRef.current.currentSignatures = [];
@@ -135,6 +186,11 @@ export function useGeminiLive(): UseGeminiLiveReturn {
     recentAudioSignaturesRef.current.clear();
     forwardedAudioChunkCountRef.current = 0;
     droppedAudioChunkCountRef.current = 0;
+    toolAudioSuppressionUntilRef.current = 0;
+    interruptedAwaitingTurnCompleteRef.current = false;
+    pendingToolCallIdsRef.current.clear();
+    lastTextPayloadRef.current = null;
+    lastAssistantTranscriptRef.current = null;
     turnGuardRef.current.inTurn = false;
     turnGuardRef.current.suppressCurrentTurn = false;
     turnGuardRef.current.currentSignatures = [];
@@ -142,6 +198,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
     log.info(
       {
         connectionId,
+        compatibilityProfile: compatibilityProfileRef.current,
         googleSearchEnabled: config.features.googleSearch,
         proactiveAudioEnabled: config.features.proactiveAudio,
       },
@@ -214,6 +271,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
         if (message.serverContent) {
           if (message.serverContent.interrupted) {
             log.info({ connectionId }, "Interrupted by user speech; stopping playback.");
+            interruptedAwaitingTurnCompleteRef.current = true;
             turnGuardRef.current.inTurn = false;
             turnGuardRef.current.suppressCurrentTurn = false;
             turnGuardRef.current.currentSignatures = [];
@@ -230,6 +288,8 @@ export function useGeminiLive(): UseGeminiLiveReturn {
               guard.suppressCurrentTurn = false;
               guard.currentSignatures = [];
             }
+            interruptedAwaitingTurnCompleteRef.current = false;
+            pendingToolCallIdsRef.current.clear();
 
             log.info(
               {
@@ -242,6 +302,14 @@ export function useGeminiLive(): UseGeminiLiveReturn {
             );
             decaySessionOverrides();
             onTurnComplete.current?.();
+          }
+
+          if (interruptedAwaitingTurnCompleteRef.current) {
+            log.debug(
+              { connectionId },
+              "Ignoring server content while waiting for turn-complete after interruption.",
+            );
+            return;
           }
 
           if (message.serverContent.outputTranscription?.text) {
@@ -260,6 +328,17 @@ export function useGeminiLive(): UseGeminiLiveReturn {
               if (part.inlineData?.mimeType?.startsWith("audio/")) {
                 const audioData = part.inlineData.data as string;
                 const now = performance.now();
+
+                if (now < toolAudioSuppressionUntilRef.current) {
+                  droppedAudioChunkCountRef.current += 1;
+                  continue;
+                }
+
+                if (pendingToolCallIdsRef.current.size > 0) {
+                  droppedAudioChunkCountRef.current += 1;
+                  continue;
+                }
+
                 const signature = `${audioData.length}:${audioData.slice(0, 48)}:${audioData.slice(-48)}`;
                 const seenAt = recentAudioSignaturesRef.current.get(signature);
 
@@ -354,6 +433,40 @@ export function useGeminiLive(): UseGeminiLiveReturn {
               }
 
               if (part.text) {
+                const now = performance.now();
+                const normalized = normalizeTranscript(part.text);
+                const lastTranscript = lastAssistantTranscriptRef.current;
+                if (
+                  normalized &&
+                  lastTranscript &&
+                  normalized === lastTranscript.text &&
+                  now - lastTranscript.at < TRANSCRIPT_DUPLICATE_WINDOW_MS
+                ) {
+                  turnGuardRef.current.suppressCurrentTurn = true;
+                  turnGuardRef.current.inTurn = false;
+                  turnGuardRef.current.currentSignatures = [];
+                  interruptedAwaitingTurnCompleteRef.current = true;
+                  toolAudioSuppressionUntilRef.current = Math.max(
+                    toolAudioSuppressionUntilRef.current,
+                    now + TOOL_RESPONSE_GRACE_MS,
+                  );
+                  recentAudioSignaturesRef.current.clear();
+                  droppedAudioChunkCountRef.current += 1;
+                  onInterrupted.current?.();
+                  log.warn(
+                    {
+                      connectionId,
+                      transcriptWindowMs: TRANSCRIPT_DUPLICATE_WINDOW_MS,
+                    },
+                    "Suppressed repeated assistant transcript within duplicate window.",
+                  );
+                  continue;
+                }
+
+                if (normalized) {
+                  lastAssistantTranscriptRef.current = { text: normalized, at: now };
+                }
+
                 log.debug({ connectionId, transcript: part.text }, "Part transcript.");
                 onTranscript.current?.(part.text);
               }
@@ -371,6 +484,14 @@ export function useGeminiLive(): UseGeminiLiveReturn {
             const callName = call.name ?? "";
             const callArgs = (call.args ?? {}) as Record<string, unknown>;
             const callId = call.id ?? "";
+
+            toolAudioSuppressionUntilRef.current = Math.max(
+              toolAudioSuppressionUntilRef.current,
+              performance.now() + TOOL_AUDIO_SUPPRESSION_WINDOW_MS,
+            );
+            if (callId) {
+              pendingToolCallIdsRef.current.add(callId);
+            }
 
             log.info(
               {
@@ -453,7 +574,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
                 return;
               }
 
-              sessionRef.current.sendToolResponse({
+              const toolResponsePayload = {
                 functionResponses: [
                   {
                     id: callId,
@@ -461,7 +582,22 @@ export function useGeminiLive(): UseGeminiLiveReturn {
                     response: result,
                   },
                 ],
-              });
+              } as unknown as Parameters<Session["sendToolResponse"]>[0];
+              const finalToolResponsePayload =
+                compatibilityProfileRef.current === "full"
+                  ? ({
+                      ...(toolResponsePayload as unknown as Record<string, unknown>),
+                      // Best-effort hint for non-blocking tool flows; skipped in degraded profiles.
+                      scheduling: "SILENT",
+                    } as unknown as Parameters<Session["sendToolResponse"]>[0])
+                  : toolResponsePayload;
+
+              sessionRef.current.sendToolResponse(finalToolResponsePayload);
+              pendingToolCallIdsRef.current.delete(callId);
+              toolAudioSuppressionUntilRef.current = Math.max(
+                toolAudioSuppressionUntilRef.current,
+                performance.now() + TOOL_RESPONSE_GRACE_MS,
+              );
 
               log.info(
                 {
@@ -504,23 +640,32 @@ export function useGeminiLive(): UseGeminiLiveReturn {
               },
             },
           },
-          systemInstruction: `${SYSTEM_PROMPT}\n\n# AVATAR_CONTROL_BASELINE\n${avatarBaselineSummary}`,
-          tools: config.features.googleSearch
+          systemInstruction: `${SYSTEM_PROMPT}\n\n${TOOL_SILENCE_POLICY}\n\n# AVATAR_CONTROL_BASELINE\n${avatarBaselineSummary}`,
+          tools: (compatibilityProfileRef.current === "minimal"
+            ? false
+            : config.features.googleSearch)
             ? GEMINI_TOOLS
             : GEMINI_TOOLS.filter(
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (t: any) => !t.googleSearch,
               ),
           // SDK warning indicates generationConfig is deprecated.
-          temperature: 0.7,
+          temperature: compatibilityProfileRef.current === "minimal" ? 0.8 : 0.85,
+          ...(compatibilityProfileRef.current === "full" ? { topP: 0.95 } : {}),
           maxOutputTokens: 2048,
-          proactivity: {
-            proactiveAudio: config.features.proactiveAudio,
-          },
+          ...(compatibilityProfileRef.current === "full"
+            ? {
+                proactivity: {
+                  proactiveAudio: config.features.proactiveAudio,
+                },
+              }
+            : {}),
           realtimeInputConfig: {
             automaticActivityDetection: {},
           },
-          contextWindowCompression: { slidingWindow: {} },
+          ...(compatibilityProfileRef.current !== "minimal"
+            ? { contextWindowCompression: { slidingWindow: {} } }
+            : {}),
           ...(sessionHandleRef.current
             ? { sessionResumption: { handle: sessionHandleRef.current } }
             : {}),
@@ -561,6 +706,20 @@ export function useGeminiLive(): UseGeminiLiveReturn {
               return;
             }
             if (statusRef.current !== "disconnected") {
+              const unsupportedOperation =
+                e.code === 1008 && /not implemented|not supported|not enabled/i.test(e.reason || "");
+
+              if (unsupportedOperation) {
+                const downgraded = downgradeCompatibilityProfile();
+                const message = downgraded
+                  ? `Live API feature mismatch (code 1008). Switched to ${downgraded.toUpperCase()} compatibility profile. Start session again.`
+                  : "Live API feature mismatch (code 1008) persists even in minimal profile. Disable extra features or switch model/API version.";
+                setErrorMessage(message);
+                statusRef.current = "error";
+                setStatus("error");
+                return;
+              }
+
               statusRef.current = "disconnected";
               setStatus("disconnected");
             }
@@ -597,6 +756,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
     config.headDynamics,
     config.visemeOverrides,
     config.aiStyleControl,
+    downgradeCompatibilityProfile,
   ]);
 
   const sendVideoFrame = useCallback((base64Image: string) => {
@@ -649,15 +809,40 @@ export function useGeminiLive(): UseGeminiLiveReturn {
       return;
     }
 
+    const normalized = text.trim();
+    if (!normalized) {
+      return;
+    }
+
+    const now = performance.now();
+    const lastText = lastTextPayloadRef.current;
+    if (
+      lastText &&
+      lastText.text === normalized &&
+      now - lastText.sentAt < TEXT_DEDUP_WINDOW_MS
+    ) {
+      log.warn(
+        {
+          connectionId: activeConnectionIdRef.current,
+          textLength: normalized.length,
+          dedupWindowMs: TEXT_DEDUP_WINDOW_MS,
+        },
+        "Dropped duplicate text send within dedupe window.",
+      );
+      return;
+    }
+
+    lastTextPayloadRef.current = { text: normalized, sentAt: now };
+
     try {
       sessionRef.current?.sendClientContent({
-        turns: [{ role: "user", parts: [{ text }] }],
+        turns: [{ role: "user", parts: [{ text: normalized }] }],
         turnComplete: true,
       });
       log.info(
         {
           connectionId: activeConnectionIdRef.current,
-          textLength: text.length,
+          textLength: normalized.length,
         },
         "GeminiLive sent text payload.",
       );

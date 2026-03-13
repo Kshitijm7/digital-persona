@@ -121,7 +121,7 @@ export function SceneInner({
         position: [config.camera.position.x, config.camera.position.y, config.camera.position.z],
         fov: config.camera.fov || 50,
       }}
-      shadows="soft"
+      shadows
       dpr={DPR_RANGE}
       gl={{
         antialias: true,
@@ -193,6 +193,7 @@ export function SceneInner({
         opacity={0.35}
         scale={10}
         blur={2.4}
+        near={0.1}
         far={0.8}
         position={[0, 0, 0]}
         color="#22d3ee"

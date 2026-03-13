@@ -26,13 +26,15 @@ export async function POST(req: Request) {
     const incoming = isRecord(data) ? data : {};
 
     // Persistence boundary: baseline only. Ignore all session-ephemeral keys.
-    const {
-      sessionOverrides: _sessionOverrides,
-      sessionAvatarOverrides: _sessionAvatarOverrides,
-      runtimeOverrides: _runtimeOverrides,
-      overrideTTLms: _overrideTTLms,
-      ...baselineIncoming
-    } = incoming;
+    const ephemeralKeys = new Set([
+      "sessionOverrides",
+      "sessionAvatarOverrides",
+      "runtimeOverrides",
+      "overrideTTLms",
+    ]);
+    const baselineIncoming = Object.fromEntries(
+      Object.entries(incoming).filter(([key]) => !ephemeralKeys.has(key))
+    );
 
     const topLevelPatch = {
       camera: baselineIncoming.camera,
