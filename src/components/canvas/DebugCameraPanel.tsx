@@ -108,7 +108,7 @@ export default function DebugCameraPanel() {
     };
     
     // Update context instantly so Scene reacts without reload
-    updateConfig(payload as any);
+    updateConfig(payload);
 
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);

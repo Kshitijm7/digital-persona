@@ -5,6 +5,8 @@ import { Section, Vec3Input, NumInput } from "./ui-components";
 import { useAnimationStore } from "@/store/useAnimationStore";
 import { type AnimationMeta } from "@/lib/animationRegistry.types";
 
+import { type AvatarEntry } from "@/lib/avatars";
+
 export function AvatarSection({
   draft,
   patchAvatar,
@@ -12,7 +14,7 @@ export function AvatarSection({
 }: {
   draft: SceneConfig;
   patchAvatar: (p: Partial<SceneConfig["avatar"]>) => void;
-  avatarRegistry: any[];
+  avatarRegistry: AvatarEntry[];
 }) {
   return (
     <Section title="Avatar" accent="#a78bfa" defaultOpen={false}>

@@ -22,8 +22,8 @@ export function LipSyncSection({
   draft: SceneConfig;
   patchLipSync: (patch: Partial<typeof DEFAULT_LIPSYNC_TUNING>) => void;
   applyLipSyncPreset: (preset: LipSyncPresetKey) => void;
-  setDraft: (d: any) => void;
-  setConfig: (d: any) => void;
+  setDraft: (d: SceneConfig) => void;
+  setConfig: (d: SceneConfig) => void;
 }) {
   const lipSyncTuning = useLipSyncStore((state) => state.tuning);
   const activePreset = useLipSyncStore((state) => state.activePreset);

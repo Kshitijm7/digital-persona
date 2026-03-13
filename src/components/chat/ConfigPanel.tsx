@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 import { useSceneConfig, type SceneConfig, type FeatureToggles, type LightConfig } from "@/hooks/SceneConfigContext";
 import { Copy, Save } from "lucide-react";
-import { useLipSyncStore, DEFAULT_LIPSYNC_TUNING, LIPSYNC_PRESETS, type LipSyncPresetKey } from "@/store/useLipSyncStore";
+import { useLipSyncStore, LIPSYNC_PRESETS, type LipSyncPresetKey } from "@/store/useLipSyncStore";
 
 import { CameraSection } from "./config/CameraSection";
 import { AvatarSection } from "./config/AvatarSection";
@@ -16,9 +16,7 @@ import { LipSyncSection } from "./config/LipSyncSection";
 export function ConfigPanel() {
   const { config, setConfig, avatarRegistry } = useSceneConfig();
   const lipSyncTuning = useLipSyncStore((state) => state.tuning);
-  const activePreset = useLipSyncStore((state) => state.activePreset);
   const updateLipSyncTuning = useLipSyncStore((state) => state.updateTuning);
-  const resetLipSyncTuning = useLipSyncStore((state) => state.resetTuning);
   const setActivePresetStore = useLipSyncStore((state) => state.setActivePreset);
   
   const [saved, setSaved] = useState(false);
