@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AUDIO_CONFIG } from "@/lib/constants";
-import { AudioStreamer } from "@/lib/audio-streamer";
+import { AudioStreamer } from "../lib/audio-streamer";
 import { Lipsync } from "wawa-lipsync";
 import { DEFAULT_LIPSYNC_TUNING, useLipSyncStore } from "@/store/useLipSyncStore";
 import { createLogger } from "@/lib/logging/logger";
@@ -310,7 +310,7 @@ export function useAudioProcessor() {
       // @ts-expect-error - runtime tuning for persistence
       wawaRef.current.maxVisemeDuration = tuning.visemePersistenceMs;
     }
-    streamer.onAudioScheduled = (start, duration) => {
+    streamer.onAudioScheduled = (start: number, duration: number) => {
       onAudioScheduledRef.current?.(start, duration);
     };
     return streamer;
@@ -366,21 +366,7 @@ export function useAudioProcessor() {
       try {
         const now = performance.now();
         const signature = `${base64.length}:${base64.slice(0, 48)}:${base64.slice(Math.max(0, Math.floor(base64.length / 2) - 24), Math.floor(base64.length / 2) + 24)}:${base64.slice(-48)}`;
-        const DUPLICATE_CHUNK_WINDOW_MS = 120;
         const SIGNATURE_TTL_MS = 10000;
-
-        const seenAt = recentChunkSignaturesRef.current.get(signature);
-        if (seenAt !== undefined && now - seenAt < DUPLICATE_CHUNK_WINDOW_MS) {
-          droppedPlaybackChunkCountRef.current += 1;
-          log.debug(
-            {
-              droppedDuplicates: droppedPlaybackChunkCountRef.current,
-              duplicateWindowMs: DUPLICATE_CHUNK_WINDOW_MS,
-            },
-            "Skipping duplicate audio chunk.",
-          );
-          return;
-        }
 
         recentChunkSignaturesRef.current.set(signature, now);
         for (const [seenSignature, seenTime] of recentChunkSignaturesRef.current) {
