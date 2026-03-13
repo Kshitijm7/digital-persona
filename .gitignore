@@ -2,10 +2,10 @@
 
 # dependencies
 /node_modules
-/tmp_visage
-/temp-animations
-/temp-avatar-creator
-/temp-wawa
+/.temp-visage
+/.temp-animations
+/.temp-avatar-creator
+/.temp-wawa
 /.pnp
 .pnp.*
 .yarn/*
@@ -43,4 +43,3 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-temp-animations

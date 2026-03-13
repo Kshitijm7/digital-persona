@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
-const REPO_DIR = path.join(process.cwd(), 'temp-animations');
+const REPO_DIR = path.join(process.cwd(), '.temp-animations');
 const OUT_DIR = path.join(process.cwd(), 'public', 'animations');
 
 const ANIMATIONS = {

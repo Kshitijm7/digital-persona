@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+.agents
+.vscode
+.temp-*
+temp-*
+*.tsbuildinfo
+.env*
