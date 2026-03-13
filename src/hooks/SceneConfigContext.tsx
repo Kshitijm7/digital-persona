@@ -20,6 +20,8 @@ import {
   type MeshPostProcessing,
   type OcularTuning,
   type VisemeOverrides,
+  sanitizeControlPatch,
+  sanitizeEffectiveControls,
 } from "@/lib/avatar-control.types";
 import {
   type AvatarEntry,
@@ -115,17 +117,7 @@ const SceneConfigCtx = createContext<SceneConfigContextValue | null>(null);
 
 export function SceneConfigProvider({ children }: { children: ReactNode }) {
   const setLipSyncTuning = useLipSyncStore((state) => state.updateTuning);
-  // Ensure default features exist if loading from older JSON without them
-  const initial: SceneConfig = {
-    ...initialConfig,
-    features: {
-      ...DEFAULT_FEATURES,
-      ...((initialConfig as Record<string, unknown>).features as Partial<FeatureToggles> || {}),
-    },
-    lipSyncTuning: {
-      ...DEFAULT_LIPSYNC_TUNING,
-      ...((initialConfig as Record<string, unknown>).lipSyncTuning as Partial<LipSyncTuning> || {}),
-    },
+  const sanitizedInitialControls = sanitizeEffectiveControls({
     emotionControl: {
       ...DEFAULT_EMOTION_CONTROL,
       ...((initialConfig as Record<string, unknown>).emotionControl as Partial<EmotionControl> || {}),
@@ -158,11 +150,43 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
       ...DEFAULT_MESH_CONFIG,
       ...((initialConfig as Record<string, unknown>).meshConfig as Partial<MeshConfig> || {}),
     },
+  });
+
+  // Ensure default features exist if loading from older JSON without them
+  const initial: SceneConfig = {
+    ...initialConfig,
+    features: {
+      ...DEFAULT_FEATURES,
+      ...((initialConfig as Record<string, unknown>).features as Partial<FeatureToggles> || {}),
+    },
+    lipSyncTuning: {
+      ...DEFAULT_LIPSYNC_TUNING,
+      ...((initialConfig as Record<string, unknown>).lipSyncTuning as Partial<LipSyncTuning> || {}),
+    },
+    emotionControl: sanitizedInitialControls.emotionControl,
+    ocularTuning: sanitizedInitialControls.ocularTuning,
+    meshPostProcessing: sanitizedInitialControls.meshPostProcessing,
+    headDynamics: sanitizedInitialControls.headDynamics,
+    anatomicalPostProcessing: sanitizedInitialControls.anatomicalPostProcessing,
+    visemeOverrides: sanitizedInitialControls.visemeOverrides,
+    aiStyleControl: sanitizedInitialControls.aiStyleControl,
+    meshConfig: sanitizedInitialControls.meshConfig,
   } as SceneConfig;
 
   const [config, _setConfig] = useState<SceneConfig>(initial);
 
   const updateConfig = useCallback((patch: Partial<SceneConfig>) => {
+    const sanitizedControlPatch = sanitizeControlPatch({
+      emotionControl: patch.emotionControl,
+      ocularTuning: patch.ocularTuning,
+      meshPostProcessing: patch.meshPostProcessing,
+      headDynamics: patch.headDynamics,
+      anatomicalPostProcessing: patch.anatomicalPostProcessing,
+      visemeOverrides: patch.visemeOverrides,
+      aiStyleControl: patch.aiStyleControl,
+      meshConfig: patch.meshConfig,
+    });
+
     _setConfig((prev) => ({
       ...prev,
       ...patch,
@@ -173,29 +197,29 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
       lipSyncTuning: patch.lipSyncTuning
         ? { ...prev.lipSyncTuning, ...patch.lipSyncTuning }
         : prev.lipSyncTuning,
-      emotionControl: patch.emotionControl
-        ? { ...prev.emotionControl, ...patch.emotionControl }
+      emotionControl: sanitizedControlPatch.emotionControl
+        ? { ...prev.emotionControl, ...sanitizedControlPatch.emotionControl }
         : prev.emotionControl,
-      ocularTuning: patch.ocularTuning
-        ? { ...prev.ocularTuning, ...patch.ocularTuning }
+      ocularTuning: sanitizedControlPatch.ocularTuning
+        ? { ...prev.ocularTuning, ...sanitizedControlPatch.ocularTuning }
         : prev.ocularTuning,
-      meshPostProcessing: patch.meshPostProcessing
-        ? { ...prev.meshPostProcessing, ...patch.meshPostProcessing }
+      meshPostProcessing: sanitizedControlPatch.meshPostProcessing
+        ? { ...prev.meshPostProcessing, ...sanitizedControlPatch.meshPostProcessing }
         : prev.meshPostProcessing,
-      headDynamics: patch.headDynamics
-        ? { ...prev.headDynamics, ...patch.headDynamics }
+      headDynamics: sanitizedControlPatch.headDynamics
+        ? { ...prev.headDynamics, ...sanitizedControlPatch.headDynamics }
         : prev.headDynamics,
-      anatomicalPostProcessing: patch.anatomicalPostProcessing
-        ? { ...prev.anatomicalPostProcessing, ...patch.anatomicalPostProcessing }
+      anatomicalPostProcessing: sanitizedControlPatch.anatomicalPostProcessing
+        ? { ...prev.anatomicalPostProcessing, ...sanitizedControlPatch.anatomicalPostProcessing }
         : prev.anatomicalPostProcessing,
-      visemeOverrides: patch.visemeOverrides
-        ? { ...prev.visemeOverrides, ...patch.visemeOverrides }
+      visemeOverrides: sanitizedControlPatch.visemeOverrides
+        ? { ...prev.visemeOverrides, ...sanitizedControlPatch.visemeOverrides }
         : prev.visemeOverrides,
-      aiStyleControl: patch.aiStyleControl
-        ? { ...prev.aiStyleControl, ...patch.aiStyleControl }
+      aiStyleControl: sanitizedControlPatch.aiStyleControl
+        ? { ...prev.aiStyleControl, ...sanitizedControlPatch.aiStyleControl }
         : prev.aiStyleControl,
-      meshConfig: patch.meshConfig
-        ? { ...prev.meshConfig, ...patch.meshConfig }
+      meshConfig: sanitizedControlPatch.meshConfig
+        ? { ...prev.meshConfig, ...sanitizedControlPatch.meshConfig }
         : prev.meshConfig,
     }));
   }, []);

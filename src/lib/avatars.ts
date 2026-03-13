@@ -36,7 +36,7 @@ function isReadyPlayerHost(hostname: string): boolean {
 function withReadyPlayerParams(url: URL, meshConfig: MeshConfig = DEFAULT_MESH_CONFIG): string {
   if (!isReadyPlayerHost(url.hostname)) return url.toString();
   const lod = Math.max(0, Math.min(2, meshConfig.meshLod));
-  const textureAtlasValue = meshConfig.textureAtlas ? "1024" : "none";
+  const textureAtlasValue = meshConfig.textureAtlas || DEFAULT_MESH_CONFIG.textureAtlas;
 
   url.searchParams.set("morphTargets", meshConfig.morphTargets || DEFAULT_MESH_CONFIG.morphTargets);
   url.searchParams.set("lod", String(lod));

@@ -129,36 +129,36 @@ Goal: the model knows the avatar’s biomechanical envelope before generating to
 
 ## 6) File-by-file implementation plan
 
-## Phase A — State architecture
+## Phase A — State architecture (Completed)
 
 1. `src/hooks/SceneConfigContext.tsx`
-- Keep persistent baseline config as-is
-- Add `getEffectiveAvatarControls(sessionOverrides)` helper
+- [x] Keep persistent baseline config as-is
+- [x] Add `getEffectiveAvatarControls(sessionOverrides)` helper
 
 2. `src/store` (new)
-- Add `useAvatarRuntimeStore.ts`:
+- [x] Add `useAvatarRuntimeStore.ts`:
   - `sessionOverrides`
   - `applySessionPatch`
   - `clearSessionOverrides`
   - `decayOverrides`
 
 3. `src/components/canvas/Scene.tsx`
-- Compute effective controls from baseline + runtime overrides
-- Pass effective values to `Avatar`
+- [x] Compute effective controls from baseline + runtime overrides
+- [x] Pass effective values to `Avatar`
 
-## Phase B — Live API bridge
+## Phase B — Live API bridge (Completed)
 
 4. `src/lib/constants.ts`
-- Add tool declarations and parameter schemas for new control tools
+- [x] Add tool declarations and parameter schemas for new control tools
 
 5. `src/app/page.tsx`
-- Register new tool handlers
-- Route patches to runtime override store
-- Keep existing expression/animation tools intact
+- [x] Register new tool handlers
+- [x] Route patches to runtime override store
+- [x] Keep existing expression/animation tools intact
 
 6. `src/hooks/useGeminiLive.ts`
-- On connect, send initial avatar state packet
-- On disconnect/interruption, enforce cleanup hooks for ephemeral control state
+- [x] On connect, send initial avatar state packet
+- [x] On disconnect/interruption, enforce cleanup hooks for ephemeral control state
 
 ## Phase C — Safety and realism guardrails
 
@@ -181,19 +181,19 @@ Goal: the model knows the avatar’s biomechanical envelope before generating to
 
 ## 7) Priority order (no overkill)
 
-## P0 (must-have)
+## P0 (must-have) - Completed
 
-- Runtime override store
-- New tool declarations + handlers
-- Effective merge layer in `Scene`
-- Connect bootstrap state packet
-- Disconnect cleanup
+- [x] Runtime override store
+- [x] New tool declarations + handlers
+- [x] Effective merge layer in `Scene`
+- [x] Connect bootstrap state packet
+- [x] Disconnect cleanup
 
-## P1 (strong realism gains)
+## P1 (strong realism gains) - Completed
 
-- TTL/decay for emotion and style fields
-- Adaptive heuristics from audio confidence (speaking speed/noise)
-- Hysteresis for control switching
+- [x] TTL/decay for emotion and style fields
+- [x] Adaptive heuristics from audio confidence (speaking speed/noise)
+- [x] Hysteresis for control switching
 
 ## P2 (advanced)
 
@@ -256,10 +256,8 @@ Goal: the model knows the avatar’s biomechanical envelope before generating to
 
 ## 12) Immediate next implementation step
 
-Implement **Phase A + Phase B (P0)** in one focused PR:
+Implement **Phase C + Phase D**:
 
-- `useAvatarRuntimeStore` (ephemeral overrides)
-- tool schemas + handlers
-- effective control merge in `Scene`
-- session bootstrap packet in `useGeminiLive`
-- disconnect cleanup behavior
+- `sanitizeControlPatch` and bounds handling in `avatar-control.types.ts`
+- Read effective controls in engines and apply damp/lerp transitions.
+- Ensure API routes ignore session-only overrides when saving to persistent JSON.

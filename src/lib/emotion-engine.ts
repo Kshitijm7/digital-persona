@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { useEmotionStore } from '@/store/useEmotionStore';
 import { type AIStyleControl, type EmotionControl } from '@/lib/avatar-control.types';
+import emotionTuning from '@/config/emotion-tuning.json';
 
 interface EmotionRuntimeOptions {
   emotionControl?: EmotionControl;
@@ -37,12 +38,16 @@ export class EmotionEngine {
     // Dampen the score so emotions drift naturally rather than snapping
     this.smoothedScore = THREE.MathUtils.damp(this.smoothedScore, sentimentScore, 2, delta);
 
-    if (!isSpeaking && this.smoothedScore > 0.2) {
-      targetSmile = Math.min(1, targetSmile + this.smoothedScore * 0.8);
-      targetCheek = Math.min(1, targetCheek + this.smoothedScore * 0.5);
-    } else if (!isSpeaking && this.smoothedScore < -0.2) {
-      targetFrown = Math.min(1, targetFrown + Math.abs(this.smoothedScore) * 0.7);
-      targetBrowDown = Math.min(1, targetBrowDown + Math.abs(this.smoothedScore) * 0.5);
+    const { sentiment } = emotionTuning;
+
+    if (this.smoothedScore > sentiment.positiveThreshold) {
+      const multiplier = isSpeaking ? sentiment.speechMultiplier : 1.0;
+      targetSmile = Math.min(1, targetSmile + (this.smoothedScore * sentiment.smileWeight * multiplier));      
+      targetCheek = Math.min(1, targetCheek + (this.smoothedScore * sentiment.cheekWeight * multiplier));      
+    } else if (this.smoothedScore < sentiment.negativeThreshold) {
+      const multiplier = isSpeaking ? sentiment.speechMultiplier : 1.0;
+      targetFrown = Math.min(1, targetFrown + (Math.abs(this.smoothedScore) * sentiment.frownWeight * multiplier));
+      targetBrowDown = Math.min(1, targetBrowDown + (Math.abs(this.smoothedScore) * sentiment.browDownWeight * multiplier));
     }
 
     const hasExplicitExpression = Boolean(currentExpression && currentExpression !== "idle");
@@ -83,25 +88,14 @@ export class EmotionEngine {
     }
 
     // UI Expression Overrides (highest priority)
-    if ((currentExpression === "happy" || currentExpression === "smile") && !isSpeaking) {
-      targetSmile = 1.0; targetCheek = 0.6;
-    } else if (currentExpression === "sad") {
-      targetBrowInnerUp = 0.8; targetFrown = 0.8;
-    } else if (currentExpression === "angry") {
-      targetBrowDown = 0.9; targetFrown = 0.4;
-    } else if (currentExpression === "surprised") {
-      targetBrowInnerUp = 1.0; targetSmile = 0.2;
-    } else if (currentExpression === "fearful") {
-      targetBrowInnerUp = 1.0; targetFrown = 0.5;
-    } else if (currentExpression === "disgusted") {
-      targetBrowDown = 0.5; targetFrown = 0.6;
-    }
-
-    if (isSpeaking && !hasExplicitExpression) {
-      // Keep talking frames clean for visemes/jaw while preserving subtle affect.
-      targetSmile *= 0.2;
-      targetCheek *= 0.2;
-      targetFrown *= 0.2;
+    const activeExpr = emotionTuning.expressions[currentExpression as keyof typeof emotionTuning.expressions];
+    if (activeExpr) {
+      const stateIdx = isSpeaking ? 1 : 0;
+      targetSmile = Math.max(targetSmile, activeExpr.smile[stateIdx]);
+      targetCheek = Math.max(targetCheek, activeExpr.cheek[stateIdx]);
+      targetBrowInnerUp = Math.max(targetBrowInnerUp, activeExpr.browInnerUp[stateIdx]);
+      targetBrowDown = Math.max(targetBrowDown, activeExpr.browDown[stateIdx]);
+      targetFrown = Math.max(targetFrown, activeExpr.frown[stateIdx]);
     }
 
     const dict = head.morphTargetDictionary;

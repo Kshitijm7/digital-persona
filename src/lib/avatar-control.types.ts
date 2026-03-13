@@ -1,5 +1,15 @@
 export type EmotionState = "neutral" | "joy" | "anger" | "sadness" | "surprised" | "fear" | "disgust";
 
+const EMOTION_STATES: readonly EmotionState[] = [
+  "neutral",
+  "joy",
+  "anger",
+  "sadness",
+  "surprised",
+  "fear",
+  "disgust",
+];
+
 export interface EmotionControl {
   emotionState: EmotionState;
   emotionIntensity: number;
@@ -63,7 +73,7 @@ export interface MeshConfig {
   useDracoCompression: boolean;
   useMeshOptCompression: boolean;
   morphTargets: string;
-  textureAtlas: boolean;
+  textureAtlas: "none" | "1024";
 }
 
 export interface AvatarControlBundle {
@@ -151,14 +161,37 @@ export const DEFAULT_MESH_CONFIG: MeshConfig = {
   useDracoCompression: true,
   useMeshOptCompression: true,
   morphTargets: "ARKit,Oculus Visemes",
-  textureAtlas: true,
+  textureAtlas: "1024",
 };
+
+function sanitizeTextureAtlas(value: unknown): MeshConfig["textureAtlas"] | undefined {
+  if (value === "none" || value === "1024") {
+    return value;
+  }
+
+  // Backward compatibility with previous boolean schema.
+  if (typeof value === "boolean") {
+    return value ? "1024" : "none";
+  }
+
+  return undefined;
+}
 
 function clampNumber(value: number | undefined, min: number, max: number): number | undefined {
   if (typeof value !== "number" || Number.isNaN(value) || !Number.isFinite(value)) {
     return undefined;
   }
   return Math.max(min, Math.min(max, value));
+}
+
+function clampInteger(value: number | undefined, min: number, max: number): number | undefined {
+  const clamped = clampNumber(value, min, max);
+  return clamped === undefined ? undefined : Math.round(clamped);
+}
+
+function sanitizeEmotionState(value: unknown): EmotionState | undefined {
+  if (typeof value !== "string") return undefined;
+  return (EMOTION_STATES as readonly string[]).includes(value) ? (value as EmotionState) : undefined;
 }
 
 function compactObject<T extends Record<string, unknown>>(value: T): Partial<T> {
@@ -218,7 +251,7 @@ export function sanitizeAvatarControlOverrides(input: AvatarControlOverrides): A
 
   if (input.emotionControl) {
     patch.emotionControl = {
-      emotionState: input.emotionControl.emotionState,
+      emotionState: sanitizeEmotionState(input.emotionControl.emotionState),
       emotionIntensity: clampNumber(input.emotionControl.emotionIntensity, 0, 1),
       textConditioning: typeof input.emotionControl.textConditioning === "string"
         ? input.emotionControl.textConditioning.slice(0, 240)
@@ -232,8 +265,8 @@ export function sanitizeAvatarControlOverrides(input: AvatarControlOverrides): A
   if (input.ocularTuning) {
     patch.ocularTuning = {
       saccadeStrength: clampNumber(input.ocularTuning.saccadeStrength, 0, 2),
-      blinkIntervalMs: clampNumber(input.ocularTuning.blinkIntervalMs, 500, 12000),
-      blinkDurationMs: clampNumber(input.ocularTuning.blinkDurationMs, 60, 450),
+      blinkIntervalMs: clampInteger(input.ocularTuning.blinkIntervalMs, 500, 12000),
+      blinkDurationMs: clampInteger(input.ocularTuning.blinkDurationMs, 60, 450),
       eyelidOpenOffset: clampNumber(input.ocularTuning.eyelidOpenOffset, -0.25, 0.25),
       lookAtIK: typeof input.ocularTuning.lookAtIK === "boolean" ? input.ocularTuning.lookAtIK : undefined,
     };
@@ -296,7 +329,7 @@ export function sanitizeAvatarControlOverrides(input: AvatarControlOverrides): A
         : undefined,
       emotionIntensity: clampNumber(input.aiStyleControl.emotionIntensity, 0, 1.5),
       cfgScale: clampNumber(input.aiStyleControl.cfgScale, 0.5, 6),
-      coarticulationWindowSize: clampNumber(input.aiStyleControl.coarticulationWindowSize, 1, 12),
+      coarticulationWindowSize: clampInteger(input.aiStyleControl.coarticulationWindowSize, 1, 12),
     };
   }
 
@@ -306,11 +339,53 @@ export function sanitizeAvatarControlOverrides(input: AvatarControlOverrides): A
       useDracoCompression: typeof input.meshConfig.useDracoCompression === "boolean" ? input.meshConfig.useDracoCompression : undefined,
       useMeshOptCompression: typeof input.meshConfig.useMeshOptCompression === "boolean" ? input.meshConfig.useMeshOptCompression : undefined,
       morphTargets: typeof input.meshConfig.morphTargets === "string" ? input.meshConfig.morphTargets.slice(0, 120) : undefined,
-      textureAtlas: typeof input.meshConfig.textureAtlas === "boolean" ? input.meshConfig.textureAtlas : undefined,
+      textureAtlas: sanitizeTextureAtlas(input.meshConfig.textureAtlas),
     };
   }
 
   return compactOverrides(patch);
+}
+
+export function sanitizeControlPatch(input: AvatarControlOverrides): AvatarControlOverrides {
+  return sanitizeAvatarControlOverrides(input);
+}
+
+export function sanitizeEffectiveControls(input: AvatarControlBundle): AvatarControlBundle {
+  const sanitized = sanitizeAvatarControlOverrides(input);
+  return {
+    emotionControl: {
+      ...DEFAULT_EMOTION_CONTROL,
+      ...(sanitized.emotionControl ?? {}),
+    },
+    ocularTuning: {
+      ...DEFAULT_OCULAR_TUNING,
+      ...(sanitized.ocularTuning ?? {}),
+    },
+    meshPostProcessing: {
+      ...DEFAULT_MESH_POST_PROCESSING,
+      ...(sanitized.meshPostProcessing ?? {}),
+    },
+    headDynamics: {
+      ...DEFAULT_HEAD_DYNAMICS,
+      ...(sanitized.headDynamics ?? {}),
+    },
+    anatomicalPostProcessing: {
+      ...DEFAULT_ANATOMICAL_POST_PROCESSING,
+      ...(sanitized.anatomicalPostProcessing ?? {}),
+    },
+    visemeOverrides: {
+      ...DEFAULT_VISEME_OVERRIDES,
+      ...(sanitized.visemeOverrides ?? {}),
+    },
+    aiStyleControl: {
+      ...DEFAULT_AI_STYLE_CONTROL,
+      ...(sanitized.aiStyleControl ?? {}),
+    },
+    meshConfig: {
+      ...DEFAULT_MESH_CONFIG,
+      ...(sanitized.meshConfig ?? {}),
+    },
+  };
 }
 
 export function getDefaultAvatarControlBundle(): AvatarControlBundle {
@@ -353,6 +428,7 @@ export function mergeAvatarControls(
   sessionOverrides: AvatarControlOverrides = {},
   applyOfflineIdealProfile: boolean = false,
 ): AvatarControlBundle {
+  const sanitizedBaseline = sanitizeEffectiveControls(baseline);
   const sanitizedSession = compactOverrides(sanitizeAvatarControlOverrides(sessionOverrides));
   const offlineProfile = applyOfflineIdealProfile
     ? compactOverrides(sanitizeAvatarControlOverrides(getOfflineIdealOverrides()))
@@ -360,42 +436,42 @@ export function mergeAvatarControls(
 
   return {
     emotionControl: {
-      ...baseline.emotionControl,
+      ...sanitizedBaseline.emotionControl,
       ...(offlineProfile.emotionControl ?? {}),
       ...(sanitizedSession.emotionControl ?? {}),
     },
     ocularTuning: {
-      ...baseline.ocularTuning,
+      ...sanitizedBaseline.ocularTuning,
       ...(offlineProfile.ocularTuning ?? {}),
       ...(sanitizedSession.ocularTuning ?? {}),
     },
     meshPostProcessing: {
-      ...baseline.meshPostProcessing,
+      ...sanitizedBaseline.meshPostProcessing,
       ...(offlineProfile.meshPostProcessing ?? {}),
       ...(sanitizedSession.meshPostProcessing ?? {}),
     },
     headDynamics: {
-      ...baseline.headDynamics,
+      ...sanitizedBaseline.headDynamics,
       ...(offlineProfile.headDynamics ?? {}),
       ...(sanitizedSession.headDynamics ?? {}),
     },
     anatomicalPostProcessing: {
-      ...baseline.anatomicalPostProcessing,
+      ...sanitizedBaseline.anatomicalPostProcessing,
       ...(offlineProfile.anatomicalPostProcessing ?? {}),
       ...(sanitizedSession.anatomicalPostProcessing ?? {}),
     },
     visemeOverrides: {
-      ...baseline.visemeOverrides,
+      ...sanitizedBaseline.visemeOverrides,
       ...(offlineProfile.visemeOverrides ?? {}),
       ...(sanitizedSession.visemeOverrides ?? {}),
     },
     aiStyleControl: {
-      ...baseline.aiStyleControl,
+      ...sanitizedBaseline.aiStyleControl,
       ...(offlineProfile.aiStyleControl ?? {}),
       ...(sanitizedSession.aiStyleControl ?? {}),
     },
     meshConfig: {
-      ...baseline.meshConfig,
+      ...sanitizedBaseline.meshConfig,
       ...(offlineProfile.meshConfig ?? {}),
       ...(sanitizedSession.meshConfig ?? {}),
     },

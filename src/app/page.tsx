@@ -38,7 +38,7 @@ import { SkinPreset, SKIN_PRESETS } from "@/lib/skinConfig";
 import { useEmotionStore } from "@/store/useEmotionStore";
 import { createLogger } from "@/lib/logging/logger";
 import { useAvatarRuntimeStore } from "@/store/useAvatarRuntimeStore";
-import { sanitizeAvatarControlOverrides, type AvatarControlOverrides } from "@/lib/avatar-control.types";
+import { sanitizeControlPatch, type AvatarControlOverrides } from "@/lib/avatar-control.types";
 import { useLipSyncStore } from "@/store/useLipSyncStore";
 
 // Scene Config
@@ -120,6 +120,7 @@ function HomePage() {
   // Debug mode — enables OrbitControls + live camera panel
   const [debugMode, setDebugMode] = useState(false);
   const expressionResetTimeoutRef = useRef<number | null>(null);
+  const lastTranscriptChunkRef = useRef<{ text: string; at: number } | null>(null);
   const applySessionPatch = useAvatarRuntimeStore((state) => state.applySessionPatch);
   const clearSessionOverrides = useAvatarRuntimeStore((state) => state.clearSessionOverrides);
   const updateLipSyncTuning = useLipSyncStore((state) => state.updateTuning);
@@ -246,14 +247,14 @@ function HomePage() {
 
     registerTool("set_avatar_controls", (args) => {
       const rawPatch = (args.patch as AvatarControlOverrides | undefined) ?? {};
-      const sanitized = sanitizeAvatarControlOverrides(rawPatch);
+      const sanitized = sanitizeControlPatch(rawPatch);
       applySessionPatch(sanitized);
       log.info({ patchKeys: Object.keys(sanitized) }, "Tool override: set_avatar_controls");
       return { acknowledged: true, applied: sanitized };
     });
 
     registerTool("set_emotion_state", (args) => {
-      const patch = sanitizeAvatarControlOverrides({
+      const patch = sanitizeControlPatch({
         emotionControl: {
           emotionState: args.emotionState as "neutral" | "joy" | "anger" | "sadness" | "surprised" | "fear" | "disgust" | undefined,
           emotionIntensity: typeof args.emotionIntensity === "number" ? args.emotionIntensity : undefined,
@@ -265,7 +266,7 @@ function HomePage() {
     });
 
     registerTool("set_ocular_state", (args) => {
-      const patch = sanitizeAvatarControlOverrides({
+      const patch = sanitizeControlPatch({
         ocularTuning: {
           saccadeStrength: typeof args.saccadeStrength === "number" ? args.saccadeStrength : undefined,
           blinkIntervalMs: typeof args.blinkIntervalMs === "number" ? args.blinkIntervalMs : undefined,
@@ -281,7 +282,7 @@ function HomePage() {
     registerTool("set_lipsync_profile", (args) => {
       const visemeOverrides = args.visemeOverrides as AvatarControlOverrides["visemeOverrides"] | undefined;
       const aiStyleControl = args.aiStyleControl as AvatarControlOverrides["aiStyleControl"] | undefined;
-      const patch = sanitizeAvatarControlOverrides({ visemeOverrides, aiStyleControl });
+      const patch = sanitizeControlPatch({ visemeOverrides, aiStyleControl });
       applySessionPatch(patch);
 
       if (aiStyleControl?.coarticulationWindowSize !== undefined) {
@@ -324,6 +325,18 @@ function HomePage() {
   // Wire up transcript handler
   useEffect(() => {
     onTranscriptRef.current = (text) => {
+      const normalized = text.trim();
+      if (!normalized) return;
+
+      const now = Date.now();
+      const previous = lastTranscriptChunkRef.current;
+      if (previous && previous.text === normalized && now - previous.at < 2500) {
+        log.debug({ chunkLength: text.length }, "Dropped duplicate transcript chunk.");
+        return;
+      }
+
+      lastTranscriptChunkRef.current = { text: normalized, at: now };
+
       log.debug({ chunkLength: text.length }, "Transcript chunk received.");
       chat.appendAssistantMessage(text);
       if (text.trim()) {

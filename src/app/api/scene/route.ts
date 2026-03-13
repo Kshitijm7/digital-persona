@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
+import { sanitizeControlPatch, type AvatarControlOverrides } from "@/lib/avatar-control.types";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 export async function POST(req: Request) {
   try {
@@ -17,30 +22,62 @@ export async function POST(req: Request) {
       console.warn("Could not read existing scene.json, creating new one.");
     }
 
-    const existing = existingData as Record<string, unknown>;
-    const incoming = data as Record<string, unknown>;
+    const existing = isRecord(existingData) ? existingData : {};
+    const incoming = isRecord(data) ? data : {};
+
+    // Persistence boundary: baseline only. Ignore all session-ephemeral keys.
+    const {
+      sessionOverrides: _sessionOverrides,
+      sessionAvatarOverrides: _sessionAvatarOverrides,
+      runtimeOverrides: _runtimeOverrides,
+      overrideTTLms: _overrideTTLms,
+      ...baselineIncoming
+    } = incoming;
+
+    const topLevelPatch = {
+      camera: baselineIncoming.camera,
+      avatar: baselineIncoming.avatar,
+      lighting: baselineIncoming.lighting,
+      features: baselineIncoming.features,
+      lipSyncTuning: baselineIncoming.lipSyncTuning,
+    };
 
     type ConfigNode = Record<string, unknown>;
     const e = existing as Record<string, ConfigNode>;
-    const i = incoming as Record<string, ConfigNode>;
+    const i = baselineIncoming as Record<string, ConfigNode>;
+
+    const sanitizedControls = sanitizeControlPatch({
+      emotionControl: isRecord(i.emotionControl) ? (i.emotionControl as AvatarControlOverrides["emotionControl"]) : undefined,
+      ocularTuning: isRecord(i.ocularTuning) ? (i.ocularTuning as AvatarControlOverrides["ocularTuning"]) : undefined,
+      meshPostProcessing: isRecord(i.meshPostProcessing) ? (i.meshPostProcessing as AvatarControlOverrides["meshPostProcessing"]) : undefined,
+      headDynamics: isRecord(i.headDynamics) ? (i.headDynamics as AvatarControlOverrides["headDynamics"]) : undefined,
+      anatomicalPostProcessing: isRecord(i.anatomicalPostProcessing)
+        ? (i.anatomicalPostProcessing as AvatarControlOverrides["anatomicalPostProcessing"])
+        : undefined,
+      visemeOverrides: isRecord(i.visemeOverrides) ? (i.visemeOverrides as AvatarControlOverrides["visemeOverrides"]) : undefined,
+      aiStyleControl: isRecord(i.aiStyleControl) ? (i.aiStyleControl as AvatarControlOverrides["aiStyleControl"]) : undefined,
+      meshConfig: isRecord(i.meshConfig) ? (i.meshConfig as AvatarControlOverrides["meshConfig"]) : undefined,
+    });
 
     // Deep merge the data
     const mergedData = {
       ...existing,
-      ...incoming,
-      camera: { ...(e.camera || {}), ...(i.camera || {}) },
-      avatar: { ...(e.avatar || {}), ...(i.avatar || {}) },
-      lighting: { ...(e.lighting || {}), ...(i.lighting || {}) },
-      features: { ...(e.features || {}), ...(i.features || {}) },
-      lipSyncTuning: { ...(e.lipSyncTuning || {}), ...(i.lipSyncTuning || {}) },
-      emotionControl: { ...(e.emotionControl || {}), ...(i.emotionControl || {}) },
-      ocularTuning: { ...(e.ocularTuning || {}), ...(i.ocularTuning || {}) },
-      meshPostProcessing: { ...(e.meshPostProcessing || {}), ...(i.meshPostProcessing || {}) },
-      headDynamics: { ...(e.headDynamics || {}), ...(i.headDynamics || {}) },
-      anatomicalPostProcessing: { ...(e.anatomicalPostProcessing || {}), ...(i.anatomicalPostProcessing || {}) },
-      visemeOverrides: { ...(e.visemeOverrides || {}), ...(i.visemeOverrides || {}) },
-      aiStyleControl: { ...(e.aiStyleControl || {}), ...(i.aiStyleControl || {}) },
-      meshConfig: { ...(e.meshConfig || {}), ...(i.meshConfig || {}) },
+      camera: { ...(e.camera || {}), ...(topLevelPatch.camera as ConfigNode || {}) },
+      avatar: { ...(e.avatar || {}), ...(topLevelPatch.avatar as ConfigNode || {}) },
+      lighting: { ...(e.lighting || {}), ...(topLevelPatch.lighting as ConfigNode || {}) },
+      features: { ...(e.features || {}), ...(topLevelPatch.features as ConfigNode || {}) },
+      lipSyncTuning: { ...(e.lipSyncTuning || {}), ...(topLevelPatch.lipSyncTuning as ConfigNode || {}) },
+      emotionControl: { ...(e.emotionControl || {}), ...(sanitizedControls.emotionControl || {}) },
+      ocularTuning: { ...(e.ocularTuning || {}), ...(sanitizedControls.ocularTuning || {}) },
+      meshPostProcessing: { ...(e.meshPostProcessing || {}), ...(sanitizedControls.meshPostProcessing || {}) },
+      headDynamics: { ...(e.headDynamics || {}), ...(sanitizedControls.headDynamics || {}) },
+      anatomicalPostProcessing: {
+        ...(e.anatomicalPostProcessing || {}),
+        ...(sanitizedControls.anatomicalPostProcessing || {}),
+      },
+      visemeOverrides: { ...(e.visemeOverrides || {}), ...(sanitizedControls.visemeOverrides || {}) },
+      aiStyleControl: { ...(e.aiStyleControl || {}), ...(sanitizedControls.aiStyleControl || {}) },
+      meshConfig: { ...(e.meshConfig || {}), ...(sanitizedControls.meshConfig || {}) },
     };
     
     // Write back to the config file

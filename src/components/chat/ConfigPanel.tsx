@@ -12,6 +12,7 @@ import { AvatarSection } from "./config/AvatarSection";
 import { LightingSection } from "./config/LightingSection";
 import { FeaturesSection } from "./config/FeaturesSection";
 import { LipSyncSection } from "./config/LipSyncSection";
+import { AvatarRealismSection } from "./config/AvatarRealismSection";
 
 export function ConfigPanel() {
   const { config, setConfig, avatarRegistry } = useSceneConfig();
@@ -97,6 +98,50 @@ export function ConfigPanel() {
     setConfig(next);
   };
 
+  const patchAvatarControls = (
+    patch: {
+      emotionControl?: Partial<SceneConfig["emotionControl"]>;
+      ocularTuning?: Partial<SceneConfig["ocularTuning"]>;
+      meshPostProcessing?: Partial<SceneConfig["meshPostProcessing"]>;
+      headDynamics?: Partial<SceneConfig["headDynamics"]>;
+      anatomicalPostProcessing?: Partial<SceneConfig["anatomicalPostProcessing"]>;
+      visemeOverrides?: Partial<SceneConfig["visemeOverrides"]>;
+      aiStyleControl?: Partial<SceneConfig["aiStyleControl"]>;
+      meshConfig?: Partial<SceneConfig["meshConfig"]>;
+    },
+  ) => {
+    const next: SceneConfig = {
+      ...draft,
+      emotionControl: patch.emotionControl
+        ? { ...draft.emotionControl, ...patch.emotionControl }
+        : draft.emotionControl,
+      ocularTuning: patch.ocularTuning
+        ? { ...draft.ocularTuning, ...patch.ocularTuning }
+        : draft.ocularTuning,
+      meshPostProcessing: patch.meshPostProcessing
+        ? { ...draft.meshPostProcessing, ...patch.meshPostProcessing }
+        : draft.meshPostProcessing,
+      headDynamics: patch.headDynamics
+        ? { ...draft.headDynamics, ...patch.headDynamics }
+        : draft.headDynamics,
+      anatomicalPostProcessing: patch.anatomicalPostProcessing
+        ? { ...draft.anatomicalPostProcessing, ...patch.anatomicalPostProcessing }
+        : draft.anatomicalPostProcessing,
+      visemeOverrides: patch.visemeOverrides
+        ? { ...draft.visemeOverrides, ...patch.visemeOverrides }
+        : draft.visemeOverrides,
+      aiStyleControl: patch.aiStyleControl
+        ? { ...draft.aiStyleControl, ...patch.aiStyleControl }
+        : draft.aiStyleControl,
+      meshConfig: patch.meshConfig
+        ? { ...draft.meshConfig, ...patch.meshConfig }
+        : draft.meshConfig,
+    };
+
+    setDraft(next);
+    setConfig(next);
+  };
+
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-black/10">
       {/* Scrollable Area for Settings */}
@@ -105,6 +150,7 @@ export function ConfigPanel() {
         <AvatarSection draft={draft} patchAvatar={patchAvatar} avatarRegistry={avatarRegistry} />
         <LightingSection draft={draft} patchLight={patchLight} />
         <FeaturesSection draft={draft} toggleFeatureLocal={toggleFeatureLocal} />
+        <AvatarRealismSection draft={draft} patchAvatarControls={patchAvatarControls} />
         <LipSyncSection 
           draft={draft} 
           patchLipSync={patchLipSync} 

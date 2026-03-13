@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 import {
   type AvatarControlOverrides,
-  sanitizeAvatarControlOverrides,
+  sanitizeControlPatch,
 } from "@/lib/avatar-control.types";
 
 interface AvatarRuntimeState {
@@ -18,7 +18,7 @@ export const useAvatarRuntimeStore = create<AvatarRuntimeState>((set) => ({
   lastUpdatedAt: 0,
 
   applySessionPatch: (patch) => {
-    const sanitized = sanitizeAvatarControlOverrides(patch);
+    const sanitized = sanitizeControlPatch(patch);
     set((state) => ({
       sessionOverrides: {
         ...state.sessionOverrides,

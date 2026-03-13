@@ -1,0 +1,64 @@
+{
+  "sentiment": {
+    "positiveThreshold": 0.15,
+    "negativeThreshold": -0.15,
+    "boostMultiplier": 2.2,
+    "decayFactor": 0.95,
+    "speechMultiplier": 0.45,
+    "smileWeight": 0.9,
+    "cheekWeight": 0.6,
+    "frownWeight": 0.8,
+    "browDownWeight": 0.6
+  },
+  "expressions": {
+    "happy": {
+      "smile": [1.0, 0.55],
+      "cheek": [0.6, 0.35],
+      "browInnerUp": [0, 0],
+      "browDown": [0, 0],
+      "frown": [0, 0]
+    },
+    "smile": {
+      "smile": [1.0, 0.55],
+      "cheek": [0.6, 0.35],
+      "browInnerUp": [0, 0],
+      "browDown": [0, 0],
+      "frown": [0, 0]
+    },
+    "sad": {
+      "smile": [0, 0],
+      "cheek": [0, 0],
+      "browInnerUp": [0.8, 0.6],
+      "browDown": [0, 0],
+      "frown": [0.8, 0.45]
+    },
+    "angry": {
+      "smile": [0, 0],
+      "cheek": [0, 0],
+      "browInnerUp": [0, 0],
+      "browDown": [0.9, 0.5],
+      "frown": [0.5, 0.3]
+    },
+    "surprised": {
+      "smile": [0.2, 0.1],
+      "cheek": [0, 0],
+      "browInnerUp": [1.0, 0.7],
+      "browDown": [0, 0],
+      "frown": [0, 0]
+    },
+    "fearful": {
+      "smile": [0, 0],
+      "cheek": [0, 0],
+      "browInnerUp": [1.0, 0.6],
+      "browDown": [0.3, 0.2],
+      "frown": [0.5, 0.35]
+    },
+    "disgusted": {
+      "smile": [0, 0],
+      "cheek": [0, 0],
+      "browInnerUp": [0, 0],
+      "browDown": [0.6, 0.4],
+      "frown": [0.6, 0.4]
+    }
+  }
+}
