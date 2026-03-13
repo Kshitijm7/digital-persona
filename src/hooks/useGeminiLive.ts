@@ -10,6 +10,7 @@ import {
 import { GEMINI_MODEL, GEMINI_TOOLS, SYSTEM_PROMPT } from "@/lib/constants";
 import { createLogger } from "@/lib/logging/logger";
 import { useSceneConfig } from "@/hooks/SceneConfigContext";
+import { useAvatarRuntimeStore } from "@/store/useAvatarRuntimeStore";
 
 const log = createLogger("useGeminiLive");
 
@@ -50,6 +51,8 @@ export interface UseGeminiLiveReturn {
 
 export function useGeminiLive(): UseGeminiLiveReturn {
   const { config } = useSceneConfig();
+  const clearSessionOverrides = useAvatarRuntimeStore((state) => state.clearSessionOverrides);
+  const decaySessionOverrides = useAvatarRuntimeStore((state) => state.decaySessionOverrides);
   const sessionRef = useRef<Session | null>(null);
   const [status, setStatus] = useState<GeminiStatus>("disconnected");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -113,8 +116,9 @@ export function useGeminiLive(): UseGeminiLiveReturn {
 
     statusRef.current = "disconnected";
     setStatus("disconnected");
+    clearSessionOverrides();
     log.info({ connectionId }, "Gemini Live disconnected.");
-  }, []);
+  }, [clearSessionOverrides]);
 
   const connect = useCallback(async () => {
     if (sessionRef.current) {
@@ -236,6 +240,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
               },
               "Turn complete.",
             );
+            decaySessionOverrides();
             onTurnComplete.current?.();
           }
 
@@ -479,6 +484,15 @@ export function useGeminiLive(): UseGeminiLiveReturn {
     };
 
     try {
+      const avatarBaselineSummary = JSON.stringify({
+        emotionControl: config.emotionControl,
+        ocularTuning: config.ocularTuning,
+        headDynamics: config.headDynamics,
+        visemeOverrides: config.visemeOverrides,
+        aiStyleControl: config.aiStyleControl,
+        policy: "Use subtle, bounded, natural updates. Prefer small incremental patches over abrupt changes.",
+      });
+
       const session = await ai.live.connect({
         model: GEMINI_MODEL,
         config: {
@@ -490,7 +504,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
               },
             },
           },
-          systemInstruction: SYSTEM_PROMPT,
+          systemInstruction: `${SYSTEM_PROMPT}\n\n# AVATAR_CONTROL_BASELINE\n${avatarBaselineSummary}`,
           tools: config.features.googleSearch
             ? GEMINI_TOOLS
             : GEMINI_TOOLS.filter(
@@ -573,7 +587,17 @@ export function useGeminiLive(): UseGeminiLiveReturn {
       statusRef.current = "error";
       setStatus("error");
     }
-  }, [disconnect, config.features.googleSearch, config.features.proactiveAudio]);
+  }, [
+    disconnect,
+    decaySessionOverrides,
+    config.features.googleSearch,
+    config.features.proactiveAudio,
+    config.emotionControl,
+    config.ocularTuning,
+    config.headDynamics,
+    config.visemeOverrides,
+    config.aiStyleControl,
+  ]);
 
   const sendVideoFrame = useCallback((base64Image: string) => {
     if (statusRef.current !== "connected") {

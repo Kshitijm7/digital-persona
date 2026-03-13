@@ -4,6 +4,14 @@ import { OCULUS_VISEMES } from './viseme-map';
 import { Lipsync } from 'wawa-lipsync';
 import { createLogger } from '@/lib/logging/logger';
 import { DEFAULT_LIPSYNC_TUNING, type LipSyncTuning } from '@/store/useLipSyncStore';
+import {
+  DEFAULT_ANATOMICAL_POST_PROCESSING,
+  DEFAULT_MESH_POST_PROCESSING,
+  DEFAULT_VISEME_OVERRIDES,
+  type AnatomicalPostProcessing,
+  type MeshPostProcessing,
+  type VisemeOverrides,
+} from '@/lib/avatar-control.types';
 
 const log = createLogger("lipsync-engine");
 
@@ -57,6 +65,12 @@ interface ScheduledViseme {
   applyAtMs: number;
 }
 
+interface LipSyncRuntimeOptions {
+  visemeOverrides?: VisemeOverrides;
+  meshPostProcessing?: MeshPostProcessing;
+  anatomicalPostProcessing?: AnatomicalPostProcessing;
+}
+
 export class LipSyncEngine {
   private currentTuning: LipSyncTuning = { ...DEFAULT_LIPSYNC_TUNING };
   private lastViseme = 'viseme_sil';
@@ -76,6 +90,8 @@ export class LipSyncEngine {
     capturedAtMs: 0,
     applyAtMs: 0,
   };
+  private morphHistory = new Map<string, number>();
+  private currentRuntimeOptions: LipSyncRuntimeOptions = {};
 
   /**
    * Native audio fallback: Maps raw volume level to basic jaw and mouth shapes.
@@ -87,8 +103,10 @@ export class LipSyncEngine {
     nodes: Record<string, THREE.Object3D | undefined>,
     wawaLipsync: Lipsync | null = null,
     tuning: LipSyncTuning = DEFAULT_LIPSYNC_TUNING,
+    options: LipSyncRuntimeOptions = {},
   ) {
     this.currentTuning = tuning;
+    this.currentRuntimeOptions = options;
     const head = nodes.Wolf3D_Head as THREE.SkinnedMesh;
     const teeth = nodes.Wolf3D_Teeth as THREE.SkinnedMesh;
 
@@ -215,6 +233,9 @@ export class LipSyncEngine {
               target = anticipationWeight;
             }
 
+            target *= this.getVisemeScale(viseme, options.visemeOverrides);
+            target = this.applyRegionalPostProcessing(target, viseme, options);
+
             this.applyMorph(head, viseme, target, delta, visemeLambda);
             if (teeth && teeth.morphTargetDictionary && teeth.morphTargetInfluences) {
               this.applyMorph(teeth, viseme, target * 0.95, delta, visemeLambda);
@@ -225,12 +246,15 @@ export class LipSyncEngine {
             head,
             this.lastViseme,
             this.previousViseme,
-            stabilizedActiveWeight,
-            carryWeight,
+            stabilizedActiveWeight * this.getVisemeScale(this.lastViseme, options.visemeOverrides),
+            carryWeight * this.getVisemeScale(this.previousViseme, options.visemeOverrides),
             delta,
             visemeLambda,
             anticipatedViseme,
-            anticipationWeight,
+            anticipatedViseme
+              ? anticipationWeight * this.getVisemeScale(anticipatedViseme, options.visemeOverrides)
+              : anticipationWeight,
+            options,
           );
         }
         return;
@@ -279,6 +303,7 @@ export class LipSyncEngine {
     lambda: number,
     anticipatedViseme: string | null = null,
     anticipatedWeight: number = 0,
+    options: LipSyncRuntimeOptions = {},
   ) {
     const accum: Partial<Record<(typeof ARKIT_MOUTH_TARGETS)[number], number>> = {};
     for (const target of ARKIT_MOUTH_TARGETS) {
@@ -290,7 +315,7 @@ export class LipSyncEngine {
       if (!mapping || weight <= 0) return;
       for (const [target, mix] of Object.entries(mapping)) {
         const key = target as (typeof ARKIT_MOUTH_TARGETS)[number];
-        accum[key] = Math.min(1, (accum[key] ?? 0) + weight * (mix ?? 0));
+        accum[key] = (accum[key] ?? 0) + weight * (mix ?? 0);
       }
     };
 
@@ -299,7 +324,8 @@ export class LipSyncEngine {
     blendViseme(anticipatedViseme ?? "", anticipatedWeight);
 
     for (const target of ARKIT_MOUTH_TARGETS) {
-      this.applyMorph(mesh, target, accum[target] ?? 0, delta, lambda);
+      const processed = this.applyRegionalPostProcessing(accum[target] ?? 0, target, options);
+      this.applyMorph(mesh, target, processed, delta, lambda);
     }
   }
 
@@ -531,8 +557,90 @@ export class LipSyncEngine {
     const influences = mesh.morphTargetInfluences;
     if (dict && influences && dict[name] !== undefined) {
       const idx = dict[name];
-      influences[idx] = THREE.MathUtils.damp(influences[idx], target, lambda, delta);
+      const smoothedTarget = this.applyTemporalSmoothing(name, target, this.currentRuntimeOptions);
+      influences[idx] = THREE.MathUtils.damp(influences[idx], smoothedTarget, lambda, delta);
     }
+  }
+
+  private isLowerFaceTarget(name: string): boolean {
+    const key = name.toLowerCase();
+    return key.includes('jaw') || key.includes('mouth') || key.includes('lip') || key.includes('viseme') || key.includes('tongue');
+  }
+
+  private applyRegionalPostProcessing(
+    target: number,
+    name: string,
+    options: LipSyncRuntimeOptions,
+  ): number {
+    const meshPostProcessing = {
+      ...DEFAULT_MESH_POST_PROCESSING,
+      ...(options.meshPostProcessing ?? {}),
+    };
+    const anatomicalPostProcessing = {
+      ...DEFAULT_ANATOMICAL_POST_PROCESSING,
+      ...(options.anatomicalPostProcessing ?? {}),
+    };
+
+    const isLower = this.isLowerFaceTarget(name);
+    const maskLevel = THREE.MathUtils.clamp(anatomicalPostProcessing.faceMaskLevel, 0, 1);
+    const softMask = THREE.MathUtils.clamp(maskLevel * (1 - anatomicalPostProcessing.faceMaskSoftness * 10), 0, 1);
+    const blendedStrength = THREE.MathUtils.lerp(
+      anatomicalPostProcessing.upperFaceStrength,
+      anatomicalPostProcessing.lowerFaceStrength,
+      isLower ? softMask : 1 - softMask,
+    );
+
+    let processed = target * blendedStrength * meshPostProcessing.skinStrength;
+    if (name.toLowerCase().includes('jaw')) {
+      processed = processed * meshPostProcessing.jawStrength * anatomicalPostProcessing.jawStrength;
+      processed += anatomicalPostProcessing.jawHeight;
+      processed += meshPostProcessing.lipOpenOffset;
+    }
+    if (name.toLowerCase().includes('tongue')) {
+      processed = processed * anatomicalPostProcessing.tongueStrength + anatomicalPostProcessing.tongueHeight;
+    }
+
+    return THREE.MathUtils.clamp(processed, 0, 1.2);
+  }
+
+  private applyTemporalSmoothing(
+    name: string,
+    target: number,
+    options: LipSyncRuntimeOptions,
+  ): number {
+    const meshPostProcessing = {
+      ...DEFAULT_MESH_POST_PROCESSING,
+      ...(options.meshPostProcessing ?? {}),
+    };
+    const previous = this.morphHistory.get(name) ?? target;
+    const smoothing = this.isLowerFaceTarget(name)
+      ? meshPostProcessing.lowerFaceSmoothing
+      : meshPostProcessing.upperFaceSmoothing;
+    const alpha = THREE.MathUtils.clamp(smoothing * 60, 0, 0.95);
+    const next = previous + (target - previous) * (1 - alpha);
+    this.morphHistory.set(name, next);
+    return next;
+  }
+
+  private getVisemeScale(viseme: string, overrides?: VisemeOverrides): number {
+    const resolvedOverrides = {
+      ...DEFAULT_VISEME_OVERRIDES,
+      ...(overrides ?? {}),
+    };
+    const masterScale = resolvedOverrides.drivingDataScale;
+    if (viseme === 'viseme_PP' || viseme === 'viseme_nn') {
+      return THREE.MathUtils.clamp(masterScale * (resolvedOverrides.strengthBMP / 100), 0, 3);
+    }
+    if (viseme === 'viseme_FF' || viseme === 'viseme_TH') {
+      return THREE.MathUtils.clamp(masterScale * (resolvedOverrides.strengthFV / 100), 0, 3);
+    }
+    if (viseme === 'viseme_O' || viseme === 'viseme_U' || viseme === 'viseme_RR') {
+      return THREE.MathUtils.clamp(masterScale * (resolvedOverrides.strengthWOo / 100), 0, 3);
+    }
+    if (viseme === 'viseme_SS' || viseme === 'viseme_DD' || viseme === 'viseme_CH' || viseme === 'viseme_kk') {
+      return THREE.MathUtils.clamp(masterScale * (resolvedOverrides.strengthSZTD / 100), 0, 3);
+    }
+    return THREE.MathUtils.clamp(masterScale, 0, 3);
   }
 }
 

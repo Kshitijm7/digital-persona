@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>Digital Persona 🤖🎭</h1>
+  <h1>Digital Persona 🤖</h1>
   <p><strong>A Persistent, Emotionally Reactive 3D Avatar Powered by Gemini 2.5 Flash Native Audio.</strong></p>
 </div>
 

@@ -4,6 +4,24 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import initialConfig from "@/config/scene.json";
 import { DEFAULT_LIPSYNC_TUNING, type LipSyncTuning, useLipSyncStore } from "@/store/useLipSyncStore";
 import {
+  DEFAULT_AI_STYLE_CONTROL,
+  DEFAULT_ANATOMICAL_POST_PROCESSING,
+  DEFAULT_EMOTION_CONTROL,
+  DEFAULT_HEAD_DYNAMICS,
+  DEFAULT_MESH_CONFIG,
+  DEFAULT_MESH_POST_PROCESSING,
+  DEFAULT_OCULAR_TUNING,
+  DEFAULT_VISEME_OVERRIDES,
+  type AIStyleControl,
+  type AnatomicalPostProcessing,
+  type EmotionControl,
+  type HeadDynamics,
+  type MeshConfig,
+  type MeshPostProcessing,
+  type OcularTuning,
+  type VisemeOverrides,
+} from "@/lib/avatar-control.types";
+import {
   type AvatarEntry,
   DEFAULT_AVATARS,
   fetchAvatarRegistry,
@@ -47,6 +65,14 @@ export interface SceneConfig {
   };
   features: FeatureToggles;
   lipSyncTuning: LipSyncTuning;
+  emotionControl: EmotionControl;
+  ocularTuning: OcularTuning;
+  meshPostProcessing: MeshPostProcessing;
+  headDynamics: HeadDynamics;
+  anatomicalPostProcessing: AnatomicalPostProcessing;
+  visemeOverrides: VisemeOverrides;
+  aiStyleControl: AIStyleControl;
+  meshConfig: MeshConfig;
 }
 
 export interface FeatureToggles {
@@ -100,6 +126,38 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
       ...DEFAULT_LIPSYNC_TUNING,
       ...((initialConfig as Record<string, unknown>).lipSyncTuning as Partial<LipSyncTuning> || {}),
     },
+    emotionControl: {
+      ...DEFAULT_EMOTION_CONTROL,
+      ...((initialConfig as Record<string, unknown>).emotionControl as Partial<EmotionControl> || {}),
+    },
+    ocularTuning: {
+      ...DEFAULT_OCULAR_TUNING,
+      ...((initialConfig as Record<string, unknown>).ocularTuning as Partial<OcularTuning> || {}),
+    },
+    meshPostProcessing: {
+      ...DEFAULT_MESH_POST_PROCESSING,
+      ...((initialConfig as Record<string, unknown>).meshPostProcessing as Partial<MeshPostProcessing> || {}),
+    },
+    headDynamics: {
+      ...DEFAULT_HEAD_DYNAMICS,
+      ...((initialConfig as Record<string, unknown>).headDynamics as Partial<HeadDynamics> || {}),
+    },
+    anatomicalPostProcessing: {
+      ...DEFAULT_ANATOMICAL_POST_PROCESSING,
+      ...((initialConfig as Record<string, unknown>).anatomicalPostProcessing as Partial<AnatomicalPostProcessing> || {}),
+    },
+    visemeOverrides: {
+      ...DEFAULT_VISEME_OVERRIDES,
+      ...((initialConfig as Record<string, unknown>).visemeOverrides as Partial<VisemeOverrides> || {}),
+    },
+    aiStyleControl: {
+      ...DEFAULT_AI_STYLE_CONTROL,
+      ...((initialConfig as Record<string, unknown>).aiStyleControl as Partial<AIStyleControl> || {}),
+    },
+    meshConfig: {
+      ...DEFAULT_MESH_CONFIG,
+      ...((initialConfig as Record<string, unknown>).meshConfig as Partial<MeshConfig> || {}),
+    },
   } as SceneConfig;
 
   const [config, _setConfig] = useState<SceneConfig>(initial);
@@ -115,6 +173,30 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
       lipSyncTuning: patch.lipSyncTuning
         ? { ...prev.lipSyncTuning, ...patch.lipSyncTuning }
         : prev.lipSyncTuning,
+      emotionControl: patch.emotionControl
+        ? { ...prev.emotionControl, ...patch.emotionControl }
+        : prev.emotionControl,
+      ocularTuning: patch.ocularTuning
+        ? { ...prev.ocularTuning, ...patch.ocularTuning }
+        : prev.ocularTuning,
+      meshPostProcessing: patch.meshPostProcessing
+        ? { ...prev.meshPostProcessing, ...patch.meshPostProcessing }
+        : prev.meshPostProcessing,
+      headDynamics: patch.headDynamics
+        ? { ...prev.headDynamics, ...patch.headDynamics }
+        : prev.headDynamics,
+      anatomicalPostProcessing: patch.anatomicalPostProcessing
+        ? { ...prev.anatomicalPostProcessing, ...patch.anatomicalPostProcessing }
+        : prev.anatomicalPostProcessing,
+      visemeOverrides: patch.visemeOverrides
+        ? { ...prev.visemeOverrides, ...patch.visemeOverrides }
+        : prev.visemeOverrides,
+      aiStyleControl: patch.aiStyleControl
+        ? { ...prev.aiStyleControl, ...patch.aiStyleControl }
+        : prev.aiStyleControl,
+      meshConfig: patch.meshConfig
+        ? { ...prev.meshConfig, ...patch.meshConfig }
+        : prev.meshConfig,
     }));
   }, []);
 

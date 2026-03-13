@@ -93,5 +93,69 @@
     "noiseFloorMax": 0.08,
     "analyserSmoothing": 0.18,
     "visemePersistenceMs": 85
+  },
+  "emotionControl": {
+    "emotionState": "neutral",
+    "emotionIntensity": 0.25,
+    "textConditioning": "speaks with calm neutral expression",
+    "fineGrainedAUs": []
+  },
+  "ocularTuning": {
+    "saccadeStrength": 0.4,
+    "blinkIntervalMs": 3000,
+    "blinkDurationMs": 100,
+    "eyelidOpenOffset": 0.06,
+    "lookAtIK": true
+  },
+  "meshPostProcessing": {
+    "upperFaceSmoothing": 0.001,
+    "lowerFaceSmoothing": 0.0023,
+    "skinStrength": 1,
+    "jawStrength": 1.1,
+    "lipOpenOffset": 0
+  },
+  "headDynamics": {
+    "headMotionAccelerationLimit": 0.15,
+    "generateIdleMotion": true,
+    "pitchRange": [
+      -15,
+      15
+    ],
+    "yawRange": [
+      -20,
+      20
+    ]
+  },
+  "anatomicalPostProcessing": {
+    "lowerFaceStrength": 1,
+    "upperFaceStrength": 1,
+    "faceMaskLevel": 0.5,
+    "faceMaskSoftness": 0.0085,
+    "jawStrength": 1,
+    "jawHeight": 0,
+    "jawDepth": 0,
+    "tongueStrength": 1,
+    "tongueHeight": 0,
+    "tongueDepth": 0
+  },
+  "visemeOverrides": {
+    "drivingDataScale": 1,
+    "strengthBMP": 100,
+    "strengthFV": 100,
+    "strengthWOo": 100,
+    "strengthSZTD": 100
+  },
+  "aiStyleControl": {
+    "emotionTextPrompt": "neutral professional expression",
+    "emotionIntensity": 0.35,
+    "cfgScale": 1.2,
+    "coarticulationWindowSize": 5
+  },
+  "meshConfig": {
+    "meshLod": 1,
+    "useDracoCompression": true,
+    "useMeshOptCompression": true,
+    "morphTargets": "ARKit,Oculus Visemes",
+    "textureAtlas": true
   }
 }

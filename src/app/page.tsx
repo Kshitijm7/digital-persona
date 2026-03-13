@@ -37,6 +37,9 @@ import { SkinPreset, SKIN_PRESETS } from "@/lib/skinConfig";
 // Emotion
 import { useEmotionStore } from "@/store/useEmotionStore";
 import { createLogger } from "@/lib/logging/logger";
+import { useAvatarRuntimeStore } from "@/store/useAvatarRuntimeStore";
+import { sanitizeAvatarControlOverrides, type AvatarControlOverrides } from "@/lib/avatar-control.types";
+import { useLipSyncStore } from "@/store/useLipSyncStore";
 
 // Scene Config
 import { SceneConfigProvider } from "@/hooks/SceneConfigContext";
@@ -117,6 +120,9 @@ function HomePage() {
   // Debug mode — enables OrbitControls + live camera panel
   const [debugMode, setDebugMode] = useState(false);
   const expressionResetTimeoutRef = useRef<number | null>(null);
+  const applySessionPatch = useAvatarRuntimeStore((state) => state.applySessionPatch);
+  const clearSessionOverrides = useAvatarRuntimeStore((state) => state.clearSessionOverrides);
+  const updateLipSyncTuning = useLipSyncStore((state) => state.updateTuning);
 
   // Session management
   const {
@@ -237,7 +243,67 @@ function HomePage() {
       );
       return { acknowledged: true, characters_displayed: content.length };
     });
-  }, [registerTool, chat]);
+
+    registerTool("set_avatar_controls", (args) => {
+      const rawPatch = (args.patch as AvatarControlOverrides | undefined) ?? {};
+      const sanitized = sanitizeAvatarControlOverrides(rawPatch);
+      applySessionPatch(sanitized);
+      log.info({ patchKeys: Object.keys(sanitized) }, "Tool override: set_avatar_controls");
+      return { acknowledged: true, applied: sanitized };
+    });
+
+    registerTool("set_emotion_state", (args) => {
+      const patch = sanitizeAvatarControlOverrides({
+        emotionControl: {
+          emotionState: args.emotionState as "neutral" | "joy" | "anger" | "sadness" | "surprised" | "fear" | "disgust" | undefined,
+          emotionIntensity: typeof args.emotionIntensity === "number" ? args.emotionIntensity : undefined,
+          textConditioning: typeof args.textConditioning === "string" ? args.textConditioning : undefined,
+        },
+      });
+      applySessionPatch(patch);
+      return { acknowledged: true, applied: patch };
+    });
+
+    registerTool("set_ocular_state", (args) => {
+      const patch = sanitizeAvatarControlOverrides({
+        ocularTuning: {
+          saccadeStrength: typeof args.saccadeStrength === "number" ? args.saccadeStrength : undefined,
+          blinkIntervalMs: typeof args.blinkIntervalMs === "number" ? args.blinkIntervalMs : undefined,
+          blinkDurationMs: typeof args.blinkDurationMs === "number" ? args.blinkDurationMs : undefined,
+          eyelidOpenOffset: typeof args.eyelidOpenOffset === "number" ? args.eyelidOpenOffset : undefined,
+          lookAtIK: typeof args.lookAtIK === "boolean" ? args.lookAtIK : undefined,
+        },
+      });
+      applySessionPatch(patch);
+      return { acknowledged: true, applied: patch };
+    });
+
+    registerTool("set_lipsync_profile", (args) => {
+      const visemeOverrides = args.visemeOverrides as AvatarControlOverrides["visemeOverrides"] | undefined;
+      const aiStyleControl = args.aiStyleControl as AvatarControlOverrides["aiStyleControl"] | undefined;
+      const patch = sanitizeAvatarControlOverrides({ visemeOverrides, aiStyleControl });
+      applySessionPatch(patch);
+
+      if (aiStyleControl?.coarticulationWindowSize !== undefined) {
+        updateLipSyncTuning({
+          anticipationWindowMs: Math.max(8, Math.min(180, aiStyleControl.coarticulationWindowSize * (1000 / 60))),
+        });
+      }
+
+      return { acknowledged: true, applied: patch };
+    });
+
+    registerTool("reset_avatar_controls", () => {
+      clearSessionOverrides();
+      return { acknowledged: true, cleared: true };
+    });
+  }, [registerTool, chat, applySessionPatch, clearSessionOverrides, updateLipSyncTuning]);
+
+  useEffect(() => {
+    if (session.status === "disconnected" || session.status === "error") {
+      clearSessionOverrides();
+    }
+  }, [session.status, clearSessionOverrides]);
 
   useEffect(() => {
     onToolCallRef.current = ({ name, id, args }) => {
@@ -332,6 +398,7 @@ function HomePage() {
             audioLevelRef={session.assistantAudioLevelRef}
             currentExpression={currentExpression}
             skinPreset={selectedSkin}
+            isConnected={session.isConnected}
             debug={debugMode}
           />
       </div>

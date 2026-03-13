@@ -11,6 +11,8 @@ import { Avatar } from "./Avatar";
 import { SkinPreset } from "@/lib/skinConfig";
 import { getAvatarUrl } from "@/lib/avatars";
 import { useSceneConfig } from "@/hooks/SceneConfigContext";
+import { useAvatarRuntimeStore } from "@/store/useAvatarRuntimeStore";
+import { mergeAvatarControls } from "@/lib/avatar-control.types";
 import { SceneLoader } from "./SceneLoader";
 import { SmartCameraControls } from "./SmartCameraControls";
 
@@ -32,6 +34,7 @@ export interface SceneProps {
   audioLevelRef: React.RefObject<number>;
   currentExpression?: string;
   skinPreset?: SkinPreset | null;
+  isConnected?: boolean;
   /** When true, enables OrbitControls + live debug panel. Default: false */
   debug?: boolean;
 }
@@ -49,11 +52,32 @@ export function SceneInner({
   audioLevelRef,
   currentExpression = "idle",
   skinPreset = null,
+  isConnected = false,
   debug = false,
 }: SceneProps) {
   const { config, avatarRegistry } = useSceneConfig();
+  const sessionOverrides = useAvatarRuntimeStore((state) => state.sessionOverrides);
   const features = config.features;
-  const avatarUrl = getAvatarUrl(config.avatar.model, avatarRegistry);
+
+  const effectiveControls = React.useMemo(
+    () => mergeAvatarControls(
+      {
+        emotionControl: config.emotionControl,
+        ocularTuning: config.ocularTuning,
+        meshPostProcessing: config.meshPostProcessing,
+        headDynamics: config.headDynamics,
+        anatomicalPostProcessing: config.anatomicalPostProcessing,
+        visemeOverrides: config.visemeOverrides,
+        aiStyleControl: config.aiStyleControl,
+        meshConfig: config.meshConfig,
+      },
+      isConnected ? sessionOverrides : {},
+      !isConnected,
+    ),
+    [config, isConnected, sessionOverrides],
+  );
+
+  const avatarUrl = getAvatarUrl(config.avatar.model, avatarRegistry, effectiveControls.meshConfig);
 
   /* Camera controls distance limits — from config or Visage CAMERA defaults */
   const controlsMinDistance = config.camera.controlsMinDistance ?? 0.5;
@@ -126,6 +150,13 @@ export function SceneInner({
             currentExpression={currentExpression}
             skinPreset={skinPreset}
             featureToggles={features}
+            emotionControl={effectiveControls.emotionControl}
+            ocularTuning={effectiveControls.ocularTuning}
+            meshPostProcessing={effectiveControls.meshPostProcessing}
+            headDynamics={effectiveControls.headDynamics}
+            anatomicalPostProcessing={effectiveControls.anatomicalPostProcessing}
+            visemeOverrides={effectiveControls.visemeOverrides}
+            aiStyleControl={effectiveControls.aiStyleControl}
           />
         </group>
         <Environment preset="studio" />

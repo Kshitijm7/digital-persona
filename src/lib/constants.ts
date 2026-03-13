@@ -103,6 +103,65 @@ export const GEMINI_TOOLS: Tool[] = [
           required: ["expression"],
         },
       },
+      {
+        name: "set_avatar_controls",
+        description: "Apply partial runtime avatar control overrides for realism tuning during the current session.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            patch: {
+              type: Type.OBJECT,
+              description: "Partial patch for advanced controls (emotionControl, ocularTuning, headDynamics, meshPostProcessing, anatomicalPostProcessing, visemeOverrides, aiStyleControl, meshConfig).",
+            },
+          },
+          required: ["patch"],
+        },
+      },
+      {
+        name: "set_emotion_state",
+        description: "Set high-level emotion state and intensity for the current session.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            emotionState: {
+              type: Type.STRING,
+              enum: ["neutral", "joy", "anger", "sadness", "surprised", "fear", "disgust"],
+            },
+            emotionIntensity: { type: Type.NUMBER },
+            textConditioning: { type: Type.STRING },
+          },
+        },
+      },
+      {
+        name: "set_ocular_state",
+        description: "Set eye dynamics for the current session.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            saccadeStrength: { type: Type.NUMBER },
+            blinkIntervalMs: { type: Type.NUMBER },
+            blinkDurationMs: { type: Type.NUMBER },
+            eyelidOpenOffset: { type: Type.NUMBER },
+            lookAtIK: { type: Type.BOOLEAN },
+          },
+        },
+      },
+      {
+        name: "set_lipsync_profile",
+        description: "Adjust viseme emphasis and co-articulation behavior for current session.",
+        parameters: {
+          type: Type.OBJECT,
+          properties: {
+            visemeOverrides: { type: Type.OBJECT },
+            aiStyleControl: { type: Type.OBJECT },
+          },
+        },
+      },
+      {
+        name: "reset_avatar_controls",
+        description: "Clear all runtime avatar control overrides and return to baseline scene defaults.",
+        parameters: { type: Type.OBJECT, properties: {} },
+      },
     ],
   },
   { googleSearch: {} },

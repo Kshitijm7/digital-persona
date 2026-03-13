@@ -33,6 +33,14 @@ export async function POST(req: Request) {
       lighting: { ...(e.lighting || {}), ...(i.lighting || {}) },
       features: { ...(e.features || {}), ...(i.features || {}) },
       lipSyncTuning: { ...(e.lipSyncTuning || {}), ...(i.lipSyncTuning || {}) },
+      emotionControl: { ...(e.emotionControl || {}), ...(i.emotionControl || {}) },
+      ocularTuning: { ...(e.ocularTuning || {}), ...(i.ocularTuning || {}) },
+      meshPostProcessing: { ...(e.meshPostProcessing || {}), ...(i.meshPostProcessing || {}) },
+      headDynamics: { ...(e.headDynamics || {}), ...(i.headDynamics || {}) },
+      anatomicalPostProcessing: { ...(e.anatomicalPostProcessing || {}), ...(i.anatomicalPostProcessing || {}) },
+      visemeOverrides: { ...(e.visemeOverrides || {}), ...(i.visemeOverrides || {}) },
+      aiStyleControl: { ...(e.aiStyleControl || {}), ...(i.aiStyleControl || {}) },
+      meshConfig: { ...(e.meshConfig || {}), ...(i.meshConfig || {}) },
     };
     
     // Write back to the config file

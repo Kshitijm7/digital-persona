@@ -24,6 +24,22 @@ import { LipSyncEngine } from "@/lib/lipsync-engine";
 import { EmotionEngine } from "@/lib/emotion-engine";
 import { useLipSyncStore } from "@/store/useLipSyncStore";
 import { createLogger } from "@/lib/logging/logger";
+import {
+  DEFAULT_AI_STYLE_CONTROL,
+  DEFAULT_ANATOMICAL_POST_PROCESSING,
+  DEFAULT_EMOTION_CONTROL,
+  DEFAULT_HEAD_DYNAMICS,
+  DEFAULT_MESH_POST_PROCESSING,
+  DEFAULT_OCULAR_TUNING,
+  DEFAULT_VISEME_OVERRIDES,
+  type AIStyleControl,
+  type AnatomicalPostProcessing,
+  type EmotionControl,
+  type HeadDynamics,
+  type MeshPostProcessing,
+  type OcularTuning,
+  type VisemeOverrides,
+} from "@/lib/avatar-control.types";
 
 const log = createLogger("Avatar");
 
@@ -62,6 +78,13 @@ interface AvatarProps {
   currentExpression?: string;
   skinPreset?: SkinPreset | null;
   featureToggles?: FeatureToggles;
+  emotionControl?: EmotionControl;
+  ocularTuning?: OcularTuning;
+  meshPostProcessing?: MeshPostProcessing;
+  headDynamics?: HeadDynamics;
+  anatomicalPostProcessing?: AnatomicalPostProcessing;
+  visemeOverrides?: VisemeOverrides;
+  aiStyleControl?: AIStyleControl;
 }
 
 const DEFAULT_FEATURES: FeatureToggles = {
@@ -79,7 +102,20 @@ const DEFAULT_FEATURES: FeatureToggles = {
  * Wolf3D avatar with real-time lip-sync, idle breathing,
  * MeshPhysicalMaterial skin with SSS, and gaze drift.
  */
-export function Avatar({ audioLevelRef, avatarUrl, currentExpression, skinPreset = null, featureToggles = DEFAULT_FEATURES }: AvatarProps) {
+export function Avatar({
+  audioLevelRef,
+  avatarUrl,
+  currentExpression,
+  skinPreset = null,
+  featureToggles = DEFAULT_FEATURES,
+  emotionControl = DEFAULT_EMOTION_CONTROL,
+  ocularTuning = DEFAULT_OCULAR_TUNING,
+  meshPostProcessing = DEFAULT_MESH_POST_PROCESSING,
+  headDynamics = DEFAULT_HEAD_DYNAMICS,
+  anatomicalPostProcessing = DEFAULT_ANATOMICAL_POST_PROCESSING,
+  visemeOverrides = DEFAULT_VISEME_OVERRIDES,
+  aiStyleControl = DEFAULT_AI_STYLE_CONTROL,
+}: AvatarProps) {
   const groupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
 
@@ -236,18 +272,40 @@ export function Avatar({ audioLevelRef, avatarUrl, currentExpression, skinPreset
     // Drive jaw/mouth morph targets for lip-sync using LipSyncEngine
     if (featureToggles.lipSync) {
       const { wawaLipsync, tuning } = useLipSyncStore.getState();
+      const coarticulationFrames = Math.max(1, aiStyleControl.coarticulationWindowSize || 1);
+      const coarticulationWindowMs = Math.max(8, Math.min(180, coarticulationFrames * (1000 / 60)));
+      const runtimeTuning = {
+        ...tuning,
+        anticipationWindowMs: coarticulationWindowMs,
+      };
       lipsyncEngine.updateFromAudioLevel(
         lipSyncLevel,
         delta,
         nodes,
         wawaLipsync,
-        tuning,
+        runtimeTuning,
+        {
+          visemeOverrides,
+          meshPostProcessing,
+          anatomicalPostProcessing,
+        },
       );
     }
 
     // Execute Emotion Engine (handles UI override, sentiments, and hover effects)
     /* eslint-disable */
-    emotionEngine.update(delta, nodes, currentExpression || "idle", hovered, featureToggles as any, isSpeaking);
+    emotionEngine.update(
+      delta,
+      nodes,
+      currentExpression || "idle",
+      hovered,
+      featureToggles,
+      isSpeaking,
+      {
+        emotionControl,
+        aiStyleControl,
+      },
+    );
     /* eslint-enable */
 
     // Execute procedural idle engines only for enabled channels.
@@ -255,12 +313,15 @@ export function Avatar({ audioLevelRef, avatarUrl, currentExpression, skinPreset
       breathing: featureToggles.breathing,
       blinking: featureToggles.blinking,
       browTwitch: false,
+      ocularTuning,
     });
     
     if (featureToggles.gazeDrift || featureToggles.headMovement) {
       gazeEngine.update(delta, camera, nodes, state.pointer, isSpeaking, {
         eyeDrift: featureToggles.gazeDrift,
         headMovement: featureToggles.headMovement,
+        ocularTuning,
+        headDynamics,
       });
     }
 
