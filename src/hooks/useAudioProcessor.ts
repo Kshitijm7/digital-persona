@@ -295,6 +295,8 @@ export function useAudioProcessor() {
       wawa.binWidth = wawa.sampleRate / streamer.analyserNode.fftSize;
       // @ts-expect-error - configurable persistence to reduce viseme lag on rapid speech transitions
       wawa.maxVisemeDuration = tuning.visemePersistenceMs;
+      // @ts-expect-error - expose streamer for mode detection
+      wawa.audioStreamerRef = audioStreamerRef;
 
       wawaRef.current = wawa;
       useLipSyncStore.getState().setWawaLipsync(wawa);

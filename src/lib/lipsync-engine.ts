@@ -103,6 +103,10 @@ export class LipSyncEngine {
         const { clockMs, clockCompensationMs } = this.getAudioClock(wawaLipsync, tuning);
         const detectedVisemeRaw = (wawaLipsync.viseme as string) || "viseme_sil";
         const spectralLevel = this.getSpectralLevel(wawaLipsync);
+        
+        if (level > 0.05 || spectralLevel > 0.05) {
+          log.info({ level, spectralLevel, clockMs }, "Processing audio in lipsync engine");
+        }
         const levelSource = Math.max(level, spectralLevel);
         const effectiveFloor = this.getEffectiveFloor(levelSource, delta, tuning);
         const levelNorm = THREE.MathUtils.clamp(
@@ -118,6 +122,7 @@ export class LipSyncEngine {
           levelSource,
           spectralLevel,
         );
+
         const detectedViseme = this.stabilizeDetectedViseme(
           speakingGain < 0.035 ? "viseme_sil" : robustDetectedViseme,
           state,
@@ -126,14 +131,37 @@ export class LipSyncEngine {
           tuning,
         );
 
-        this.enqueueViseme({
-          viseme: detectedViseme,
-          state,
-          speakingGain,
-          capturedAtMs: clockMs,
-          applyAtMs: clockMs + clockCompensationMs,
-        });
-        this.advanceScheduledViseme(clockMs);
+        const isPlaybackMode = !!((wawaLipsync as any).audioStreamerRef?.current?.isPlaying);
+
+        // Normalize viseme name (ensure viseme_ prefix)
+        const normalizedDetected = this.normalizeVisemeName(detectedViseme);
+
+        if (normalizedDetected !== "viseme_sil") {
+          this.lastNonSilenceAtMs = clockMs;
+        } else if (clockMs - this.lastNonSilenceAtMs > tuning.resetSilenceHoldMs) {
+          this.pendingVisemes.length = 0;
+        }
+
+        if (!isPlaybackMode) {
+          // Bypassing the queue for local microphone input
+          this.activeScheduledViseme = {
+            viseme: normalizedDetected,
+            state,
+            speakingGain,
+            capturedAtMs: clockMs,
+            applyAtMs: clockMs,
+          };
+          this.pendingVisemes.length = 0;
+        } else {
+          this.enqueueViseme({
+            viseme: normalizedDetected,
+            state,
+            speakingGain,
+            capturedAtMs: clockMs,
+            applyAtMs: clockMs + clockCompensationMs,
+          });
+          this.advanceScheduledViseme(clockMs);
+        }
 
         const scheduled = this.activeScheduledViseme;
         const activeViseme = scheduled.viseme;
@@ -142,11 +170,6 @@ export class LipSyncEngine {
             ? "vowel"
             : scheduled.state;
         const activeGain = scheduled.speakingGain;
-        if (activeViseme !== "viseme_sil") {
-          this.lastNonSilenceAtMs = clockMs;
-        } else if (clockMs - this.lastNonSilenceAtMs > tuning.resetSilenceHoldMs) {
-          this.pendingVisemes.length = 0;
-        }
 
         if (activeViseme !== this.lastViseme) {
           this.previousViseme = this.lastViseme;
@@ -177,6 +200,11 @@ export class LipSyncEngine {
           ? activeWeight * anticipation.weight
           : 0;
         const stabilizedActiveWeight = Math.max(0, activeWeight - anticipationWeight);
+        
+        if (activeViseme !== "viseme_sil" && Math.random() < 0.05) {
+          log.info({ activeViseme, activeGain, activeWeight, clockMs }, "LipSync active state");
+        }
+
         const useNativeVisemes = this.hasNativeVisemes(head);
         if (!useNativeVisemes && !this.warnedNoNativeVisemes) {
           this.warnedNoNativeVisemes = true;
@@ -296,6 +324,17 @@ export class LipSyncEngine {
     return THREE.MathUtils.clamp(volume, 0, 1);
   }
 
+  private normalizeVisemeName(name: string): string {
+    if (!name || name === "silence" || name === "sil") return "viseme_sil";
+    if (name.startsWith("viseme_")) return name;
+    // Common mappings if wawa-lipsync returns raw phonemes
+    if (name.length <= 2) {
+       // Rough fallback prefixing
+       return `viseme_${name}`;
+    }
+    return `viseme_${name}`;
+  }
+
   private getAudioClock(
     wawaLipsync: Lipsync,
     tuning: LipSyncTuning,
@@ -311,6 +350,12 @@ export class LipSyncEngine {
     const clockCompensationMs = outputLatencyMs * tuning.clockCompensationRatio;
 
     let clockMs = context.currentTime * 1000;
+    
+    // ✅ Improved Clock Stalling Fix: Keep a baseline if currentTime is 0 or hasn't started.
+    // Use an offset to keep performance.now() and context.currentTime in the same scale.
+    if (clockMs === 0) {
+      clockMs = performance.now();
+    }
     try {
       const withTimestamp = context as AudioContext & {
         getOutputTimestamp?: () => AudioTimestamp;
@@ -467,7 +512,9 @@ export class LipSyncEngine {
 
     this.consecutiveSilentDetections += 1;
     const hasAudibleSpeech = speakingGain > 0.12 || levelSource > 0.09 || spectralLevel > 0.03;
-    if (!hasAudibleSpeech || this.consecutiveSilentDetections < 3) {
+    
+    // Reduce onset latency: return silent only if definitely silent or we're filtering jitter
+    if (!hasAudibleSpeech || (this.lastDetectedViseme === "viseme_sil" && this.consecutiveSilentDetections < 2)) {
       return "viseme_sil";
     }
 

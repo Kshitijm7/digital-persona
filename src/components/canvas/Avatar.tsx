@@ -209,6 +209,15 @@ export function Avatar({ audioLevelRef, avatarUrl, currentExpression, skinPreset
     const lipSyncLevel = Math.max(rawLevel, level);
     const isSpeaking = level > 0.05;
 
+    // Verify morph targets once
+    if (!nodes.Wolf3D_Head?._hasLoggedMorphs) {
+       const head = nodes.Wolf3D_Head as THREE.SkinnedMesh;
+       if (head?.morphTargetDictionary) {
+          console.log("[Avatar] Mesh Morph Targets:", Object.keys(head.morphTargetDictionary));
+          (head as any)._hasLoggedMorphs = true;
+       }
+    }
+
     // Keep body idle subtle while speaking so visemes remain the visual focus.
     const activeBodyAction = actions[currentAnimationName];
     if (currentAnimationName === "idle" && activeBodyAction) {
