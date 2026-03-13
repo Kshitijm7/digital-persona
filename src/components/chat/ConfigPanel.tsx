@@ -129,7 +129,7 @@ export function ConfigPanel() {
             )}
           >
             <Save className="w-3.5 h-3.5" />
-            {saved ? "✅ Saved!" : "💾 Save to JSON"}
+            {saved ? "✅ Saved!" : "Save Config"}
           </button>
           <button
             onClick={handleCopy}
@@ -141,7 +141,7 @@ export function ConfigPanel() {
             )}
           >
             <Copy className="w-3.5 h-3.5" />
-            {copied ? "✅ Copied!" : "📋 Copy"}
+            {copied ? "✅ Copied!" : "Copy Config"}
           </button>
         </div>
         

@@ -20,17 +20,17 @@
   "avatar": {
     "position": [
       0,
-      0.09,
+      0.02,
       0.01
     ],
     "rotation": [
-      0.02,
-      0.1,
+      0,
+      0.09,
       0
     ],
     "scale": 0.7,
-    "model": "female2",
-    "idleAnimation": "masculine_idle_f_standing_idle_001"
+    "model": "male",
+    "idleAnimation": "masculine_idle_m_standing_idle_002"
   },
   "lighting": {
     "keyLight": {
@@ -86,12 +86,12 @@
     "lambdaVowel": 18,
     "lambdaSilence": 16,
     "adaptiveNoiseFloor": true,
-    "speechThresholdOffset": 0.018,
+    "speechThresholdOffset": 0.02,
     "noiseFloorAdaptLambda": 2.6,
     "noiseFloorReleaseLambda": 0.55,
     "noiseFloorMin": 0.006,
     "noiseFloorMax": 0.08,
     "analyserSmoothing": 0.18,
-    "visemePersistenceMs": 85
+    "visemePersistenceMs": 90
   }
 }

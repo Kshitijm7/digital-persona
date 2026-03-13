@@ -138,28 +138,37 @@ export function Vec3Input({
     <div className="flex flex-col gap-1 w-full">
       <div className="flex items-center justify-between gap-3">
         <span className="text-[10px] text-muted-foreground/60 shrink-0 truncate">{label}</span>
-        <div className="flex gap-1 shrink-0">
-          <input
-            type="number"
-            value={fmt(value[0])}
-            step={step}
-            onChange={(e) => update(0, parseFloat(e.target.value) || 0)}
-            className="w-14 bg-white/5 border border-white/10 rounded-md px-1.5 py-1 text-[11px] text-foreground/90 font-mono focus:outline-none focus:border-cyan-400/40 text-center transition-colors hover:bg-white/8"
-          />
-          <input
-            type="number"
-            value={fmt(value[1])}
-            step={step}
-            onChange={(e) => update(1, parseFloat(e.target.value) || 0)}
-            className="w-14 bg-white/5 border border-white/10 rounded-md px-1.5 py-1 text-[11px] text-foreground/90 font-mono focus:outline-none focus:border-cyan-400/40 text-center transition-colors hover:bg-white/8"
-          />
-          <input
-            type="number"
-            value={fmt(value[2])}
-            step={step}
-            onChange={(e) => update(2, parseFloat(e.target.value) || 0)}
-            className="w-14 bg-white/5 border border-white/10 rounded-md px-1.5 py-1 text-[11px] text-foreground/90 font-mono focus:outline-none focus:border-cyan-400/40 text-center transition-colors hover:bg-white/8"
-          />
+        <div className="flex gap-2 shrink-0">
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-muted-foreground/50 font-medium">X</span>
+            <input
+              type="number"
+              value={fmt(value[0])}
+              step={step}
+              onChange={(e) => update(0, parseFloat(e.target.value) || 0)}
+              className="w-12 bg-white/5 border border-white/10 rounded-md px-1 py-1 text-[11px] text-foreground/90 font-mono focus:outline-none focus:border-cyan-400/40 text-center transition-colors hover:bg-white/8"
+            />
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-muted-foreground/50 font-medium">Y</span>
+            <input
+              type="number"
+              value={fmt(value[1])}
+              step={step}
+              onChange={(e) => update(1, parseFloat(e.target.value) || 0)}
+              className="w-12 bg-white/5 border border-white/10 rounded-md px-1 py-1 text-[11px] text-foreground/90 font-mono focus:outline-none focus:border-cyan-400/40 text-center transition-colors hover:bg-white/8"
+            />
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-muted-foreground/50 font-medium">Z</span>
+            <input
+              type="number"
+              value={fmt(value[2])}
+              step={step}
+              onChange={(e) => update(2, parseFloat(e.target.value) || 0)}
+              className="w-12 bg-white/5 border border-white/10 rounded-md px-1 py-1 text-[11px] text-foreground/90 font-mono focus:outline-none focus:border-cyan-400/40 text-center transition-colors hover:bg-white/8"
+            />
+          </div>
         </div>
       </div>
       {description && <p className="text-[9px] text-muted-foreground/50 leading-tight mt-0.5">{description}</p>}

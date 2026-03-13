@@ -79,10 +79,17 @@ export default function DebugCameraPanel() {
 
   const buildSnippet = useCallback(
     (r: CameraReading) =>
-      `// ── Scene.tsx camera config ─────────────────\n` +
-      `camera={{ position: [${fmt(r.px)}, ${fmt(r.py)}, ${fmt(r.pz)}], fov: ${Math.round(r.fov)} }}\n\n` +
-      `// ── OrbitControls target ────────────────────\n` +
-      `target={[${fmt(r.tx)}, ${fmt(r.ty)}, ${fmt(r.tz)}]}`,
+      JSON.stringify(
+        {
+          camera: {
+            position: [Number(fmt(r.px)), Number(fmt(r.py)), Number(fmt(r.pz))],
+            fov: Math.round(r.fov),
+            target: [Number(fmt(r.tx)), Number(fmt(r.ty)), Number(fmt(r.tz))],
+          },
+        },
+        null,
+        2
+      ),
     []
   );
 
