@@ -279,7 +279,7 @@ export function useAudioProcessor() {
       // Ensure Lipsync is correctly instantiated and mapped to AudioStreamer
       const wawa = new Lipsync({
         fftSize: streamer.analyserNode.fftSize,
-        historySize: 6,
+        historySize: 2, // Reduced from 6 to minimize latency (2*10ms = 20ms lag)
       });
       
       // Patch private properties to safely integrate without relying on HTMLAudioElement
@@ -300,6 +300,9 @@ export function useAudioProcessor() {
 
       wawaRef.current = wawa;
       useLipSyncStore.getState().setWawaLipsync(wawa);
+
+      // Reset internal gain to prevent stale levels
+      outputAudioLevelRef.current = 0;
     }
     const streamer = audioStreamerRef.current;
     streamer.analyserNode.smoothingTimeConstant = tuning.analyserSmoothing;

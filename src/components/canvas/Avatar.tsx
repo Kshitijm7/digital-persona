@@ -171,6 +171,17 @@ export function Avatar({ audioLevelRef, avatarUrl, currentExpression, skinPreset
   const gazeEngine = React.useMemo(() => new GazeEngine(), []);
   const lipsyncEngine = React.useMemo(() => new LipSyncEngine(), []);
   const emotionEngine = React.useMemo(() => new EmotionEngine(), []);
+  
+  // Verify morph targets once
+  const hasLoggedMorphs = useRef(false);
+  useEffect(() => {
+    const head = nodes.Wolf3D_Head as THREE.SkinnedMesh;
+    if (head?.morphTargetDictionary && !hasLoggedMorphs.current) {
+      console.log("[Avatar] Mesh Morph Targets:", Object.keys(head.morphTargetDictionary));
+      hasLoggedMorphs.current = true;
+    }
+  }, [nodes.Wolf3D_Head]);
+
 
   // Safeguard: Reset zero/NaN scales on bones to prevent mesh collapse
   React.useEffect(() => {
@@ -208,15 +219,6 @@ export function Avatar({ audioLevelRef, avatarUrl, currentExpression, skinPreset
     const level = smoothedLevel.current;
     const lipSyncLevel = Math.max(rawLevel, level);
     const isSpeaking = level > 0.05;
-
-    // Verify morph targets once
-    if (!nodes.Wolf3D_Head?._hasLoggedMorphs) {
-       const head = nodes.Wolf3D_Head as THREE.SkinnedMesh;
-       if (head?.morphTargetDictionary) {
-          console.log("[Avatar] Mesh Morph Targets:", Object.keys(head.morphTargetDictionary));
-          (head as any)._hasLoggedMorphs = true;
-       }
-    }
 
     // Keep body idle subtle while speaking so visemes remain the visual focus.
     const activeBodyAction = actions[currentAnimationName];

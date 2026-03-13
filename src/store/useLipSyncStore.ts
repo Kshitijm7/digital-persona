@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
 import type { Lipsync } from 'wawa-lipsync';
 
 export interface LipSyncTuning {
@@ -49,7 +51,8 @@ export const DEFAULT_LIPSYNC_TUNING: LipSyncTuning = {
   visemePersistenceMs: 85,
 };
 
-export type LipSyncPresetKey = "lowLatency" | "balanced" | "noisyRoom";
+export type LipSyncPresetKey = "lowLatency" | "balanced" | "noisyRoom" | "photorealistic";
+
 
 export const LIPSYNC_PRESETS: Record<LipSyncPresetKey, { label: string; values: LipSyncTuning }> = {
   lowLatency: {
@@ -106,36 +109,78 @@ export const LIPSYNC_PRESETS: Record<LipSyncPresetKey, { label: string; values: 
       visemePersistenceMs: 95,
     },
   },
+  photorealistic: {
+    label: "Photorealistic",
+    values: {
+      ...DEFAULT_LIPSYNC_TUNING,
+      clockCompensationRatio: 0.6,
+      maxClockCompensationMs: 70,
+      anticipationWindowMs: 65,
+      anticipationWeightMax: 0.24,
+      resetSilenceHoldMs: 240,
+      analyserSmoothing: 0.18,
+      visemePersistenceMs: 85,
+      minSwitchMsPlosive: 12,
+      minSwitchMsFricative: 22,
+      minSwitchMsVowel: 30,
+      minSwitchMsSilence: 38,
+      lambdaPlosive: 34,
+      lambdaFricative: 24,
+      lambdaVowel: 18,
+      lambdaSilence: 16,
+      speechThresholdOffset: 0.018,
+    },
+  },
 };
+
 
 interface LipSyncStore {
   wawaLipsync: Lipsync | null;
   tuning: LipSyncTuning;
+  activePreset: LipSyncPresetKey;
   setWawaLipsync: (wawa: Lipsync) => void;
   updateTuning: (patch: Partial<LipSyncTuning>) => void;
   resetTuning: () => void;
+  setActivePreset: (preset: LipSyncPresetKey) => void;
   clear: () => void;
 }
 
-export const useLipSyncStore = create<LipSyncStore>((set) => ({
-  wawaLipsync: null,
-  tuning: { ...DEFAULT_LIPSYNC_TUNING },
+export const useLipSyncStore = create<LipSyncStore>()(
+  persist(
+    (set) => ({
+      wawaLipsync: null,
+      tuning: { ...DEFAULT_LIPSYNC_TUNING },
+      activePreset: "balanced",
 
-  setWawaLipsync: (wawa) => {
-     set({ wawaLipsync: wawa });
-  },
+      setWawaLipsync: (wawa) => {
+        set({ wawaLipsync: wawa });
+      },
 
-  updateTuning: (patch) => {
-    set((state) => ({
-      tuning: { ...state.tuning, ...patch },
-    }));
-  },
+      updateTuning: (patch) => {
+        set((state) => ({
+          tuning: { ...state.tuning, ...patch },
+        }));
+      },
 
-  resetTuning: () => {
-    set({ tuning: { ...DEFAULT_LIPSYNC_TUNING } });
-  },
+      resetTuning: () => {
+        set({ tuning: { ...DEFAULT_LIPSYNC_TUNING }, activePreset: "balanced" });
+      },
 
-  clear: () => {
-    // Currently no internal timeline to clear, managed strictly by AudioStreamer
-  }
-}));
+      setActivePreset: (preset) => {
+        set({ activePreset: preset });
+      },
+
+      clear: () => {
+        // Currently no internal timeline to clear, managed strictly by AudioStreamer
+      }
+    }),
+    {
+      name: 'lipsync-storage',
+      partialize: (state) => ({ 
+        tuning: state.tuning,
+        activePreset: state.activePreset 
+      }),
+    }
+  )
+);
+

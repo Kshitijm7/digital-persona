@@ -104,9 +104,6 @@ export class LipSyncEngine {
         const detectedVisemeRaw = (wawaLipsync.viseme as string) || "viseme_sil";
         const spectralLevel = this.getSpectralLevel(wawaLipsync);
         
-        if (level > 0.05 || spectralLevel > 0.05) {
-          log.info({ level, spectralLevel, clockMs }, "Processing audio in lipsync engine");
-        }
         const levelSource = Math.max(level, spectralLevel);
         const effectiveFloor = this.getEffectiveFloor(levelSource, delta, tuning);
         const levelNorm = THREE.MathUtils.clamp(
@@ -131,6 +128,7 @@ export class LipSyncEngine {
           tuning,
         );
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const isPlaybackMode = !!((wawaLipsync as any).audioStreamerRef?.current?.isPlaying);
 
         // Normalize viseme name (ensure viseme_ prefix)
@@ -201,9 +199,6 @@ export class LipSyncEngine {
           : 0;
         const stabilizedActiveWeight = Math.max(0, activeWeight - anticipationWeight);
         
-        if (activeViseme !== "viseme_sil" && Math.random() < 0.05) {
-          log.info({ activeViseme, activeGain, activeWeight, clockMs }, "LipSync active state");
-        }
 
         const useNativeVisemes = this.hasNativeVisemes(head);
         if (!useNativeVisemes && !this.warnedNoNativeVisemes) {
