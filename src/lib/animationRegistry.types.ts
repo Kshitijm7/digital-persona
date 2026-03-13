@@ -14,6 +14,7 @@ export interface AnimationMeta {
   intensity?: number;
   description?: string;
   semantic_tags?: string[];
+  exclusion_tags?: string[];
 }
 
 export type AnimationRegistry = Record<string, AnimationMeta>;

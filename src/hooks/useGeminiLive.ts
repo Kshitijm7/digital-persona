@@ -16,12 +16,12 @@ const log = createLogger("useGeminiLive");
 
 /** Maximum time (ms) to wait for a tool handler before returning a timeout error. */
 const TOOL_HANDLER_TIMEOUT_MS = 10_000;
-const DUPLICATE_AUDIO_WINDOW_MS = 2500;
-const AUDIO_SIGNATURE_TTL_MS = 10_000;
-const TOOL_AUDIO_SUPPRESSION_WINDOW_MS = 1200;
-const TOOL_RESPONSE_GRACE_MS = 450;
+const DUPLICATE_AUDIO_WINDOW_MS = 500;
+const AUDIO_SIGNATURE_TTL_MS = 5000;
+const TOOL_AUDIO_SUPPRESSION_WINDOW_MS = 220;
+const TOOL_RESPONSE_GRACE_MS = 120;
 const TEXT_DEDUP_WINDOW_MS = 1200;
-const TRANSCRIPT_DUPLICATE_WINDOW_MS = 10_000;
+const TRANSCRIPT_DUPLICATE_WINDOW_MS = 3500;
 
 const TOOL_SILENCE_POLICY = [
   "TOOL_EXECUTION_RULES:",
@@ -652,7 +652,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
           // SDK warning indicates generationConfig is deprecated.
           temperature: compatibilityProfileRef.current === "minimal" ? 0.8 : 0.85,
           ...(compatibilityProfileRef.current === "full" ? { topP: 0.95 } : {}),
-          maxOutputTokens: 2048,
+          maxOutputTokens: 768,
           ...(compatibilityProfileRef.current === "full"
             ? {
                 proactivity: {

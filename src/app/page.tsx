@@ -45,6 +45,9 @@ import { useLipSyncStore } from "@/store/useLipSyncStore";
 import { SceneConfigProvider } from "@/hooks/SceneConfigContext";
 
 const log = createLogger("app/page");
+const BASE_ANIMATION_MATCH_THRESHOLD = 0.25;
+const SPEAKING_ANIMATION_MATCH_THRESHOLD = 0.32;
+const ASSISTANT_SPEAKING_LEVEL_THRESHOLD = 0.06;
 
 
 // 3D Scene (lazy, no SSR)
@@ -119,11 +122,19 @@ function HomePage() {
   const [selectedSkin, setSelectedSkin] = useState<SkinPreset>(SKIN_PRESETS[0]);
   // Debug mode — enables OrbitControls + live camera panel
   const [debugMode, setDebugMode] = useState(false);
+  const chat = useChatMessages();
+  const appendAssistantMessage = chat.appendAssistantMessage;
+  const addUserMessage = chat.addUserMessage;
   const expressionResetTimeoutRef = useRef<number | null>(null);
   const lastTranscriptChunkRef = useRef<{ text: string; at: number } | null>(null);
+  const chatMessagesRef = useRef(chat.messages);
   const applySessionPatch = useAvatarRuntimeStore((state) => state.applySessionPatch);
   const clearSessionOverrides = useAvatarRuntimeStore((state) => state.clearSessionOverrides);
   const updateLipSyncTuning = useLipSyncStore((state) => state.updateTuning);
+
+  useEffect(() => {
+    chatMessagesRef.current = chat.messages;
+  }, [chat.messages]);
 
   // Session management
   const {
@@ -133,7 +144,6 @@ function HomePage() {
     ...session
   } = useSessionManager();
   const timer = useSessionTimer(session.isConnected);
-  const chat = useChatMessages();
 
   // (Animation Queue Auto-Progression moved inside useDynamicAnimations.ts for precise timing)
 
@@ -148,11 +158,29 @@ function HomePage() {
       const gestures = (args.gesture_sequence as string[]) || [];
       const durationPerGesture = args.duration_per_gesture_ms as number | undefined;
       const timeScale = args.time_scale as number | undefined;
+      const assistantSpeakingLevel = session.assistantAudioLevelRef.current ?? 0;
+      const isSpeaking = assistantSpeakingLevel >= ASSISTANT_SPEAKING_LEVEL_THRESHOLD;
+      const minScore = isSpeaking
+        ? SPEAKING_ANIMATION_MATCH_THRESHOLD
+        : BASE_ANIMATION_MATCH_THRESHOLD;
+      const disallowTypes = (isSpeaking || personaMode === "focus") ? ["dance", "misc"] : [];
+      const emotionState = useEmotionStore.getState();
+      const recentMessages = chatMessagesRef.current.slice(-4).map((message) => message.content);
+      const contextTexts = [
+        emotionState.textBuffer,
+        ...recentMessages,
+      ].filter((text): text is string => Boolean(text && text.trim()));
       log.info(
         {
           requestedGestures: gestures,
           durationPerGesture,
           timeScale,
+          isSpeaking,
+          assistantSpeakingLevel,
+          minScore,
+          disallowTypes,
+          sentimentScore: emotionState.currentScore,
+          contextCount: contextTexts.length,
         },
         "Tool override: trigger_animation",
       );
@@ -161,23 +189,45 @@ function HomePage() {
         const state = useAnimationStore.getState();
 
         // Resolve all gestures using the advanced semantic matcher.
-        const resolvedSequence = gestures.map((g) => findBestAnimationMatch(g, state.registry));
+        const resolvedSequence = gestures.map((g) =>
+          findBestAnimationMatch(g, state.registry, {
+            minScore,
+            disallowTypes,
+            allowCategoryFallback: !isSpeaking,
+            contextTexts,
+            sentimentScore: emotionState.currentScore,
+          }),
+        );
+        const filteredSequence = resolvedSequence.filter((name) => name !== "idle");
         log.debug(
           {
             requested: gestures,
             resolved: resolvedSequence,
+            filtered: filteredSequence,
           },
           "Resolved animation gestures.",
         );
 
-        // Dispatch to the chronological queue.
-        state.playSequence(
-          resolvedSequence.map((name) => ({
-            name,
-            durationMs: durationPerGesture,
-            timeScale,
-          })),
-        );
+        if (filteredSequence.length > 0) {
+          // Dispatch to the chronological queue.
+          state.playSequence(
+            filteredSequence.map((name) => ({
+              name,
+              durationMs: durationPerGesture,
+              timeScale,
+            })),
+          );
+        } else {
+          log.info(
+            {
+              requestedGestures: gestures,
+              resolved: resolvedSequence,
+              minScore,
+              isSpeaking,
+            },
+            "Skipped trigger_animation: no animation met relevance threshold.",
+          );
+        }
       }
 
       return {
@@ -233,7 +283,7 @@ function HomePage() {
             ? `\`\`\`\n${content}\n\`\`\``
             : content;
 
-      chat.appendAssistantMessage(displayContent);
+      appendAssistantMessage(displayContent);
       log.info(
         {
           contentLength: content.length,
@@ -298,7 +348,7 @@ function HomePage() {
       clearSessionOverrides();
       return { acknowledged: true, cleared: true };
     });
-  }, [registerTool, chat, applySessionPatch, clearSessionOverrides, updateLipSyncTuning]);
+  }, [registerTool, appendAssistantMessage, applySessionPatch, clearSessionOverrides, updateLipSyncTuning, personaMode, session.assistantAudioLevelRef]);
 
   useEffect(() => {
     if (session.status === "disconnected" || session.status === "error") {
@@ -364,10 +414,10 @@ function HomePage() {
   const handleSendText = useCallback(
     (text: string) => {
       log.info({ textLength: text.length }, "User text sent from chat panel.");
-      chat.addUserMessage(text);
+      addUserMessage(text);
       session.sendText(text);
     },
-    [chat, session]
+    [addUserMessage, session]
   );
 
   // Error handling

@@ -365,8 +365,8 @@ export function useAudioProcessor() {
     (async () => {
       try {
         const now = performance.now();
-        const signature = `${base64.length}:${base64.slice(0, 48)}:${base64.slice(-48)}`;
-        const DUPLICATE_CHUNK_WINDOW_MS = 2500;
+        const signature = `${base64.length}:${base64.slice(0, 48)}:${base64.slice(Math.max(0, Math.floor(base64.length / 2) - 24), Math.floor(base64.length / 2) + 24)}:${base64.slice(-48)}`;
+        const DUPLICATE_CHUNK_WINDOW_MS = 120;
         const SIGNATURE_TTL_MS = 10000;
 
         const seenAt = recentChunkSignaturesRef.current.get(signature);

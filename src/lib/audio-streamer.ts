@@ -21,7 +21,7 @@ export class AudioStreamer {
   private checkInterval: ReturnType<typeof setInterval> | null = null;
   private scheduleTimeout: ReturnType<typeof setTimeout> | null = null;
   private scheduledTime: number = 0;
-  private initialBufferTime: number = 0.1; // 100ms initial buffer
+  private initialBufferTime: number = 0.12; // 120ms initial buffer for lower response delay
   private activeSources = new Set<AudioBufferSourceNode>();
   private schedulerGeneration = 0;
   private queueCompleteNotified = false;
@@ -221,7 +221,7 @@ export class AudioStreamer {
       this.scheduleTimeout = null;
     }
 
-    const SCHEDULE_AHEAD_TIME = 0.2; // schedule 200ms ahead
+    const SCHEDULE_AHEAD_TIME = 0.24; // balanced low-latency scheduling with jitter protection
 
     while (
       this.isPlaying &&
@@ -299,7 +299,7 @@ export class AudioStreamer {
             ) {
               this.scheduleNextBuffer(generation);
             }
-          }, 100);
+          }, 35);
         }
       }
     } else {
