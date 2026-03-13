@@ -86,12 +86,12 @@
     "lambdaVowel": 18,
     "lambdaSilence": 16,
     "adaptiveNoiseFloor": true,
-    "speechThresholdOffset": 0.02,
+    "speechThresholdOffset": 0.018,
     "noiseFloorAdaptLambda": 2.6,
     "noiseFloorReleaseLambda": 0.55,
     "noiseFloorMin": 0.006,
     "noiseFloorMax": 0.08,
     "analyserSmoothing": 0.18,
-    "visemePersistenceMs": 90
+    "visemePersistenceMs": 85
   }
 }

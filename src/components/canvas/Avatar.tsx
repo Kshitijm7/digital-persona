@@ -70,7 +70,7 @@ const DEFAULT_FEATURES: FeatureToggles = {
   gazeDrift: false,
   blinking: true,
   hoverEffect: false,
-  headMovement: false,
+  headMovement: true,
   googleSearch: true,
   proactiveAudio: true,
 };
