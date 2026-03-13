@@ -15,6 +15,7 @@ import { useAvatarRuntimeStore } from "@/store/useAvatarRuntimeStore";
 import { mergeAvatarControls } from "@/lib/avatar-control.types";
 import { SceneLoader } from "./SceneLoader";
 import { SmartCameraControls } from "./SmartCameraControls";
+import { useEmotionStore } from "@/store/useEmotionStore";
 
 const DebugCameraPanel = lazy(() => import("./DebugCameraPanel"));
 
@@ -85,6 +86,32 @@ export function SceneInner({
   const minPolarAngle = config.camera.minPolarAngle ?? 1.4;
   const maxPolarAngle = config.camera.maxPolarAngle ?? 1.4;
   const zoomTargetShift = config.camera.zoomTargetShift ?? 0.6;
+
+  // Implementation of P1 (TTL-based decay / Hysteresis) for live sessions
+  React.useEffect(() => {
+    if (!isConnected) return;
+
+    // We run a relatively smooth heartbeat at ~250ms that gently degrades active expression overrides
+    const decayTimer = setInterval(() => {
+      // 1. Decay explicit tool-called overrides
+      const runtimeStore = useAvatarRuntimeStore.getState();
+      const hasOverrides = runtimeStore.sessionOverrides.emotionControl || runtimeStore.sessionOverrides.aiStyleControl;
+      
+      if (hasOverrides) {
+        const timeSinceUpdate = Date.now() - runtimeStore.lastUpdatedAt;
+        // If the agent hasn't issued a new expression tool-call in 3.5 seconds, we start drifting back to baseline
+        if (timeSinceUpdate > 3500) {
+          runtimeStore.decaySessionOverrides(0.9); // ~10% intensity reduction every 250ms
+        }
+      }
+
+      // 2. Decay procedural sentiment score so smiles/frowns don't get permanently stuck
+      useEmotionStore.getState().decayScore();
+
+    }, 250);
+
+    return () => clearInterval(decayTimer);
+  }, [isConnected]);
 
   return (
     <Canvas
