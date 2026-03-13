@@ -6,7 +6,7 @@ export async function POST(req: Request) {
   try {
     const data = await req.json();
 
-    const configPath = path.join(process.cwd(), "src", "config", "camera.json");
+    const configPath = path.join(process.cwd(), "src", "config", "scene.json");
     
     // Read the existing file to merge settings (so we don't accidentally overwrite fields we aren't changing)
     let existingData = {};
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
       const fileData = await fs.readFile(configPath, "utf-8");
       existingData = JSON.parse(fileData);
     } catch {
-      console.warn("Could not read existing camera.json, creating new one.");
+      console.warn("Could not read existing scene.json, creating new one.");
     }
 
     const existing = existingData as Record<string, unknown>;

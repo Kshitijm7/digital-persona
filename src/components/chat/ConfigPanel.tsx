@@ -34,7 +34,7 @@ export function ConfigPanel() {
     setTimeout(() => setSaved(false), 2000);
 
     try {
-      await fetch("/api/camera", {
+      await fetch("/api/scene", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(draft),

@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import { useState } from "react";
-import * as THREE from "three";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { type LightConfig } from "@/hooks/SceneConfigContext";
@@ -124,15 +123,13 @@ export function Vec3Input({
   description,
 }: {
   label: string;
-  value: [number, number, number];
-  onChange: (v: [number, number, number]) => void;
+  value: { x: number; y: number; z: number };
+  onChange: (v: { x: number; y: number; z: number }) => void;
   step?: number;
   description?: string;
 }) {
-  const update = (idx: number, v: number) => {
-    const next = [...value] as [number, number, number];
-    next[idx] = v;
-    onChange(next);
+  const update = (axis: "x" | "y" | "z", v: number) => {
+    onChange({ ...value, [axis]: v });
   };
   return (
     <div className="flex flex-col gap-1 w-full">
@@ -143,9 +140,9 @@ export function Vec3Input({
             <span className="text-[10px] text-muted-foreground/50 font-medium">X</span>
             <input
               type="number"
-              value={fmt(value[0])}
+              value={fmt(value.x)}
               step={step}
-              onChange={(e) => update(0, parseFloat(e.target.value) || 0)}
+              onChange={(e) => update("x", parseFloat(e.target.value) || 0)}
               className="w-12 bg-white/5 border border-white/10 rounded-md px-1 py-1 text-[11px] text-foreground/90 font-mono focus:outline-none focus:border-cyan-400/40 text-center transition-colors hover:bg-white/8"
             />
           </div>
@@ -153,9 +150,9 @@ export function Vec3Input({
             <span className="text-[10px] text-muted-foreground/50 font-medium">Y</span>
             <input
               type="number"
-              value={fmt(value[1])}
+              value={fmt(value.y)}
               step={step}
-              onChange={(e) => update(1, parseFloat(e.target.value) || 0)}
+              onChange={(e) => update("y", parseFloat(e.target.value) || 0)}
               className="w-12 bg-white/5 border border-white/10 rounded-md px-1 py-1 text-[11px] text-foreground/90 font-mono focus:outline-none focus:border-cyan-400/40 text-center transition-colors hover:bg-white/8"
             />
           </div>
@@ -163,9 +160,9 @@ export function Vec3Input({
             <span className="text-[10px] text-muted-foreground/50 font-medium">Z</span>
             <input
               type="number"
-              value={fmt(value[2])}
+              value={fmt(value.z)}
               step={step}
-              onChange={(e) => update(2, parseFloat(e.target.value) || 0)}
+              onChange={(e) => update("z", parseFloat(e.target.value) || 0)}
               className="w-12 bg-white/5 border border-white/10 rounded-md px-1 py-1 text-[11px] text-foreground/90 font-mono focus:outline-none focus:border-cyan-400/40 text-center transition-colors hover:bg-white/8"
             />
           </div>

@@ -67,7 +67,7 @@ export function SceneInner({
       /* key={fov} forces a clean Canvas remount when FOV changes (Visage best practice) */
       key={config.camera.fov}
       camera={{
-        position: config.camera.position as [number, number, number],
+        position: [config.camera.position.x, config.camera.position.y, config.camera.position.z],
         fov: config.camera.fov || 50,
       }}
       shadows="soft"
@@ -89,7 +89,7 @@ export function SceneInner({
 
       {/* Key light */}
       <spotLight
-        position={config.lighting.keyLight.position as [number, number, number]}
+        position={[config.lighting.keyLight.position.x, config.lighting.keyLight.position.y, config.lighting.keyLight.position.z]}
         angle={0.25}
         penumbra={0.8}
         intensity={config.lighting.keyLight.intensity}
@@ -100,7 +100,7 @@ export function SceneInner({
 
       {/* Fill light */}
       <spotLight
-        position={config.lighting.fillLight.position as [number, number, number]}
+        position={[config.lighting.fillLight.position.x, config.lighting.fillLight.position.y, config.lighting.fillLight.position.z]}
         angle={0.35}
         penumbra={1}
         intensity={config.lighting.fillLight.intensity}
@@ -109,15 +109,15 @@ export function SceneInner({
 
       {/* Rim light */}
       <pointLight
-        position={config.lighting.rimLight.position as [number, number, number]}
+        position={[config.lighting.rimLight.position.x, config.lighting.rimLight.position.y, config.lighting.rimLight.position.z]}
         intensity={config.lighting.rimLight.intensity}
         color={config.lighting.rimLight.color}
       />
 
       <Suspense fallback={<SceneLoader />}>
         <group
-          position={config.avatar.position as [number, number, number]}
-          rotation={config.avatar.rotation as [number, number, number]}
+          position={[config.avatar.position.x, config.avatar.position.y, config.avatar.position.z]}
+          rotation={[config.avatar.rotation.x, config.avatar.rotation.y, config.avatar.rotation.z]}
           scale={config.avatar.scale}
         >
           <Avatar
@@ -145,7 +145,7 @@ export function SceneInner({
         <SmartCameraControls
           enableRotate={false}
           enablePan={false}
-          target={config.camera.target as [number, number, number]}
+          target={[config.camera.target.x, config.camera.target.y, config.camera.target.z]}
           minDistance={controlsMinDistance}
           maxDistance={controlsMaxDistance}
           minPolarAngle={minPolarAngle}
@@ -163,7 +163,7 @@ export function SceneInner({
             dampingFactor={0.05}
             enableRotate={true}
             enablePan={true}
-            target={config.camera.target as [number, number, number]}
+            target={[config.camera.target.x, config.camera.target.y, config.camera.target.z]}
             minDistance={controlsMinDistance}
             maxDistance={controlsMaxDistance}
             minPolarAngle={minPolarAngle}

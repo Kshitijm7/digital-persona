@@ -81,11 +81,9 @@ export default function DebugCameraPanel() {
     (r: CameraReading) =>
       JSON.stringify(
         {
-          camera: {
-            position: [Number(fmt(r.px)), Number(fmt(r.py)), Number(fmt(r.pz))],
-            fov: Math.round(r.fov),
-            target: [Number(fmt(r.tx)), Number(fmt(r.ty)), Number(fmt(r.tz))],
-          },
+          position: { x: Number(fmt(r.px)), y: Number(fmt(r.py)), z: Number(fmt(r.pz)) },
+          fov: Math.round(r.fov),
+          target: { x: Number(fmt(r.tx)), y: Number(fmt(r.ty)), z: Number(fmt(r.tz)) }
         },
         null,
         2
@@ -103,20 +101,20 @@ export default function DebugCameraPanel() {
   const handleSet = useCallback(async () => {
     const payload = {
       camera: {
-        position: [reading.px, reading.py, reading.pz] as [number, number, number],
+        position: { x: reading.px, y: reading.py, z: reading.pz },
         fov: Math.round(reading.fov),
-        target: [reading.tx, reading.ty, reading.tz] as [number, number, number],
+        target: { x: reading.tx, y: reading.ty, z: reading.tz },
       }
     };
     
     // Update context instantly so Scene reacts without reload
-    updateConfig(payload);
+    updateConfig(payload as any);
 
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
 
     try {
-      await fetch("/api/camera", {
+      await fetch("/api/scene", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

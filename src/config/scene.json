@@ -1,16 +1,16 @@
 {
   "camera": {
-    "position": [
-      0.06923252085764106,
-      0.46076319646263303,
-      0.512825990391791
-    ],
+    "position": {
+      "x": 0.06923252085764106,
+      "y": 0.46076319646263303,
+      "z": 0.512825990391791
+    },
     "fov": 45,
-    "target": [
-      0,
-      0.46,
-      0.01
-    ],
+    "target": {
+      "x": 0,
+      "y": 0.46,
+      "z": 0.01
+    },
     "controlsMinDistance": 0.5,
     "controlsMaxDistance": 3.2,
     "minPolarAngle": 1.5,
@@ -18,45 +18,45 @@
     "zoomTargetShift": 0
   },
   "avatar": {
-    "position": [
-      0,
-      0.02,
-      0.01
-    ],
-    "rotation": [
-      0,
-      0.09,
-      0
-    ],
+    "position": {
+      "x": 0,
+      "y": 0.02,
+      "z": 0.01
+    },
+    "rotation": {
+      "x": 0,
+      "y": 0.09,
+      "z": 0
+    },
     "scale": 0.7,
     "model": "male",
     "idleAnimation": "masculine_idle_m_standing_idle_002"
   },
   "lighting": {
     "keyLight": {
-      "position": [
-        1.5,
-        1.6,
-        1.5
-      ],
+      "position": {
+        "x": 1.5,
+        "y": 1.6,
+        "z": 1.5
+      },
       "intensity": 2.5,
       "color": "#fff5e6"
     },
     "fillLight": {
-      "position": [
-        -1.5,
-        0.8,
-        1.5
-      ],
+      "position": {
+        "x": -1.5,
+        "y": 0.8,
+        "z": 1.5
+      },
       "intensity": 0.5,
       "color": "#31578c"
     },
     "rimLight": {
-      "position": [
-        0,
-        1.8,
-        -1.5
-      ],
+      "position": {
+        "x": 0,
+        "y": 1.8,
+        "z": -1.5
+      },
       "intensity": 3,
       "color": "#ffffff"
     }

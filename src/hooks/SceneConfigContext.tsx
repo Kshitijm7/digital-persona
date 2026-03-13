@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from "react";
-import initialConfig from "@/config/camera.json";
+import initialConfig from "@/config/scene.json";
 import { DEFAULT_LIPSYNC_TUNING, type LipSyncTuning, useLipSyncStore } from "@/store/useLipSyncStore";
 import {
   type AvatarEntry,
@@ -14,17 +14,19 @@ import {
 
 /* ─── Types ────────────────────────────────────────────────────────────────── */
 
+export type Vector3D = { x: number; y: number; z: number };
+
 export interface LightConfig {
-  position: [number, number, number];
+  position: Vector3D;
   intensity: number;
   color: string;
 }
 
 export interface SceneConfig {
   camera: {
-    position: [number, number, number];
+    position: Vector3D;
     fov: number;
-    target: [number, number, number];
+    target: Vector3D;
     controlsMinDistance?: number;
     controlsMaxDistance?: number;
     minPolarAngle?: number;
@@ -32,8 +34,8 @@ export interface SceneConfig {
     zoomTargetShift?: number;
   };
   avatar: {
-    position: [number, number, number];
-    rotation: [number, number, number];
+    position: Vector3D;
+    rotation: Vector3D;
     scale: number;
     model: string;
     idleAnimation: string;
