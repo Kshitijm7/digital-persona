@@ -6,9 +6,12 @@ import { Providers } from "@/components/Providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Digital Persona | AI Substrate",
+  title: "Digital Persona",
   description:
-    "A real-time 3D Digital Persona powered by Gemini Live API — Interactive AI Video Call Interface",
+    "A real-time 3D Digital Persona powered by Gemini Live API",
+  icons: {
+    icon: "/logo.jpg",
+  },
 };
 
 export const viewport: Viewport = {

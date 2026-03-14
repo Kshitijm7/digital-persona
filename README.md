@@ -3,9 +3,14 @@
   <p><strong>A Persistent, Emotionally Reactive 3D Avatar Powered by Gemini 2.5 Flash Native Audio.</strong></p>
     <p>
         <a href="https://github.com/Kshitijm7/digital-persona/actions/workflows/deploy.yml"><img src="https://github.com/Kshitijm7/digital-persona/actions/workflows/deploy.yml/badge.svg" alt="Build and Deploy to Cloud Run" /></a>
+        <a href="https://github.com/Kshitijm7/digital-persona/actions/workflows/deploy-pages.yml"><img src="https://github.com/Kshitijm7/digital-persona/actions/workflows/deploy-pages.yml/badge.svg" alt="Deploy to GitHub Pages" /></a>
         <a href="https://github.com/Kshitijm7/digital-persona/actions/workflows/ci.yml"><img src="https://github.com/Kshitijm7/digital-persona/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
         <a href="https://github.com/Kshitijm7/digital-persona/actions/workflows/codeql.yml"><img src="https://github.com/Kshitijm7/digital-persona/actions/workflows/codeql.yml/badge.svg" alt="CodeQL" /></a>
         <a href="https://github.com/Kshitijm7/digital-persona/actions/workflows/dependency-review.yml"><img src="https://github.com/Kshitijm7/digital-persona/actions/workflows/dependency-review.yml/badge.svg" alt="Dependency Review" /></a>
+    </p>
+    <p>
+        <strong><a href="https://Kshitijm7.github.io/digital-persona/">📚 View Documentation Gateway</a></strong> |
+        <strong><a href="https://digital-persona-798468384002.us-central1.run.app/">☁️ View Live Cloud Run App</a></strong>
     </p>
 </div>
 
