@@ -1,6 +1,12 @@
 <div align="center">
   <h1>Digital Persona 🤖🎭</h1>
   <p><strong>A Persistent, Emotionally Reactive 3D Avatar Powered by Gemini 2.5 Flash Native Audio.</strong></p>
+    <p>
+        <a href="https://github.com/Kshitijm7/digital-persona/actions/workflows/deploy.yml"><img src="https://github.com/Kshitijm7/digital-persona/actions/workflows/deploy.yml/badge.svg" alt="Build and Deploy to Cloud Run" /></a>
+        <a href="https://github.com/Kshitijm7/digital-persona/actions/workflows/ci.yml"><img src="https://github.com/Kshitijm7/digital-persona/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+        <a href="https://github.com/Kshitijm7/digital-persona/actions/workflows/codeql.yml"><img src="https://github.com/Kshitijm7/digital-persona/actions/workflows/codeql.yml/badge.svg" alt="CodeQL" /></a>
+        <a href="https://github.com/Kshitijm7/digital-persona/actions/workflows/dependency-review.yml"><img src="https://github.com/Kshitijm7/digital-persona/actions/workflows/dependency-review.yml/badge.svg" alt="Dependency Review" /></a>
+    </p>
 </div>
 
 > **Bird's Eye View:** A fully embodied 3D digital instance built for the Google Gemini Live Agent Challenge. It merges the Gemini Live Multimodal API with a React Three Fiber driven Ready Player Me avatar, achieving sub-100ms conversational latency with procedural "life-like" ARKit blendshape expressions.

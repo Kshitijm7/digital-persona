@@ -13,6 +13,7 @@ env:
   REGION: us-central1
   ARTIFACT_REPO: digital-persona
   SERVICE_NAME: digital-persona
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   deploy:
