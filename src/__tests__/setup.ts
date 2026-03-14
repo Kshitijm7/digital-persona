@@ -17,7 +17,7 @@ afterEach(() => {
 });
 
 // Mock environment variables
-process.env.NEXT_PUBLIC_GEMINI_API_KEY = 'AIzaTestKeyPlaceholder_000000000000000';
+process.env.GEMINI_API_KEY = 'AIzaTestKeyPlaceholder_000000000000000';
 process.env.NEXT_PUBLIC_GCP_PROJECT_ID = 'test-project';
 process.env.NEXT_PUBLIC_GCS_BUCKET_NAME = 'test-bucket';
 

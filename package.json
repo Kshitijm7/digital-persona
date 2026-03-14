@@ -14,6 +14,7 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "preflight": "npm run lint && npm run typecheck && npm run test:run && npm run build",
     "health-check": "ts-node scripts/health-check.ts",
     "pre-deploy": "npm run health-check && npm run test:run && npm run build",
     "validate-avatar": "node scripts/validate-avatar.mjs",

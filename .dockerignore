@@ -1,9 +1,16 @@
 node_modules
 .next
 .git
+.github
 .agents
 .vscode
+project_docs
 .temp-*
 temp-*
 *.tsbuildinfo
 .env*
+npm-debug.log
+coverage
+README.md
+LICENSE
+src/__tests__

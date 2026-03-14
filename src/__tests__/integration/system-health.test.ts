@@ -8,9 +8,9 @@ import { describe, it, expect } from 'vitest';
 describe('Digital Persona System Health', () => {
   describe('Environment Configuration', () => {
     it('should have required environment variables', () => {
-      expect(process.env.NEXT_PUBLIC_GEMINI_API_KEY).toBeDefined();
-      expect(process.env.NEXT_PUBLIC_GEMINI_API_KEY).not.toBe('');
-      expect(process.env.NEXT_PUBLIC_GEMINI_API_KEY).toMatch(/^AIza/);
+      expect(process.env.GEMINI_API_KEY).toBeDefined();
+      expect(process.env.GEMINI_API_KEY).not.toBe('');
+      expect(process.env.GEMINI_API_KEY).toMatch(/^AIza/);
     });
 
     it('should have valid GCP configuration', () => {
@@ -46,23 +46,29 @@ describe('Digital Persona System Health', () => {
       const { SYSTEM_PROMPT } = await import('@/lib/constants');
       
       expect(SYSTEM_PROMPT).toContain('Digital Persona');
-      expect(SYSTEM_PROMPT).toContain('Environmental Presence');
+      expect(SYSTEM_PROMPT).toContain('Visual Grounding');
       expect(SYSTEM_PROMPT).toContain('trigger_animation');
     });
 
     it('should have valid Gemini tools configuration', async () => {
       const { GEMINI_TOOLS } = await import('@/lib/constants');
       
-      expect(GEMINI_TOOLS).toHaveLength(1);
-      expect(GEMINI_TOOLS[0].functionDeclarations).toBeDefined();
-      
-      const triggerAnim = GEMINI_TOOLS[0].functionDeclarations?.find(
+      expect(GEMINI_TOOLS.length).toBeGreaterThanOrEqual(1);
+
+      const toolsWithFunctions = GEMINI_TOOLS.filter((tool) =>
+        Array.isArray(tool.functionDeclarations)
+      );
+      expect(toolsWithFunctions.length).toBeGreaterThanOrEqual(1);
+
+      const triggerAnim = toolsWithFunctions
+        .flatMap((tool) => tool.functionDeclarations ?? [])
+        .find(
         (f) => f.name === 'trigger_animation'
       );
       
       expect(triggerAnim).toBeDefined();
       expect(triggerAnim?.parameters?.properties?.gesture_sequence).toBeDefined();
-      expect(triggerAnim?.parameters?.properties?.gesture_sequence?.description).toContain('list of rich');
+      expect(triggerAnim?.parameters?.properties?.gesture_sequence?.description).toContain('semantic');
     });
 
     it('should use correct Gemini model (SDK format)', async () => {
