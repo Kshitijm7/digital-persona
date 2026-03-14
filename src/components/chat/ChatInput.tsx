@@ -30,8 +30,8 @@ export function ChatInput({
   };
 
   return (
-    <div className={cn("flex items-center gap-2", className)}>
-      <div className="flex-1 flex items-center bg-white/5 backdrop-blur-2xl border border-white/10 rounded-full px-3 py-2 focus-within:border-cyan-500/40 focus-within:ring-1 focus-within:ring-cyan-500/20 transition-all duration-300">
+    <div className={cn("flex items-center gap-1.5 sm:gap-2", className)}>
+      <div className="flex flex-1 items-center rounded-full border border-white/10 bg-white/5 px-2.5 py-1.5 backdrop-blur-2xl transition-all duration-300 focus-within:border-cyan-500/40 focus-within:ring-1 focus-within:ring-cyan-500/20 sm:px-3 sm:py-2">
         <button
           type="button"
           className="p-2 text-muted-foreground hover:text-white hover:bg-white/10 rounded-full transition-colors shrink-0 disabled:opacity-50"
@@ -54,7 +54,7 @@ export function ChatInput({
       <LiquidButton
         onClick={handleSend}
         disabled={disabled || !value.trim()}
-        className="size-10 rounded-full bg-linear-to-r from-cyan-500 to-emerald-500 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)] border-0 text-white shrink-0 flex items-center justify-center p-0"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-0 bg-linear-to-r from-cyan-500 to-emerald-500 p-0 text-white hover:shadow-[0_0_15px_rgba(34,211,238,0.2)] sm:size-10"
       >
         <Send className="w-4 h-4" />
       </LiquidButton>

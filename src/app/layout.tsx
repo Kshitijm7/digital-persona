@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
@@ -9,6 +9,12 @@ export const metadata: Metadata = {
   title: "Digital Persona | AI Substrate",
   description:
     "A real-time 3D Digital Persona powered by Gemini Live API — Interactive AI Video Call Interface",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

@@ -12,31 +12,11 @@ export function DebugToggle({
       id="debug-mode-toggle"
       onClick={() => setDebugMode((v) => !v)}
       title={debugMode ? "Disable camera debug mode" : "Enable camera debug mode"}
-      style={{
-        position: "absolute",
-        top: "calc(1.5rem + 12rem + 8px)", // Below the smaller 48-height PiP cam
-        right: "1.5rem",
-        zIndex: 20,
-        padding: "5px 10px",
-        background: debugMode
-          ? "rgba(34,211,238,0.18)"
-          : "rgba(255,255,255,0.06)",
-        backdropFilter: "blur(12px)",
-        border: `1px solid ${
-          debugMode ? "rgba(34,211,238,0.5)" : "rgba(255,255,255,0.12)"
-        }`,
-        borderRadius: "8px",
-        color: debugMode ? "#22d3ee" : "#94a3b8",
-        fontSize: "11px",
-        fontFamily: "ui-monospace, monospace",
-        fontWeight: 600,
-        letterSpacing: "0.05em",
-        cursor: "pointer",
-        transition: "all 0.2s ease",
-        display: "flex",
-        alignItems: "center",
-        gap: "5px",
-      }}
+      className={`absolute right-4 top-37 z-20 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold tracking-[0.05em] backdrop-blur-xl transition-colors sm:right-6 sm:top-55 ${
+        debugMode
+          ? "border-cyan-400/50 bg-cyan-400/15 text-cyan-400"
+          : "border-white/12 bg-white/6 text-slate-400 hover:bg-white/10 hover:text-slate-200"
+      }`}
     >
       ⚙ {debugMode ? "Config ON" : "Config"}
     </button>

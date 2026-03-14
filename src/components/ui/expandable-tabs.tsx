@@ -6,28 +6,30 @@ import { useOnClickOutside } from "usehooks-ts";
 import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
 
-interface Tab {
+export interface Tab {
+  id?: string;
   title: string;
   icon: LucideIcon;
   type?: never;
 }
 
-interface Separator {
+export interface Separator {
   type: "separator";
   title?: never;
   icon?: never;
+  id?: never;
 }
 
-type TabItem = Tab | Separator;
+export type TabItem = Tab | Separator;
 
 interface ExpandableTabsProps {
   tabs: TabItem[];
   className?: string;
   activeColor?: string;
-  defaultSelected?: number;
-  /** Controlled: externally managed selected index */
-  activeIdx?: number | null;
-  onChange?: (index: number | null) => void;
+  defaultTab?: string | null;
+  /** Controlled: externally managed selected string ID */
+  activeTab?: string | null;
+  onChange?: (id: string | null) => void;
 }
 
 const buttonVariants = {
@@ -55,25 +57,29 @@ export function ExpandableTabs({
   tabs,
   className,
   activeColor = "text-primary",
-  defaultSelected,
-  activeIdx,
+  defaultTab = null,
+  activeTab,
   onChange,
 }: ExpandableTabsProps) {
-  const [internalSelected, setInternalSelected] = React.useState<number | null>(defaultSelected ?? null);
+  const [internalSelected, setInternalSelected] = React.useState<string | null>(defaultTab);
   const outsideClickRef = React.useRef<HTMLDivElement>(null);
 
-  // Controlled vs uncontrolled: use activeIdx if provided
-  const isControlled = activeIdx !== undefined;
-  const selected = isControlled ? activeIdx : internalSelected;
+  // Controlled vs uncontrolled: use activeTab if provided
+  const isControlled = activeTab !== undefined;
+  const selected = isControlled ? activeTab : internalSelected;
 
   useOnClickOutside(outsideClickRef as React.RefObject<HTMLDivElement>, () => {
     if (!isControlled) setInternalSelected(null);
     onChange?.(null);
   });
 
-  const handleSelect = (index: number) => {
-    if (!isControlled) setInternalSelected(index);
-    onChange?.(index);
+  const handleSelect = (idx: number) => {
+    const tab = tabs[idx];
+    if (tab && tab.type !== "separator") {
+      const idStr = tab.id || tab.title.toLowerCase();
+      if (!isControlled) setInternalSelected(idStr);
+      onChange?.(idStr);
+    }
   };
 
   const Separator = () => (
@@ -94,25 +100,28 @@ export function ExpandableTabs({
         }
 
         const Icon = tab.icon;
+        const idStr = tab.id || tab.title.toLowerCase();
+        const isSelected = selected === idStr;
+
         return (
           <motion.button
             key={tab.title}
             variants={buttonVariants}
             initial={false}
             animate="animate"
-            custom={selected === index}
+            custom={isSelected}
             onClick={() => handleSelect(index)}
             transition={transition}
             className={cn(
               "relative flex items-center rounded-xl px-4 py-2 text-sm font-medium transition-colors duration-300",
-              selected === index
+              isSelected
                 ? cn("bg-muted", activeColor)
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
           >
             <Icon size={20} />
             <AnimatePresence initial={false}>
-              {selected === index && (
+              {isSelected && (
                 <motion.span
                   variants={spanVariants}
                   initial="initial"
@@ -120,6 +129,7 @@ export function ExpandableTabs({
                   exit="exit"
                   transition={transition}
                   className="overflow-hidden"
+                  style={{ whiteSpace: "nowrap" }}
                 >
                   {tab.title}
                 </motion.span>

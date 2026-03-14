@@ -20,6 +20,7 @@ interface ChatPanelProps {
   isConnected: boolean;
   isTyping?: boolean;
   className?: string;
+  onCollapse?: () => void;
   selectedSkinId: string | null;
   onSkinChange: (preset: SkinPreset) => void;
   debugMode?: boolean;
@@ -31,26 +32,17 @@ export function ChatPanel({
   isConnected,
   isTyping = false,
   className,
+  onCollapse,
   selectedSkinId,
   onSkinChange,
   debugMode = false,
 }: ChatPanelProps) {
-  const [activeTab, setActiveTab] = useState<ChatTab>(debugMode ? "config" : "messages");
-  const [prevDebugMode, setPrevDebugMode] = useState(debugMode);
-
-  // Derive state from props: Only force tab switches when debugMode *transitions*
-  if (debugMode !== prevDebugMode) {
-    setPrevDebugMode(debugMode);
-    if (debugMode) {
-      setActiveTab("config");
-    } else if (activeTab === "config") {
-      // Gracefully switch out of config tab if it was closed
-      setActiveTab("messages");
-    }
-  }
+  const [selectedTab, setSelectedTab] = useState<Exclude<ChatTab, "config">>("messages");
+  const activeTab: ChatTab = debugMode ? "config" : selectedTab;
 
   const handleTabChange = (tab: ChatTab) => {
-    setActiveTab(tab);
+    if (tab === "config") return;
+    setSelectedTab(tab);
   };
 
   return (
@@ -68,9 +60,10 @@ export function ChatPanel({
         onTabChange={handleTabChange}
         isConnected={isConnected}
         showConfigTab={debugMode}
+        onCollapse={onCollapse}
       />
 
-      <Separator className="bg-white/5 mt-4" />
+      <Separator className="mt-3 bg-white/5 md:mt-4" />
 
       {/* Content based on active tab */}
       {activeTab === "messages" ? (
@@ -80,7 +73,7 @@ export function ChatPanel({
             isTyping={isTyping}
           />
           <Separator className="bg-white/5" />
-          <div className="p-4 bg-white/5">
+          <div className="bg-white/5 p-3 md:p-4">
             <ChatInput
               onSend={onSendText}
               disabled={!isConnected}
