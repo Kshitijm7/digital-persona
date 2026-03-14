@@ -1,6 +1,11 @@
 {
   "version": 1,
   "skills": {
+    "GithubPages": {
+      "source": "julianobarbosa/claude-code-skills",
+      "sourceType": "github",
+      "computedHash": "c5bb04f3a29e47e6607ccd04c003c74fd48c1b62d39e6caa97bd2e6428fd88d0"
+    },
     "crafting-effective-readmes": {
       "source": "softaworks/agent-toolkit",
       "sourceType": "github",
@@ -65,6 +70,11 @@
       "source": "github/awesome-copilot",
       "sourceType": "github",
       "computedHash": "e2c7dabf2e455794260f1516e2ceda6a82dc92a409578cc184fcb0f45bddca54"
+    },
+    "responsive-design": {
+      "source": "supercent-io/skills-template",
+      "sourceType": "github",
+      "computedHash": "1c2c94867cc1eeca74977d57b0d9818616934a62a58e100d9350ff11cd7244fd"
     }
   }
 }

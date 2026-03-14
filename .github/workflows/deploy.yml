@@ -12,6 +12,15 @@ on:
       - ".github/ISSUE_TEMPLATE/**"
       - ".github/PULL_REQUEST_TEMPLATE*"
   workflow_dispatch:
+    inputs:
+      service_name:
+        description: "Cloud Run service name to deploy to"
+        required: true
+        default: "digital-persona-dev"
+      region:
+        description: "Cloud Run region"
+        required: true
+        default: "us-central1"
 
 permissions:
   contents: read
@@ -19,7 +28,6 @@ permissions:
 env:
   REGION: us-central1
   ARTIFACT_REPO: digital-persona
-  SERVICE_NAME: digital-persona
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -28,6 +36,17 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Resolve deploy target
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "service=${{ inputs.service_name }}" >> "$GITHUB_OUTPUT"
+            echo "region=${{ inputs.region }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "service=digital-persona" >> "$GITHUB_OUTPUT"
+            echo "region=${{ env.REGION }}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -38,11 +57,11 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Configure Docker auth for Artifact Registry
-        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+        run: gcloud auth configure-docker ${{ steps.target.outputs.region }}-docker.pkg.dev --quiet
 
       - name: Define image URI
         id: image
-        run: echo "uri=${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.SERVICE_NAME }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+        run: echo "uri=${{ steps.target.outputs.region }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ steps.target.outputs.service }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
       - name: Build and Push image
         run: |
@@ -52,8 +71,8 @@ jobs:
       - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
         with:
-          service: ${{ env.SERVICE_NAME }}
-          region: ${{ env.REGION }}
+          service: ${{ steps.target.outputs.service }}
+          region: ${{ steps.target.outputs.region }}
           image: ${{ steps.image.outputs.uri }}
           flags: >-
             --allow-unauthenticated
