@@ -12,11 +12,11 @@ Digital Persona uses the Gemini Live API to see the screen, understand the conte
 
 Navigating healthcare systems or accessing mental wellness resources can be overwhelming. An automated phone tree or a stark web form only adds to that anxiety.
 
-Digital Persona is envisioned as a compassionate first point of contact. This empathetic companion can guide patients through intake forms, explain what to expect during an upcoming procedure, and offer a comforting presence. By utilizing visual and vocal cues, the avatar helps ease the fear and isolation often associated with medical journeys.
+Digital Persona is envisioned as a compassionate first point of contact. This empathetic companion can guide patients through intake forms, explain what to expect during an upcoming procedure, and offer a comforting presence. By utilizing visual cues, affective dialog, and **dual audio/text transcriptions** for live closed-captioning, the avatar ensures accessibility while helping ease the fear and isolation often associated with medical journeys.
 
 ## The Ultimate Concierge Front-Desk
 
-Picture walking into an international hotel and being greeted by a warm, responsive digital concierge. This avatar is capable of communicating seamlessly in multiple languages, making every guest feel instantly welcomed. It can read a booking confirmation, handle check-ins, and provide specific details about local restaurants or city tours, all through natural conversation.
+Picture walking into an international hotel and being greeted by a warm, responsive digital concierge. This avatar is capable of communicating seamlessly in multiple languages, making every guest feel instantly welcomed. It can read a booking confirmation via the webcam, handle check-ins, and allow for natural interruptions (**seamless barge-in**) while providing specific details about local restaurants or city tours.
 
 This technology has the potential to transform experiences across many industries.
 

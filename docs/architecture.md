@@ -42,7 +42,7 @@ flowchart LR
 
 When you grant microphone and camera access, your client securely requests an ephemeral token. We use this token strategy specifically to protect your credentials—ensuring that your session is private and short-lived.
 
-Once connected, audio and video are streamed directly to the Gemini Live API via WebSockets. It is this direct connection that minimizes delay. When the AI speaks, it sends back both the audio and precise tool calls. These tool calls are instructions for the React Three Fiber avatar, telling it exactly when to smile, when to gesture, and how to move its lips in perfect harmony with the spoken words.
+Once connected, audio and video are streamed directly to the Gemini Live API via WebSockets. It is this direct connection that minimizes delay while utilizing Affective Dialog to understand emotional subtleties. When the AI speaks, it sends back both the generated audio and precise tool calls. These tool calls are instructions for the React Three Fiber avatar, telling it exactly when to smile, when to gesture, and how to move its lips in perfect harmony with the spoken words using the unified `update_persona_state` and `trigger_animation` tools.
 
 ```mermaid
 %%{init: { 'theme': 'base', 'look': 'default', 'themeVariables': { 'primaryColor': '#1e3a5f', 'primaryTextColor': '#f0f4ff', 'primaryBorderColor': '#38bdf8', 'lineColor': '#60a5fa', 'secondaryColor': '#0f2744', 'background': '#0c1a2e', 'fontFamily': 'Inter, system-ui, sans-serif', 'actorBkg': '#1e3a5f', 'actorBorder': '#38bdf8', 'actorTextColor': '#f0f4ff', 'actorLineColor': '#334155', 'signalColor': '#60a5fa', 'signalTextColor': '#f0f4ff', 'labelBoxBkgColor': '#0f2744',  'labelBoxBorderColor': '#334155', 'labelTextColor': '#93c5fd', 'loopTextColor': '#93c5fd', 'noteBorderColor': '#38bdf8', 'noteBkgColor': '#1e3a5f', 'noteTextColor': '#f0f4ff', 'activationBorderColor': '#38bdf8', 'activationBkgColor': '#0f2744' } } }%%
@@ -64,8 +64,8 @@ sequenceDiagram
     Client->>Gemini: Audio chunks (PCM)
     Client->>Gemini: Video frames (webcam)
 
-    Gemini-->>Client: Audio response + transcript
-    Gemini-->>Client: toolCall — set_expression / trigger_animation
+    Gemini-->>Client: Dual Audio & Text Transcriptions
+    Gemini-->>Client: toolCall — update_persona_state / trigger_animation
 
     Client->>Avatar: Apply expressions + lip-sync visemes
     Client->>Gemini: toolResponse — result: ok

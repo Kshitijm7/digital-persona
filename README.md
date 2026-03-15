@@ -50,25 +50,27 @@ We poured hundreds of hours into solving complex constraints. Traditional chatbo
 
 ### 1. Zero-Latency Conversational Architecture
 - **Client-to-Server WebSockets:** Ephemeral Tokens provisioned by a Next.js backend — the frontend connects directly to Gemini for pure audio streaming, dropping the proxy overhead.
-- **Interruption Handling (VAD):** Gemini's native Voice Activity Detection — if a user interrupts ("barge-in"), the avatar instantly discards audio buffers, cancels animations, and listens.
+- **Seamless Barge-In (Interruption Handling):** Gemini's native Voice Activity Detection allows natural interruptions. If a user speaks over the avatar, it instantly discards audio buffers, cancels animations, and listens.
+- **Session Resumption & Memory:** Maintains a 128,000-token context window; if the connection drops, it resumes the session without losing conversation history.
 
-### 2. Emotive Realism & Lip-Syncing
-- **Co-articulation:** Combines ARKit blendshapes and Oculus Visemes for smooth phoneme transitions, rather than robotic mouth snaps.
-- **Procedural "Life":** Involuntary micro-twitches, asymmetric eyelid speeds during blinking (~100ms close, ~150ms open), and a sine-wave driven respiratory rate (~6 breaths/min).
-- **Affective Responses:** Gemini maps sentiment to ARKit expressions (e.g., pulling `browDownRight`, `mouthFrownLeft` for sadness) concurrently with audio delivery.
+### 2. Emotional Intelligence & Emotive Realism
+- **Affective Dialog (Emotion Awareness):** The model processes native raw audio to detect the acoustic nuances of your voice (frustration, joy, hesitation) and automatically adjusts its own spoken tone, pitch, and pace to match.
+- **Co-articulation & Procedural Life:** Combines ARKit blendshapes and Oculus Visemes for smooth phoneme transitions alongside involuntary micro-twitches and respiratory breathing curves.
 
 ### 3. Deep Multimodal Awareness
-- **Visual Analysis (Webcam Streaming):** Continuously captures the user's environment via webcam (Base64 JPEG @ 1 FPS), allowing Gemini to literally "see" you and ground answers on visual context.
-- **Hybrid Text Chat Integration:** A seamless text chat fallback routed through the same real-time multimodal session.
-- **Real-Time Function Calling (The Nervous System):** Exposes `trigger_animation`, `set_persona_mode`, `set_expression`, `display_text` to the model over WebSocket, enabling physical gesticulations from conversational intent.
+- **Real-Time Vision (Webcam Streaming):** Continuously captures the user's environment via webcam (Base64 JPEG @ ~1 FPS), allowing Gemini to literally "see" you and ground answers on visual context.
+- **Dual Audio/Text Transcriptions:** Real-time transcripts of both the user's spoken words and the model's generated audio are streamed and displayed simultaneously in the UI for seamless accessibility.
+- **Google Search Grounding:** Gives the avatar access to the live internet to answer questions with real-time, factual accuracy while it speaks.
 
-### 4. 🎨 Extensive UI & Control Panel
+### 4. The Puppeteer (Tool Calling Orchestration)
+- **Unified State Control:** The "Nervous System" exposes consolidated tools like `update_persona_state` and enum-locked `trigger_animation` directly over WebSocket.
+- **Synchronized Physicality:** The Gemini model dynamically maps conversational intent and sentiment to ARKit expressions and gestural triggers concurrently with audio delivery.
+
+### 5. 🎨 Extensive UI & Control Panel
 A glassmorphism "Control Center" with granular runtime configurations:
-- **Floating Chatbox** — Text input with API debugging logs and live transcript feed.
-- **Persona Modes** — Switch the system prompt dynamically (Tutor, Therapist, Interviewer) at runtime.
-- **Avatar Toggles** — Select and preview standing/idle animations.
-- **Gemini Toggles** — Enable/disable `Google Search Grounding` and `Proactive Audio`.
-- **Cinematic Camera** — Portrait ↔ Full-Body view toggles based on conversation context.
+- **Floating Chatbox** — Live transcript feed (user + avatar) with API debugging logs.
+- **Persona Modes** — Switch the system prompt dynamically (Tutor, Therapist, Interviewer).
+- **Gemini Toggles** — Enable/disable `Proactive Audio`, `Search Grounding`, and `Affective Dialog`.
 
 ---
 
