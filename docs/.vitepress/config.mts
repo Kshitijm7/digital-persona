@@ -6,7 +6,6 @@ export default withMermaid(defineConfig({
   base: '/digital-persona/',
   title: "Digital Persona",
   description: "AI-Powered Multimodal Agent with Gemini Live API",
-  appearance: false,
   mermaid: {
     look: 'handDrawn'
   },
@@ -64,7 +63,7 @@ export default withMermaid(defineConfig({
     ],
     
     footer: {
-      message: 'Built with next.js, Vertex AI, Google Cloud, and <a href="https://gemini.google.com/">Antigravity IDE</a>.<br><br><div class="footer-links"><a href="/challenge-submission">Submission</a> • <a href="/repository">Repository</a> • <a href="/credits">Credits</a> • <a href="/about-me">About Me</a> • <a href="/contribute">Contribute</a></div>',
+      message: 'Built with next.js, Vertex AI, Google Cloud, and <a href="https://gemini.google.com/">Antigravity IDE</a>.<br><br><div class="footer-links"><a href="/digital-persona/challenge-submission">Submission</a> • <a href="/digital-persona/repository">Repository</a> • <a href="/digital-persona/credits">Credits</a> • <a href="/digital-persona/about-me">About Me</a> • <a href="/digital-persona/contribute">Contribute</a></div>',
       copyright: 'Made with ❤️ by Kshitij Mittal (kshitijm7@github | kshitijm7@linkedin) © 2026'
     }
   }

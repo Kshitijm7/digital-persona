@@ -362,3 +362,16 @@ h1, h2, h3, h4 {
   border-color: var(--vp-c-bg);
   border-width: 0 1.5px 1.5px 0;
 }
+
+/* 
+  Adaptive SVGs: When an SVG is loaded via <img> tag, `currentColor` resolves to black.
+  To gracefully adapt the multi-layered opacity SVG vectors to dark mode, 
+  we apply an invert filter.
+*/
+html.dark .image-content img[src$=".svg"],
+html.dark img[src*="hero-humanoid-multi.svg"],
+html.dark img[src*="hero-alt.svg"],
+html.dark img[src*="text-based-interaction.svg"] {
+  filter: invert(1) hue-rotate(180deg) brightness(1.2) contrast(1.1);
+  opacity: 0.9;
+}
