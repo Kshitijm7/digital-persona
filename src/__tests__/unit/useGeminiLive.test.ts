@@ -15,7 +15,9 @@ const __mockSession = {
   sendClientContent: vi.fn(),
   sendToolResponse: vi.fn(),
   close: vi.fn(),
+  __lastTimer: undefined as ReturnType<typeof setTimeout> | undefined,
 };
+
 
 let __capturedCallbacks: {
   onopen?: () => void;
@@ -27,11 +29,15 @@ let __capturedCallbacks: {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const __mockConnect = vi.fn(async (options: any) => {
   __capturedCallbacks = options.callbacks || {};
-  setTimeout(() => {
-    __capturedCallbacks.onopen?.();
+  const timer = setTimeout(() => {
+    if (__capturedCallbacks.onopen) {
+      __capturedCallbacks.onopen();
+    }
   }, 0);
+  __mockSession.__lastTimer = timer;
   return __mockSession;
 });
+
 
 vi.mock('@google/genai', () => {
   class GoogleGenAI {
@@ -67,6 +73,10 @@ const renderGeminiHook = () => renderHook(() => useGeminiLive(), { wrapper });
 describe('useGeminiLive Hook', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    if (__mockSession.__lastTimer) {
+      clearTimeout(__mockSession.__lastTimer);
+      __mockSession.__lastTimer = undefined;
+    }
     __capturedCallbacks = {};
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -74,9 +84,15 @@ describe('useGeminiLive Hook', () => {
     }) as unknown as typeof fetch;
   });
 
+
   afterEach(() => {
     vi.restoreAllMocks();
+    if (__mockSession.__lastTimer) {
+      clearTimeout(__mockSession.__lastTimer);
+      __mockSession.__lastTimer = undefined;
+    }
   });
+
 
   describe('Connection Management', () => {
     it('should initialize with disconnected status', () => {
@@ -335,8 +351,10 @@ describe('useGeminiLive Hook', () => {
               response: { result: 'ok' },
             },
           ],
+          scheduling: 'SILENT',
         });
       });
+
     });
 
     it('should invoke registered tool handler and send its result', async () => {
@@ -385,8 +403,10 @@ describe('useGeminiLive Hook', () => {
               response: { formatted: '10:00 AM', iso: '2026-03-07T10:00:00Z' },
             },
           ],
+          scheduling: 'SILENT',
         });
       });
+
     });
 
     it('should handle interruptions gracefully', async () => {
@@ -572,8 +592,10 @@ describe('useGeminiLive Hook', () => {
               }),
             },
           ],
+          scheduling: 'SILENT',
         });
       });
+
 
       errorSpy.mockRestore();
       vi.useRealTimers();
