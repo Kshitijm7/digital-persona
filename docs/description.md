@@ -1,8 +1,18 @@
 # The Vision Behind Digital Persona
 
+<div class="side-by-side">
+<div class="text-content">
+
 For years, our relationship with artificial intelligence has been confined to a typing box. We send a prompt into the void, and we wait for a paragraph to appear. While the intelligence of Large Language Models (LLMs) has skyrocketed, the *way* we interact with them has remained stubbornly static, robotic, and cold.
 
-When we started building Digital Persona, we asked ourselves a radical question: **What if we could take the boundless intelligence of an LLM and give it a face, a voice, and a physical presence?**
+</div>
+<div class="image-content">
+
+![Static text boxes represent the limitations of legacy AI interactions](/text-based-interaction.png)
+
+</div>
+</div>
+When we started building Digital Persona, we asked ourselves a radical question: What if we could take the boundless intelligence of an LLM and give it a face, a voice, and a physical presence?
 
 We wanted to build an experience that goes completely beyond the text box. We envisioned an AI companion that feels like a real human sitting inside the cloud—someone who can look you in the eye, listen to the hesitation in your voice, and smile when you tell a joke.
 
@@ -31,4 +41,5 @@ We have witnessed firsthand how this technology transforms daily interactions. W
 If you are ready to see the technical mechanics that make this revolution possible, let's explore the architecture together.
 
 [See our secure architecture setup →](/architecture)
+
 [Explore the Gemini Live integration →](/gemini-live-api)

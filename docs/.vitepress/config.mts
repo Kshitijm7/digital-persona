@@ -5,9 +5,8 @@ import { withMermaid } from 'vitepress-plugin-mermaid'
 export default withMermaid(defineConfig({
   title: "Digital Persona",
   description: "AI-Powered Multimodal Agent with Gemini Live API",
-  appearance: 'dark',
+  appearance: true,
   mermaid: {
-    theme: 'dark',
     look: 'handDrawn'
   },
   vite: {
@@ -25,11 +24,9 @@ export default withMermaid(defineConfig({
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Overview', link: '/description' },
-      { text: 'Use Cases', link: '/use-cases' },
       { text: 'Architecture', link: '/architecture' },
       { text: 'Gemini Live API', link: '/gemini-live-api' },
-      { text: 'Submission', link: '/challenge-submission' },
-      { text: 'Repository', link: '/repository' }
+      { text: 'Live Preview', link: 'https://digital-persona-798468384002.us-central1.run.app/', target: '_blank' }
     ],
 
     sidebar: [
@@ -47,14 +44,6 @@ export default withMermaid(defineConfig({
           { text: 'Architecture & Cloud', link: '/architecture' },
           { text: 'Gemini Live API', link: '/gemini-live-api' },
           { text: 'Technical Implementation', link: '/technical-implementation' }
-        ]
-      },
-      {
-        text: 'Challenge Readiness',
-        items: [
-          { text: 'Submission Checklist', link: '/challenge-submission' },
-          { text: 'GitHub Pages Deployment', link: '/github-pages-deployment' },
-          { text: 'Code & Reproducibility', link: '/repository' }
         ]
       }
     ],
@@ -74,8 +63,8 @@ export default withMermaid(defineConfig({
     ],
     
     footer: {
-      message: 'Built with Next.js, Vertex AI, and Google Cloud.',
-      copyright: 'Copyright © 2026 Digital Persona Team'
+      message: 'Built with next.js, Vertex AI, Google Cloud, and <a href="https://gemini.google.com/">Antigravity IDE</a>.<br><br><div class="footer-links"><a href="/challenge-submission">Submission</a> • <a href="/repository">Repository</a> • <a href="/credits">Credits</a> • <a href="/about-me">About Me</a> • <a href="/contribute">Contribute</a></div>',
+      copyright: 'Made with ❤️ by Kshitij Mittal (kshitijm7@github | kshitijm7@linkedin) © 2026'
     }
   }
 }))

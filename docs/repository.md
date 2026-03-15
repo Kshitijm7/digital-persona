@@ -21,4 +21,5 @@ After that, you must validate the 3D avatar assets by running `npm run setup-ava
 In our efforts to maintain a perfectly reliable system, we chose to build our documentation site with VitePress, published securely through GitHub Pages. Meanwhile, the actual AI application is containerized and hosted independently on Google Cloud Run. This division ensures that while our educational materials remain accessible and static, our real-time application benefits from Google's immense processing power.
 
 [See our live cloud application in action →](https://digital-persona-798468384002.us-central1.run.app/)
+
 [Review our secure architecture setup →](/architecture)

@@ -14,13 +14,13 @@ hero:
       link: https://digital-persona-798468384002.us-central1.run.app/
       target: _blank
     - theme: alt
-      text: Discover How I Can Help You
+      text: Project Overview
       link: /description
     - theme: alt
-      text: See How We Built This
+      text: Architecture
       link: /architecture
     - theme: alt
-      text: The Gemini Brain
+      text: Gemini Live AI
       link: /gemini-live-api
 
 features:
@@ -52,4 +52,5 @@ In our experience with thousands of conversational interactions, we often see th
 I want you to experience this transformation firsthand. Let's dive into how we created this system, and how you can bring this empathetic, voice-first companion into your own projects. 
 
 [Explore exactly how this works →](/description)
+
 [Review our cloud infrastructure →](/architecture)

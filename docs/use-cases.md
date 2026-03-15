@@ -21,4 +21,5 @@ Picture walking into an international hotel and being greeted by a warm, respons
 We invite you to imagine how this technology could transform your own industry. 
 
 [Discover how we built the brain of this system →](/gemini-live-api)
+
 [Review our cloud infrastructure →](/architecture)
