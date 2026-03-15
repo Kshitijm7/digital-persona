@@ -5,7 +5,6 @@
         <a href="https://github.com/Kshitijm7/digital-persona/actions/workflows/deploy.yml"><img src="https://github.com/Kshitijm7/digital-persona/actions/workflows/deploy.yml/badge.svg" alt="App Deployment" /></a>
         <a href="https://github.com/Kshitijm7/digital-persona/actions/workflows/ci-app.yml"><img src="https://github.com/Kshitijm7/digital-persona/actions/workflows/ci-app.yml/badge.svg" alt="App CI" /></a>
         <a href="https://github.com/Kshitijm7/digital-persona/actions/workflows/deploy-pages.yml"><img src="https://github.com/Kshitijm7/digital-persona/actions/workflows/deploy-pages.yml/badge.svg" alt="Docs Deployment" /></a>
-        <a href="https://github.com/Kshitijm7/digital-persona/actions/workflows/ci-docs.yml"><img src="https://github.com/Kshitijm7/digital-persona/actions/workflows/ci-docs.yml/badge.svg" alt="Docs CI" /></a>
         <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License" /></a>
         <br>
         <img src="https://img.shields.io/badge/Gemini_2.5_Flash-8E75B2?style=flat&logo=googlegemini&logoColor=white" alt="Gemini 2.5 Flash" />
