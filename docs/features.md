@@ -16,23 +16,23 @@ The Digital Persona (PDI) is a Persistent Digital Instance designed for immersiv
 
 ![System Capabilities Banner](/assets/image2.png)
 
-## 🎙️ Core Intelligence & Audio
+## Core Intelligence & Audio
 - **Affective Dialog**: The system listens to your *voice*—not just your words. It detects frustration, joy, or hesitation and automatically adjusts its own spoken tone, pitch, and pace to empathize with you.
 - **Proactive VAD**: Advanced Voice Activity Detection filters out room noise, ensuring the AI only triggers when you are intentionally speaking to it.
 - **Native Audio Processing**: Unlike traditional bots that use slow TTS/STT steps, the Gemini 2.5 Flash model processes raw audio directly for near-instant (under 500ms) responses. Learn more in the [Gemini Live API](./gemini-live-api.md) section.
 - **Bi-Lingual Fluidity**: Seamlessly switch between English and Hindi/Haryanvi. The AI detects your language shift and responds in kind.
 
-## 👁️ Visual Grounding
+## Visual Grounding
 - **Environmental Awareness**: The persona "sees" your room via the webcam. It can identify objects, notice if you move, or comment on your surroundings.
 - **Dynamic Mirroring**: The system intelligently mirrors the front camera for a natural selfie-view and disables mirroring for the back camera to ensure accurate environment scanning.
 
-## 🎭 Expression & Lip Sync
+## Expression & Lip Sync
 - **Wawa Lip Sync**: Neural-based viseme extraction ensures the avatar's mouth movements perfectly match the spoken syllables in real-time.
 - **ARKit Blendshapes**: Support for 52+ standard ARKit blendshapes allows for complex, multi-layered facial expressions (smirks, eye-rolls, raised eyebrows). See [Avatar Realism](./avatar-realism.md) for details on skin and facial rendering.
 
 ---
 
-## 🕹️ Interaction Guide
+## Interaction Guide
 
 ### Voice Commands (Direct AI Interaction)
 The Digital Persona understands natural language and can execute system actions on your behalf using the [Consolidated Toolset](./architecture.md#consolidated-tool-infrastructure):
@@ -49,7 +49,17 @@ The Digital Persona understands natural language and can execute system actions 
 
 ---
 
-## 🚀 Future Roadmap
+## The Power of the Gemini Live API
+The Digital Persona is driven by the state-of-the-art **Gemini 2.5 Flash** model via the Live API, fundamentally changing how AI interaction feels:
+- **True Multimodal Streaming**: The system processes both high-quality audio and real-time video frames simultaneously. It doesn't just wait for you to speak; it observes your environment and listens to your tone.
+- **Ultra-Low Latency**: Traditional voice agents rely on a slow "Speech-to-Text → LLM → Text-to-Speech" pipeline. By processing native audio directly, our system achieves near-instant response times for fluid, human-like conversational pacing.
+- **Real-Time Function Calling**: The Live API architecture allows the model to trigger client-side tools (like flipping cameras, evaluating code, or retrieving live web data) seamlessly without breaking the conversational rhythm.
+
+*Dive deeper into our bidirectional streaming architecture: [Gemini Live API & Audio SDK →](./gemini-live-api.md)*
+
+---
+
+## Future Roadmap
 
 ### Phase 1: Contextual Memory 
 - **Long-term Persona Memory**: The AI will remember your name, past preferences, and shared history across multiple sessions.

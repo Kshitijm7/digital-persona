@@ -375,3 +375,17 @@ html.dark img[src*="text-based-interaction.svg"] {
   filter: invert(1) hue-rotate(180deg) brightness(1.2) contrast(1.1);
   opacity: 0.9;
 }
+
+/* Eliminate unnecessary scroll space at the bottom of the sidebar */
+.VPSidebar {
+  padding-bottom: 0 !important;
+}
+
+.VPSidebarNav {
+  padding-bottom: 1em !important; /* Just enough for a clean edge */
+}
+
+.VPSidebarGroup:last-child {
+  padding-bottom: 0 !important;
+  margin-bottom: 0 !important;
+}
