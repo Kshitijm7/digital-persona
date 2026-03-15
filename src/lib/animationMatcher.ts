@@ -6,11 +6,12 @@ const INTENT_ALIASES: Record<string, string[]> = {
         happy: ["joy", "smile", "cheerful", "glad", "rejoice", "laugh"],
         sad: ["depressed", "unhappy", "frown", "cry", "upset", "sorrow"],
         wave: ["greet", "hello", "hi", "welcome", "gesture"],
-        dance: ["groove", "move", "swing", "celebrate"],
+        dance: ["groove", "move", "swing", "celebrate", "rhythmic", "sway", "bouncy", "spirited", "club"],
         angry: ["mad", "furious", "annoyed", "grumpy"],
         focus: ["listen", "attentive", "concentrate", "professional", "calm"],
         nod: ["agree", "affirm", "yes", "understand"],
         shake: ["disagree", "no", "deny", "awkward"],
+        expression: ["react", "face", "emote", "talking", "variation"],
 };
 
 const ACTION_CANONICALS = new Set([

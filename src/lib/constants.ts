@@ -62,7 +62,9 @@ export const GEMINI_TOOLS: Tool[] = [
                 "point_forward", 
                 "inquisitive_tilt", 
                 "wave", 
-                "laugh"
+                "laugh",
+                "dance",
+                "expression"
               ],
               description: "The specific skeletal animation to play.",
             },

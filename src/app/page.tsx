@@ -48,8 +48,8 @@ import { sanitizeControlPatch } from "@/lib/avatar-control.types";
 import { SceneConfigProvider } from "@/hooks/SceneConfigContext";
 
 const log = createLogger("app/page");
-const BASE_ANIMATION_MATCH_THRESHOLD = 0.25;
-const SPEAKING_ANIMATION_MATCH_THRESHOLD = 0.32;
+const BASE_ANIMATION_MATCH_THRESHOLD = 0.15;
+const SPEAKING_ANIMATION_MATCH_THRESHOLD = 0.20;
 const ASSISTANT_SPEAKING_LEVEL_THRESHOLD = 0.06;
 
 
@@ -179,7 +179,7 @@ function HomePage() {
       const minScore = isSpeaking
         ? SPEAKING_ANIMATION_MATCH_THRESHOLD
         : BASE_ANIMATION_MATCH_THRESHOLD;
-      const disallowTypes = (isSpeaking || personaMode === "focus") ? ["dance", "misc"] : [];
+      const disallowTypes: string[] = [];
       const emotionState = useEmotionStore.getState();
       const recentMessages = chatMessagesRef.current.slice(-4).map((message) => message.content);
       const contextTexts = [
