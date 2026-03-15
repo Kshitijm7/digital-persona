@@ -7,3 +7,5 @@ I invite you to take a deep dive into the precise stack that powers our Digital 
 [Review our secure architecture setup →](/architecture)
 
 [Discover how we built the brain of this system →](/gemini-live-api)
+
+[See how we made the avatar actually look real →](/avatar-realism)
