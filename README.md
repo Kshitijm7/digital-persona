@@ -6,8 +6,19 @@
         <a href="https://github.com/Kshitijm7/digital-persona/actions/workflows/ci-app.yml"><img src="https://github.com/Kshitijm7/digital-persona/actions/workflows/ci-app.yml/badge.svg" alt="App CI" /></a>
         <a href="https://github.com/Kshitijm7/digital-persona/actions/workflows/deploy-pages.yml"><img src="https://github.com/Kshitijm7/digital-persona/actions/workflows/deploy-pages.yml/badge.svg" alt="Docs Deployment" /></a>
         <a href="https://github.com/Kshitijm7/digital-persona/actions/workflows/ci-docs.yml"><img src="https://github.com/Kshitijm7/digital-persona/actions/workflows/ci-docs.yml/badge.svg" alt="Docs CI" /></a>
-        <a href="https://github.com/Kshitijm7/digital-persona/actions/workflows/codeql.yml"><img src="https://github.com/Kshitijm7/digital-persona/actions/workflows/codeql.yml/badge.svg" alt="CodeQL" /></a>
-        <a href="https://github.com/Kshitijm7/digital-persona/actions/workflows/dependency-review.yml"><img src="https://github.com/Kshitijm7/digital-persona/actions/workflows/dependency-review.yml/badge.svg" alt="Dependency Review" /></a>
+        <br>
+        <img src="https://img.shields.io/badge/Gemini_2.5_Flash-8E75B2?style=flat&logo=googlegemini&logoColor=white" alt="Gemini 2.5 Flash" />
+        <img src="https://img.shields.io/badge/Vertex_AI-4285F4?style=flat&logo=googlecloud&logoColor=white" alt="Vertex AI" />
+        <img src="https://img.shields.io/badge/Cloud_Run-4285F4?style=flat&logo=googlecloud&logoColor=white" alt="Cloud Run" />
+        <img src="https://img.shields.io/badge/Next.js_16-000000?style=flat&logo=nextdotjs&logoColor=white" alt="Next.js 16" />
+        <img src="https://img.shields.io/badge/React_19-61DAFB?style=flat&logo=react&logoColor=black" alt="React 19" />
+        <img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript" />
+        <br>
+        <img src="https://img.shields.io/badge/Three.js-000000?style=flat&logo=threedotjs&logoColor=white" alt="Three.js" />
+        <img src="https://img.shields.io/badge/Tailwind_CSS_v4-06B6D4?style=flat&logo=tailwindcss&logoColor=white" alt="Tailwind CSS v4" />
+        <img src="https://img.shields.io/badge/Framer_Motion-0055FF?style=flat&logo=framer&logoColor=white" alt="Framer Motion" />
+        <img src="https://img.shields.io/badge/VitePress-646CFF?style=flat&logo=vite&logoColor=white" alt="VitePress" />
+        <img src="https://img.shields.io/badge/Vitest-6E9F18?style=flat&logo=vitest&logoColor=white" alt="Vitest" />
     </p>
     <p>
         <strong><a href="https://Kshitijm7.github.io/digital-persona/">📚 View Documentation Gateway</a></strong> |
