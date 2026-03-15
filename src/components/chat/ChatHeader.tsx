@@ -23,14 +23,14 @@ export function ChatHeader({
   onCollapse,
 }: ChatHeaderProps) {
   const tabs: TabItem[] = [
-    { title: "Chat", icon: MessageSquare, id: "messages" },
-    { title: "People", icon: Users, id: "participants" },
+    { title: "Transcript", icon: MessageSquare, id: "messages" },
+    { title: "Presence", icon: Users, id: "participants" },
     { type: "separator" as const },
-    { title: "Skins", icon: Palette, id: "skins" },
+    { title: "Appearance", icon: Palette, id: "skins" },
     ...(showConfigTab
       ? [
           { type: "separator" as const },
-          { title: "Config", icon: Settings, id: "config" },
+          { title: "Cortex", icon: Settings, id: "config" },
         ]
       : []),
   ];
@@ -53,7 +53,7 @@ export function ChatHeader({
             size="sm"
           />
           <h2 className="text-sm font-semibold text-foreground tracking-wide opacity-90">
-            Group Chat
+            Persona Console
           </h2>
         </div>
 

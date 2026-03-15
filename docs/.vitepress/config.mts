@@ -6,7 +6,7 @@ export default withMermaid(defineConfig({
   base: '/digital-persona/',
   title: "Digital Persona",
   description: "AI-Powered Multimodal Agent with Gemini Live API",
-  appearance: true,
+  appearance: false,
   mermaid: {
     look: 'handDrawn'
   },
