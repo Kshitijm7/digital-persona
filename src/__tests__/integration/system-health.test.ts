@@ -67,8 +67,8 @@ describe('Digital Persona System Health', () => {
       );
       
       expect(triggerAnim).toBeDefined();
-      expect(triggerAnim?.parameters?.properties?.gesture_sequence).toBeDefined();
-      expect(triggerAnim?.parameters?.properties?.gesture_sequence?.description).toContain('semantic');
+      expect(triggerAnim?.parameters?.properties?.base_animation).toBeDefined();
+      expect(triggerAnim?.parameters?.properties?.base_animation?.enum).toBeDefined();
     });
 
     it('should use correct Gemini model (SDK format)', async () => {

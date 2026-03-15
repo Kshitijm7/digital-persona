@@ -20,7 +20,7 @@ const ASSISTANT_HOLDOFF_MS = 900;
  * **Built-in tool handlers registered here:**
  * - `get_time_date` — returns current ISO timestamp and locale string
  *
- * Application-level tools (e.g. `trigger_animation`, `set_persona_mode`,
+ * Application-level tools (e.g. `trigger_animation`, `update_persona_state`,
  * `display_text`) should be registered by the page via the returned
  * `registerTool` function BEFORE calling `toggleSession`.
  */
@@ -324,7 +324,7 @@ export function useSessionManager() {
      * Must be called before `toggleSession` / `connect`.
      *
      * @example
-     * registerTool("set_persona_mode", ({ mode }) => {
+     * registerTool("update_persona_state", ({ mode }) => {
      *   setPersonaMode(mode as string);
      *   return { acknowledged: true, mode };
      * });
@@ -334,5 +334,6 @@ export function useSessionManager() {
     // Callback refs (for transcript and tool-call side-effects in the page)
     onToolCall: gemini.onToolCall,
     onTranscript: gemini.onTranscript,
+    onUserTranscript: gemini.onUserTranscript,
   };
 }

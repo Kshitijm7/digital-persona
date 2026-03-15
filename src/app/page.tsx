@@ -41,8 +41,8 @@ import { SkinPreset, SKIN_PRESETS } from "@/lib/skinConfig";
 import { useEmotionStore } from "@/store/useEmotionStore";
 import { createLogger } from "@/lib/logging/logger";
 import { useAvatarRuntimeStore } from "@/store/useAvatarRuntimeStore";
-import { sanitizeControlPatch, type AvatarControlOverrides } from "@/lib/avatar-control.types";
-import { useLipSyncStore } from "@/store/useLipSyncStore";
+import { sanitizeControlPatch } from "@/lib/avatar-control.types";
+
 
 // Scene Config
 import { SceneConfigProvider } from "@/hooks/SceneConfigContext";
@@ -144,7 +144,7 @@ function HomePage() {
   const chatMessagesRef = useRef(chat.messages);
   const applySessionPatch = useAvatarRuntimeStore((state) => state.applySessionPatch);
   const clearSessionOverrides = useAvatarRuntimeStore((state) => state.clearSessionOverrides);
-  const updateLipSyncTuning = useLipSyncStore((state) => state.updateTuning);
+
 
   useEffect(() => {
     chatMessagesRef.current = chat.messages;
@@ -153,6 +153,7 @@ function HomePage() {
   // Session management
   const {
     onTranscript: onTranscriptRef,
+    onUserTranscript: onUserTranscriptRef,
     onToolCall: onToolCallRef,
     registerTool,
     ...session
@@ -167,11 +168,10 @@ function HomePage() {
   useEffect(() => {
     log.info("Registering page-level tool handlers.");
 
-    // trigger_animation - play a sequence of gestures on the 3D avatar
+    // trigger_animation - play enum-locked animation on the 3D avatar
     registerTool("trigger_animation", (args) => {
-      const gestures = (args.gesture_sequence as string[]) || [];
-      const durationPerGesture = args.duration_per_gesture_ms as number | undefined;
-      const timeScale = args.time_scale as number | undefined;
+      const baseAnimation = args.base_animation as string;
+      const intensity = (args.intensity as number | undefined) ?? 1.0;
       const assistantSpeakingLevel = session.assistantAudioLevelRef.current ?? 0;
       const isSpeaking = assistantSpeakingLevel >= ASSISTANT_SPEAKING_LEVEL_THRESHOLD;
       const minScore = isSpeaking
@@ -186,9 +186,8 @@ function HomePage() {
       ].filter((text): text is string => Boolean(text && text.trim()));
       log.info(
         {
-          requestedGestures: gestures,
-          durationPerGesture,
-          timeScale,
+          baseAnimation,
+          intensity,
           isSpeaking,
           assistantSpeakingLevel,
           minScore,
@@ -199,68 +198,53 @@ function HomePage() {
         "Tool override: trigger_animation",
       );
 
-      if (gestures.length > 0) {
+      if (baseAnimation) {
         const state = useAnimationStore.getState();
 
-        // Resolve all gestures using the advanced semantic matcher.
-        const resolvedSequence = gestures.map((g) =>
-          findBestAnimationMatch(g, state.registry, {
-            minScore,
-            disallowTypes,
-            allowCategoryFallback: !isSpeaking,
-            contextTexts,
-            sentimentScore: emotionState.currentScore,
-          }),
-        );
-        const filteredSequence = resolvedSequence.filter((name) => name !== "idle");
+        // Resolve the single animation using the semantic matcher.
+        const resolved = findBestAnimationMatch(baseAnimation, state.registry, {
+          minScore,
+          disallowTypes,
+          allowCategoryFallback: !isSpeaking,
+          contextTexts,
+          sentimentScore: emotionState.currentScore,
+        });
         log.debug(
           {
-            requested: gestures,
-            resolved: resolvedSequence,
-            filtered: filteredSequence,
+            requested: baseAnimation,
+            resolved,
           },
-          "Resolved animation gestures.",
+          "Resolved animation gesture.",
         );
 
-        if (filteredSequence.length > 0) {
-          // Dispatch to the chronological queue.
-          state.playSequence(
-            filteredSequence.map((name) => ({
-              name,
-              durationMs: durationPerGesture,
-              timeScale,
-            })),
-          );
+        if (resolved !== "idle") {
+          state.playSequence([
+            {
+              name: resolved,
+              timeScale: intensity,
+            },
+          ]);
         } else {
           log.info(
             {
-              requestedGestures: gestures,
-              resolved: resolvedSequence,
+              baseAnimation,
+              resolved,
               minScore,
               isSpeaking,
             },
-            "Skipped trigger_animation: no animation met relevance threshold.",
+            "Skipped trigger_animation: animation did not meet relevance threshold.",
           );
         }
       }
 
       return {
         acknowledged: true,
-        gesture_sequence: gestures,
-        duration_per_gesture_ms: durationPerGesture,
-        time_scale: timeScale,
+        base_animation: baseAnimation,
+        intensity,
       };
     });
 
-    // set_persona_mode - switch interaction style
-    registerTool("set_persona_mode", (args) => {
-      const mode = args.mode as "focus" | "casual" | "presentation";
-      log.info({ mode }, "Tool override: set_persona_mode");
-      setPersonaMode(mode);
-      return { acknowledged: true, active_mode: mode };
-    });
-
-    // set_expression - change facial expression
+    // set_expression - change facial expression (transient ARKit blendshape)
     registerTool("set_expression", (args) => {
       const expr = args.expression as string;
       if (expr) {
@@ -309,60 +293,55 @@ function HomePage() {
       return { acknowledged: true, characters_displayed: content.length };
     });
 
-    registerTool("set_avatar_controls", (args) => {
-      const rawPatch = (args.patch as AvatarControlOverrides | undefined) ?? {};
-      const sanitized = sanitizeControlPatch(rawPatch);
-      applySessionPatch(sanitized);
-      log.info({ patchKeys: Object.keys(sanitized) }, "Tool override: set_avatar_controls");
-      return { acknowledged: true, applied: sanitized };
-    });
+    // update_persona_state - unified avatar state control (replaces set_persona_mode,
+    // set_emotion_state, set_ocular_state, set_avatar_controls, set_lipsync_profile,
+    // and reset_avatar_controls)
+    registerTool("update_persona_state", (args) => {
+      const applied: Record<string, unknown> = {};
 
-    registerTool("set_emotion_state", (args) => {
-      const patch = sanitizeControlPatch({
-        emotionControl: {
-          emotionState: args.emotionState as "neutral" | "joy" | "anger" | "sadness" | "surprised" | "fear" | "disgust" | undefined,
-          emotionIntensity: typeof args.emotionIntensity === "number" ? args.emotionIntensity : undefined,
-          textConditioning: typeof args.textConditioning === "string" ? args.textConditioning : undefined,
-        },
-      });
-      applySessionPatch(patch);
-      return { acknowledged: true, applied: patch };
-    });
-
-    registerTool("set_ocular_state", (args) => {
-      const patch = sanitizeControlPatch({
-        ocularTuning: {
-          saccadeStrength: typeof args.saccadeStrength === "number" ? args.saccadeStrength : undefined,
-          blinkIntervalMs: typeof args.blinkIntervalMs === "number" ? args.blinkIntervalMs : undefined,
-          blinkDurationMs: typeof args.blinkDurationMs === "number" ? args.blinkDurationMs : undefined,
-          eyelidOpenOffset: typeof args.eyelidOpenOffset === "number" ? args.eyelidOpenOffset : undefined,
-          lookAtIK: typeof args.lookAtIK === "boolean" ? args.lookAtIK : undefined,
-        },
-      });
-      applySessionPatch(patch);
-      return { acknowledged: true, applied: patch };
-    });
-
-    registerTool("set_lipsync_profile", (args) => {
-      const visemeOverrides = args.visemeOverrides as AvatarControlOverrides["visemeOverrides"] | undefined;
-      const aiStyleControl = args.aiStyleControl as AvatarControlOverrides["aiStyleControl"] | undefined;
-      const patch = sanitizeControlPatch({ visemeOverrides, aiStyleControl });
-      applySessionPatch(patch);
-
-      if (aiStyleControl?.coarticulationWindowSize !== undefined) {
-        updateLipSyncTuning({
-          anticipationWindowMs: Math.max(8, Math.min(180, aiStyleControl.coarticulationWindowSize * (1000 / 60))),
-        });
+      // Mode update
+      const mode = args.mode as "focus" | "casual" | "presentation" | undefined;
+      if (mode) {
+        setPersonaMode(mode);
+        applied.mode = mode;
       }
 
-      return { acknowledged: true, applied: patch };
-    });
+      // Emotion + Ocular updates via a single sanitized patch
+      const emotionState = args.emotionState as string | undefined;
+      const emotionIntensity = typeof args.emotionIntensity === "number" ? args.emotionIntensity : undefined;
+      const lookAtIK = typeof args.lookAtIK === "boolean" ? args.lookAtIK : undefined;
+      const saccadeStrength = typeof args.saccadeStrength === "number" ? args.saccadeStrength : undefined;
 
-    registerTool("reset_avatar_controls", () => {
-      clearSessionOverrides();
-      return { acknowledged: true, cleared: true };
+      const hasEmotionFields = emotionState !== undefined || emotionIntensity !== undefined;
+      const hasOcularFields = lookAtIK !== undefined || saccadeStrength !== undefined;
+
+      if (hasEmotionFields || hasOcularFields) {
+        const patch = sanitizeControlPatch({
+          ...(hasEmotionFields
+            ? {
+                emotionControl: {
+                  emotionState: emotionState as "neutral" | "joy" | "anger" | "sadness" | "surprised" | "fear" | "disgust" | undefined,
+                  emotionIntensity,
+                },
+              }
+            : {}),
+          ...(hasOcularFields
+            ? {
+                ocularTuning: {
+                  lookAtIK,
+                  saccadeStrength,
+                },
+              }
+            : {}),
+        });
+        applySessionPatch(patch);
+        applied.patch = patch;
+      }
+
+      log.info({ applied }, "Tool override: update_persona_state");
+      return { acknowledged: true, applied };
     });
-  }, [registerTool, appendAssistantMessage, applySessionPatch, clearSessionOverrides, updateLipSyncTuning, personaMode, session.assistantAudioLevelRef]);
+  }, [registerTool, appendAssistantMessage, applySessionPatch, clearSessionOverrides, personaMode, session.assistantAudioLevelRef]);
 
   useEffect(() => {
     if (session.status === "disconnected" || session.status === "error") {
@@ -423,6 +402,19 @@ function HomePage() {
 
 
 
+  // Handle User Voice Transcripts
+  useEffect(() => {
+    onUserTranscriptRef.current = (text: string) => {
+      const normalized = text.trim();
+      if (!normalized) return;
+
+      log.debug({ length: normalized.length }, "User transcript received in UI.");
+      addUserMessage(normalized);
+    };
+    return () => {
+      onUserTranscriptRef.current = null;
+    };
+  }, [onUserTranscriptRef, addUserMessage]);
 
   // Send chat text
   const handleSendText = useCallback(

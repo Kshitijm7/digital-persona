@@ -53,6 +53,7 @@ export interface UseGeminiLiveReturn {
   onAudioData: React.RefObject<((b64: string) => void) | null>;
   onToolCall: React.RefObject<((tc: ToolCallPayload) => void) | null>;
   onTranscript: React.RefObject<((text: string) => void) | null>;
+  onUserTranscript: React.RefObject<((text: string) => void) | null>;
   onInterrupted: React.RefObject<(() => void) | null>;
   onTurnComplete: React.RefObject<(() => void) | null>;
   onToolCallCancellation: React.RefObject<((ids: string[]) => void) | null>;
@@ -76,6 +77,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
   const onAudioData = useRef<((b64: string) => void) | null>(null);
   const onToolCall = useRef<((tc: ToolCallPayload) => void) | null>(null);
   const onTranscript = useRef<((text: string) => void) | null>(null);
+  const onUserTranscript = useRef<((text: string) => void) | null>(null);
   const onInterrupted = useRef<(() => void) | null>(null);
   const onTurnComplete = useRef<(() => void) | null>(null);
   const onToolCallCancellation = useRef<((ids: string[]) => void) | null>(null);
@@ -246,13 +248,15 @@ export function useGeminiLive(): UseGeminiLiveReturn {
           }
 
           if (message.serverContent.outputTranscription?.text) {
+            const userText = message.serverContent.outputTranscription.text;
             log.debug(
               {
                 connectionId,
-                transcript: message.serverContent.outputTranscription.text,
+                transcript: userText,
               },
-              "Official transcript received (ignored for UI).",
+              "Official user transcript received.",
             );
+            onUserTranscript.current?.(userText);
           }
 
           const parts = message.serverContent.modelTurn?.parts;
@@ -465,7 +469,10 @@ export function useGeminiLive(): UseGeminiLiveReturn {
               },
             },
           },
-          systemInstruction: `${SYSTEM_PROMPT}\n\n${TOOL_SILENCE_POLICY}\n\n# AVATAR_CONTROL_BASELINE\n${avatarBaselineSummary}`,
+          systemInstruction: {
+            role: "user",
+            parts: [{ text: `${SYSTEM_PROMPT}\n\n${TOOL_SILENCE_POLICY}\n\n# AVATAR_CONTROL_BASELINE\n${avatarBaselineSummary}` }]
+          },
           tools: (compatibilityProfileRef.current === "minimal"
             ? false
             : config.features.googleSearch)
@@ -693,6 +700,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
     onAudioData,
     onToolCall,
     onTranscript,
+    onUserTranscript,
     onInterrupted,
     onTurnComplete,
     onToolCallCancellation,

@@ -168,11 +168,12 @@ describe('Gemini Live API Integration', () => {
                         parameters: {
                           type: Type.OBJECT,
                           properties: {
-                            gesture_name: {
+                            base_animation: {
                               type: Type.STRING,
-                              enum: ['wave', 'nod'],
+                              enum: ['idle', 'nod', 'shake_head', 'explain_hands', 'shrug', 'point_forward', 'inquisitive_tilt', 'wave', 'laugh'],
                             },
                           },
+                          required: ['base_animation'],
                         },
                       },
                     ],
