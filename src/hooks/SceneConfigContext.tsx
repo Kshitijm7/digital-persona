@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from "react";
 import initialConfig from "@/config/scene.json";
+import avatarTuningConfig from "@/config/avatar-tuning.json";
 import { DEFAULT_LIPSYNC_TUNING, type LipSyncTuning, useLipSyncStore } from "@/store/useLipSyncStore";
 import {
   DEFAULT_AI_STYLE_CONTROL,
@@ -117,38 +118,49 @@ const SceneConfigCtx = createContext<SceneConfigContextValue | null>(null);
 
 export function SceneConfigProvider({ children }: { children: ReactNode }) {
   const setLipSyncTuning = useLipSyncStore((state) => state.updateTuning);
+  // avatar-tuning.json provides configurable defaults; scene.json takes precedence over it;
+  // TypeScript DEFAULT_* constants are the last-resort fallback.
+  const cfg = avatarTuningConfig as Record<string, unknown>;
+  const sceneCfg = initialConfig as Record<string, unknown>;
   const sanitizedInitialControls = sanitizeEffectiveControls({
     emotionControl: {
       ...DEFAULT_EMOTION_CONTROL,
-      ...((initialConfig as Record<string, unknown>).emotionControl as Partial<EmotionControl> || {}),
+      ...(cfg.emotionControl as Partial<EmotionControl> || {}),
+      ...(sceneCfg.emotionControl as Partial<EmotionControl> || {}),
     },
     ocularTuning: {
       ...DEFAULT_OCULAR_TUNING,
-      ...((initialConfig as Record<string, unknown>).ocularTuning as Partial<OcularTuning> || {}),
+      ...(cfg.ocularTuning as Partial<OcularTuning> || {}),
+      ...(sceneCfg.ocularTuning as Partial<OcularTuning> || {}),
     },
     meshPostProcessing: {
       ...DEFAULT_MESH_POST_PROCESSING,
-      ...((initialConfig as Record<string, unknown>).meshPostProcessing as Partial<MeshPostProcessing> || {}),
+      ...(cfg.meshPostProcessing as Partial<MeshPostProcessing> || {}),
+      ...(sceneCfg.meshPostProcessing as Partial<MeshPostProcessing> || {}),
     },
     headDynamics: {
       ...DEFAULT_HEAD_DYNAMICS,
-      ...((initialConfig as Record<string, unknown>).headDynamics as Partial<HeadDynamics> || {}),
+      ...(cfg.headDynamics as Partial<HeadDynamics> || {}),
+      ...(sceneCfg.headDynamics as Partial<HeadDynamics> || {}),
     },
     anatomicalPostProcessing: {
       ...DEFAULT_ANATOMICAL_POST_PROCESSING,
-      ...((initialConfig as Record<string, unknown>).anatomicalPostProcessing as Partial<AnatomicalPostProcessing> || {}),
+      ...(cfg.anatomicalPostProcessing as Partial<AnatomicalPostProcessing> || {}),
+      ...(sceneCfg.anatomicalPostProcessing as Partial<AnatomicalPostProcessing> || {}),
     },
     visemeOverrides: {
       ...DEFAULT_VISEME_OVERRIDES,
-      ...((initialConfig as Record<string, unknown>).visemeOverrides as Partial<VisemeOverrides> || {}),
+      ...(cfg.visemeOverrides as Partial<VisemeOverrides> || {}),
+      ...(sceneCfg.visemeOverrides as Partial<VisemeOverrides> || {}),
     },
     aiStyleControl: {
       ...DEFAULT_AI_STYLE_CONTROL,
-      ...((initialConfig as Record<string, unknown>).aiStyleControl as Partial<AIStyleControl> || {}),
+      ...(cfg.aiStyleControl as Partial<AIStyleControl> || {}),
+      ...(sceneCfg.aiStyleControl as Partial<AIStyleControl> || {}),
     },
     meshConfig: {
       ...DEFAULT_MESH_CONFIG,
-      ...((initialConfig as Record<string, unknown>).meshConfig as Partial<MeshConfig> || {}),
+      ...(sceneCfg.meshConfig as Partial<MeshConfig> || {}),
     },
   });
 

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo } from "react";
 import * as THREE from "three";
@@ -6,9 +6,9 @@ import { cn } from "@/lib/utils";
 import { type SceneConfig } from "@/hooks/SceneConfigContext";
 import { ToggleSwitch, NumInput, Section, Group } from "./ui-components";
 import {
-  DEFAULT_LIPSYNC_TUNING,
   LIPSYNC_PRESETS,
   type LipSyncPresetKey,
+  type LipSyncTuning,
   useLipSyncStore,
 } from "@/store/useLipSyncStore";
 
@@ -20,15 +20,14 @@ export function LipSyncSection({
   setConfig,
 }: {
   draft: SceneConfig;
-  patchLipSync: (patch: Partial<typeof DEFAULT_LIPSYNC_TUNING>) => void;
+  patchLipSync: (patch: Partial<LipSyncTuning>) => void;
   applyLipSyncPreset: (preset: LipSyncPresetKey) => void;
   setDraft: (d: SceneConfig) => void;
   setConfig: (d: SceneConfig) => void;
 }) {
   const lipSyncTuning = useLipSyncStore((state) => state.tuning);
   const activePreset = useLipSyncStore((state) => state.activePreset);
-  const resetLipSyncTuning = useLipSyncStore((state) => state.resetTuning);
-  const setActivePresetStore = useLipSyncStore((state) => state.setActivePreset);
+  const applyPreset = useLipSyncStore((state) => state.applyPreset);
 
   const earlyGuide = useMemo(
     () => [
@@ -294,11 +293,10 @@ export function LipSyncSection({
 
         <button
           onClick={() => {
-            resetLipSyncTuning();
-            setActivePresetStore("balanced");
+            applyPreset("balanced");
             const next = {
               ...draft,
-              lipSyncTuning: { ...DEFAULT_LIPSYNC_TUNING },
+              lipSyncTuning: { ...LIPSYNC_PRESETS.balanced.values },
             };
             setDraft(next);
             setConfig(next);

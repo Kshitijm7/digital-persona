@@ -1,0 +1,68 @@
+{
+  "_comment": "Avatar tuning configuration. Controls anatomy, mesh processing, eye/head behaviour, and viseme strength. Changes take effect after a page reload.",
+
+  "ocularTuning": {
+    "_comment": "Controls eye and blink behaviour.",
+    "saccadeStrength": 0.4,
+    "blinkIntervalMs": 3000,
+    "blinkDurationMs": 100,
+    "eyelidOpenOffset": 0.0,
+    "lookAtIK": true
+  },
+
+  "headDynamics": {
+    "_comment": "Controls head pitch/yaw range and inertia during speech and idle.",
+    "headMotionAccelerationLimit": 0.15,
+    "generateIdleMotion": true,
+    "pitchRange": [-15, 15],
+    "yawRange": [-20, 20]
+  },
+
+  "anatomicalPostProcessing": {
+    "_comment": "Separates face into anatomical zones and applies independent strength multipliers.",
+    "lowerFaceStrength": 1.3,
+    "upperFaceStrength": 1.0,
+    "faceMaskLevel": 0.6,
+    "faceMaskSoftness": 0.0085,
+    "jawStrength": 1.0,
+    "jawHeight": 0.0,
+    "jawDepth": 0.0,
+    "tongueStrength": 1.0,
+    "tongueHeight": 0.0,
+    "tongueDepth": 0.0
+  },
+
+  "meshPostProcessing": {
+    "_comment": "Controls temporal smoothing and mesh-level corrections per face zone.",
+    "upperFaceSmoothing": 0.001,
+    "lowerFaceSmoothing": 0.0023,
+    "skinStrength": 1.0,
+    "jawStrength": 1.1,
+    "lipOpenOffset": -0.03
+  },
+
+  "visemeOverrides": {
+    "_comment": "Per-phoneme-group strength scaling (100 = no change, 150 = 50% amplified).",
+    "drivingDataScale": 1.0,
+    "strengthBMP": 120,
+    "strengthFV": 100,
+    "strengthWOo": 150,
+    "strengthSZTD": 100
+  },
+
+  "emotionControl": {
+    "_comment": "Baseline emotion state applied to the avatar when no session override is active.",
+    "emotionState": "neutral",
+    "emotionIntensity": 0.44,
+    "textConditioning": "speaks with calm neutral expression",
+    "fineGrainedAUs": []
+  },
+
+  "aiStyleControl": {
+    "_comment": "Controls AI-driven animation style parameters.",
+    "emotionTextPrompt": "neutral professional expression",
+    "emotionIntensity": 0.35,
+    "cfgScale": 2.0,
+    "coarticulationWindowSize": 5
+  }
+}

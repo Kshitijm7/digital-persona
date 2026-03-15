@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-
 import type { Lipsync } from 'wawa-lipsync';
+import presetsConfig from '@/config/lipsync-presets.json';
 
 export interface LipSyncTuning {
   clockCompensationRatio: number;
@@ -27,6 +27,11 @@ export interface LipSyncTuning {
   visemePersistenceMs: number;
 }
 
+/**
+ * Compile-time fallback defaults — used when individual keys are missing from
+ * the JSON config. Editing src/config/lipsync-presets.json is the preferred
+ * way to change preset values; these constants are the last resort safety net.
+ */
 export const DEFAULT_LIPSYNC_TUNING: LipSyncTuning = {
   clockCompensationRatio: 0.6,
   maxClockCompensationMs: 70,
@@ -53,86 +58,71 @@ export const DEFAULT_LIPSYNC_TUNING: LipSyncTuning = {
 
 export type LipSyncPresetKey = "lowLatency" | "balanced" | "noisyRoom" | "photorealistic";
 
+/* ─── Config-file loader ──────────────────────────────────────────────────── */
 
+/**
+ * Coerce a raw JSON preset object into a fully-typed LipSyncTuning, filling
+ * any missing keys from DEFAULT_LIPSYNC_TUNING so the engine always sees a
+ * complete object even if the JSON was only partially edited.
+ */
+function loadPresetFromConfig(raw: Record<string, unknown>): LipSyncTuning {
+  const d = DEFAULT_LIPSYNC_TUNING;
+  const n = (key: keyof LipSyncTuning, fallback: number) =>
+    typeof raw[key] === 'number' ? (raw[key] as number) : fallback;
+  const b = (key: keyof LipSyncTuning, fallback: boolean) =>
+    typeof raw[key] === 'boolean' ? (raw[key] as boolean) : fallback;
+
+  return {
+    clockCompensationRatio: n('clockCompensationRatio', d.clockCompensationRatio),
+    maxClockCompensationMs: n('maxClockCompensationMs', d.maxClockCompensationMs),
+    anticipationWindowMs: n('anticipationWindowMs', d.anticipationWindowMs),
+    anticipationWeightMax: n('anticipationWeightMax', d.anticipationWeightMax),
+    resetSilenceHoldMs: n('resetSilenceHoldMs', d.resetSilenceHoldMs),
+    minSwitchMsPlosive: n('minSwitchMsPlosive', d.minSwitchMsPlosive),
+    minSwitchMsFricative: n('minSwitchMsFricative', d.minSwitchMsFricative),
+    minSwitchMsVowel: n('minSwitchMsVowel', d.minSwitchMsVowel),
+    minSwitchMsSilence: n('minSwitchMsSilence', d.minSwitchMsSilence),
+    lambdaPlosive: n('lambdaPlosive', d.lambdaPlosive),
+    lambdaFricative: n('lambdaFricative', d.lambdaFricative),
+    lambdaVowel: n('lambdaVowel', d.lambdaVowel),
+    lambdaSilence: n('lambdaSilence', d.lambdaSilence),
+    adaptiveNoiseFloor: b('adaptiveNoiseFloor', d.adaptiveNoiseFloor),
+    speechThresholdOffset: n('speechThresholdOffset', d.speechThresholdOffset),
+    noiseFloorAdaptLambda: n('noiseFloorAdaptLambda', d.noiseFloorAdaptLambda),
+    noiseFloorReleaseLambda: n('noiseFloorReleaseLambda', d.noiseFloorReleaseLambda),
+    noiseFloorMin: n('noiseFloorMin', d.noiseFloorMin),
+    noiseFloorMax: n('noiseFloorMax', d.noiseFloorMax),
+    analyserSmoothing: n('analyserSmoothing', d.analyserSmoothing),
+    visemePersistenceMs: n('visemePersistenceMs', d.visemePersistenceMs),
+  };
+}
+
+const rawPresets = (presetsConfig as { presets: Record<string, Record<string, unknown>> }).presets;
+
+/**
+ * LIPSYNC_PRESETS — derived from src/config/lipsync-presets.json at build time.
+ * To change a preset value, edit the JSON file and reload the page.
+ */
 export const LIPSYNC_PRESETS: Record<LipSyncPresetKey, { label: string; values: LipSyncTuning }> = {
   lowLatency: {
-    label: "Low Latency",
-    values: {
-      ...DEFAULT_LIPSYNC_TUNING,
-      clockCompensationRatio: 0.46,
-      maxClockCompensationMs: 42,
-      anticipationWindowMs: 48,
-      anticipationWeightMax: 0.2,
-      resetSilenceHoldMs: 180,
-      minSwitchMsPlosive: 10,
-      minSwitchMsFricative: 16,
-      minSwitchMsVowel: 24,
-      minSwitchMsSilence: 32,
-      lambdaPlosive: 32,
-      lambdaFricative: 23,
-      lambdaVowel: 17,
-      lambdaSilence: 15,
-      speechThresholdOffset: 0.014,
-      analyserSmoothing: 0.14,
-      visemePersistenceMs: 72,
-    },
+    label: (rawPresets.lowLatency?.label as string) ?? 'Low Latency',
+    values: loadPresetFromConfig(rawPresets.lowLatency ?? {}),
   },
   balanced: {
-    label: "Balanced",
-    values: {
-      ...DEFAULT_LIPSYNC_TUNING,
-    },
+    label: (rawPresets.balanced?.label as string) ?? 'Balanced',
+    values: loadPresetFromConfig(rawPresets.balanced ?? {}),
   },
   noisyRoom: {
-    label: "Noisy Room",
-    values: {
-      ...DEFAULT_LIPSYNC_TUNING,
-      clockCompensationRatio: 0.64,
-      maxClockCompensationMs: 82,
-      anticipationWindowMs: 74,
-      anticipationWeightMax: 0.28,
-      resetSilenceHoldMs: 300,
-      minSwitchMsPlosive: 14,
-      minSwitchMsFricative: 28,
-      minSwitchMsVowel: 36,
-      minSwitchMsSilence: 46,
-      lambdaPlosive: 35,
-      lambdaFricative: 25,
-      lambdaVowel: 19,
-      lambdaSilence: 17,
-      speechThresholdOffset: 0.028,
-      noiseFloorAdaptLambda: 3.4,
-      noiseFloorReleaseLambda: 0.8,
-      noiseFloorMin: 0.01,
-      noiseFloorMax: 0.1,
-      analyserSmoothing: 0.26,
-      visemePersistenceMs: 95,
-    },
+    label: (rawPresets.noisyRoom?.label as string) ?? 'Noisy Room',
+    values: loadPresetFromConfig(rawPresets.noisyRoom ?? {}),
   },
   photorealistic: {
-    label: "Photorealistic",
-    values: {
-      ...DEFAULT_LIPSYNC_TUNING,
-      clockCompensationRatio: 0.6,
-      maxClockCompensationMs: 70,
-      anticipationWindowMs: 65,
-      anticipationWeightMax: 0.24,
-      resetSilenceHoldMs: 240,
-      analyserSmoothing: 0.18,
-      visemePersistenceMs: 85,
-      minSwitchMsPlosive: 12,
-      minSwitchMsFricative: 22,
-      minSwitchMsVowel: 30,
-      minSwitchMsSilence: 38,
-      lambdaPlosive: 34,
-      lambdaFricative: 24,
-      lambdaVowel: 18,
-      lambdaSilence: 16,
-      speechThresholdOffset: 0.018,
-    },
+    label: (rawPresets.photorealistic?.label as string) ?? 'Photorealistic',
+    values: loadPresetFromConfig(rawPresets.photorealistic ?? {}),
   },
 };
 
+/* ─── Store ───────────────────────────────────────────────────────────────── */
 
 interface LipSyncStore {
   wawaLipsync: Lipsync | null;
@@ -142,6 +132,7 @@ interface LipSyncStore {
   updateTuning: (patch: Partial<LipSyncTuning>) => void;
   resetTuning: () => void;
   setActivePreset: (preset: LipSyncPresetKey) => void;
+  applyPreset: (preset: LipSyncPresetKey) => void;
   clear: () => void;
 }
 
@@ -149,38 +140,37 @@ export const useLipSyncStore = create<LipSyncStore>()(
   persist(
     (set) => ({
       wawaLipsync: null,
-      tuning: { ...DEFAULT_LIPSYNC_TUNING },
+      tuning: { ...LIPSYNC_PRESETS.balanced.values },
       activePreset: "balanced",
 
-      setWawaLipsync: (wawa) => {
-        set({ wawaLipsync: wawa });
-      },
+      setWawaLipsync: (wawa) => set({ wawaLipsync: wawa }),
 
-      updateTuning: (patch) => {
-        set((state) => ({
-          tuning: { ...state.tuning, ...patch },
-        }));
-      },
+      updateTuning: (patch) =>
+        set((state) => ({ tuning: { ...state.tuning, ...patch } })),
 
-      resetTuning: () => {
-        set({ tuning: { ...DEFAULT_LIPSYNC_TUNING }, activePreset: "balanced" });
-      },
+      resetTuning: () =>
+        set({ tuning: { ...LIPSYNC_PRESETS.balanced.values }, activePreset: 'balanced' }),
 
-      setActivePreset: (preset) => {
-        set({ activePreset: preset });
-      },
+      setActivePreset: (preset) => set({ activePreset: preset }),
+
+      /** Apply a preset — loads values from the JSON config and updates both
+       *  the active preset name and the live tuning object. */
+      applyPreset: (preset) =>
+        set({
+          activePreset: preset,
+          tuning: { ...LIPSYNC_PRESETS[preset].values },
+        }),
 
       clear: () => {
         // Currently no internal timeline to clear, managed strictly by AudioStreamer
-      }
+      },
     }),
     {
       name: 'lipsync-storage',
-      partialize: (state) => ({ 
+      partialize: (state) => ({
         tuning: state.tuning,
-        activePreset: state.activePreset 
+        activePreset: state.activePreset,
       }),
     }
   )
 );
-
