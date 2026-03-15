@@ -28,9 +28,9 @@ export default withMermaid(defineConfig({
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Overview', link: '/description' },
+      { text: 'Features', link: '/features' },
       { text: 'Architecture', link: '/architecture' },
       { text: 'Gemini Live API', link: '/gemini-live-api' },
-      { text: 'Avatar Realism', link: '/avatar-realism' },
       { text: 'Live Preview', link: 'https://digital-persona-798468384002.us-central1.run.app/', target: '_blank' }
     ],
 
@@ -40,6 +40,7 @@ export default withMermaid(defineConfig({
         items: [
           { text: 'Home', link: '/' },
           { text: 'Project Overview', link: '/description' },
+          { text: 'System Features', link: '/features' },
           { text: 'Use Cases', link: '/use-cases' }
         ]
       },

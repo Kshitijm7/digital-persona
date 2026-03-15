@@ -341,7 +341,21 @@ function HomePage() {
       log.info({ applied }, "Tool override: update_persona_state");
       return { acknowledged: true, applied };
     });
-  }, [registerTool, appendAssistantMessage, applySessionPatch, clearSessionOverrides, personaMode, session.assistantAudioLevelRef]);
+
+    // switch_camera - swap between user and environment lenses
+    registerTool("switch_camera", async () => {
+      log.info("Tool override: switch_camera");
+      const success = await session.switchCamera();
+      return { acknowledged: true, success };
+    });
+
+    // end_call - terminate the session based on voice command
+    registerTool("end_call", async () => {
+      log.info("Tool override: end_call");
+      await session.toggleSession();
+      return { acknowledged: true };
+    });
+  }, [registerTool, appendAssistantMessage, applySessionPatch, clearSessionOverrides, personaMode, session.assistantAudioLevelRef, session.switchCamera, session.toggleSession, session]);
 
   useEffect(() => {
     if (session.status === "disconnected" || session.status === "error") {
@@ -490,6 +504,7 @@ function HomePage() {
         <WebcamFeed
           videoRef={session.videoRef}
           isActive={session.isCameraActive}
+          facingMode={session.facingMode}
         />
       </motion.div>
 
@@ -523,6 +538,7 @@ function HomePage() {
             onToggleMic={session.toggleMic}
             onToggleCamera={session.toggleCamera}
             onToggleChat={() => setIsChatOpen(!isChatOpen)}
+            onSwitchCamera={session.switchCamera}
           />
         </div>
       </div>

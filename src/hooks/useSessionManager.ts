@@ -308,12 +308,14 @@ export function useSessionManager() {
     assistantAudioLevelRef: audio.outputAudioLevelRef,
     isMicActive: audio.isMicActive,
     isCameraActive: webcam.isActive,
+    facingMode: webcam.facingMode,
     videoRef: webcam.videoRef,
 
     // Actions
     toggleSession,
     toggleMic,
     toggleCamera,
+    switchCamera: webcam.switchCamera,
     sendText: gemini.sendText,
 
     // Audio Scheduling Callback

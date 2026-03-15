@@ -2,13 +2,15 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Camera, CameraOff } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface WebcamFeedProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   isActive: boolean;
+  facingMode?: "user" | "environment";
 }
 
-export function WebcamFeed({ videoRef, isActive }: WebcamFeedProps) {
+export function WebcamFeed({ videoRef, isActive, facingMode = "user" }: WebcamFeedProps) {
   return (
     <div className="relative w-full h-full rounded-xl overflow-hidden border border-border bg-card">
       <video
@@ -16,7 +18,10 @@ export function WebcamFeed({ videoRef, isActive }: WebcamFeedProps) {
         autoPlay
         playsInline
         muted
-        className="w-full h-full object-cover scale-x-[-1]"
+        className={cn(
+          "w-full h-full object-cover",
+          facingMode === "user" && "scale-x-[-1]"
+        )}
       />
 
       {/* HUD Overlay */}

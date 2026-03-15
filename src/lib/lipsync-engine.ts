@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PHYSICS_SMOOTHING } from "@/lib/constants";
+import { PHYSICS_SMOOTHING, VISEME_MAP } from "@/lib/constants";
 import { OCULUS_VISEMES } from './viseme-map';
 import { Lipsync } from 'wawa-lipsync';
 import { createLogger } from '@/lib/logging/logger';
@@ -309,12 +309,12 @@ export class LipSyncEngine {
       const targetJaw = Math.min(0.45, normalizedLevel * PHYSICS_SMOOTHING.jaw_mult * 0.28);
       const targetMouth = Math.min(0.4, normalizedLevel * PHYSICS_SMOOTHING.mouth_mult * 0.24);
 
-      this.applyMorph(head, "jawOpen", targetJaw, delta);
-      this.applyMorph(head, "mouthFunnel", targetMouth * 0.6, delta);
-      this.applyMorph(head, "mouthPucker", targetMouth * 0.4, delta);
+      this.applyMorph(head, VISEME_MAP.jawOpen, targetJaw, delta);
+      this.applyMorph(head, VISEME_MAP.mouthFunnel, targetMouth * 0.6, delta);
+      this.applyMorph(head, VISEME_MAP.mouthPucker, targetMouth * 0.4, delta);
       
       if (teeth && teeth.morphTargetDictionary && teeth.morphTargetInfluences) {
-        this.applyMorph(teeth, "jawOpen", targetJaw * 1.1, delta);
+        this.applyMorph(teeth, VISEME_MAP.jawOpen, targetJaw * 1.1, delta);
       }
   }
 

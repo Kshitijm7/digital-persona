@@ -11,6 +11,7 @@ import {
   PhoneOff,
   Phone,
   MessageSquare,
+  RefreshCw,
 } from "lucide-react";
 
 interface CallControlsProps {
@@ -22,6 +23,7 @@ interface CallControlsProps {
   onToggleMic: () => void;
   onToggleCamera: () => void;
   onToggleChat: () => void;
+  onSwitchCamera: () => void;
 }
 
 export function CallControls({
@@ -33,6 +35,7 @@ export function CallControls({
   onToggleMic,
   onToggleCamera,
   onToggleChat,
+  onSwitchCamera,
 }: CallControlsProps) {
   return (
     <footer className="absolute bottom-3 left-1/2 z-50 flex -translate-x-1/2 items-center justify-center sm:bottom-6">
@@ -70,6 +73,20 @@ export function CallControls({
           size="sm"
           onClick={onToggleCamera}
           className="rounded-full"
+        />
+
+        {/* Flip Camera */}
+        <IconButton
+          icon={RefreshCw}
+          label="Flip camera"
+          variant="ghost"
+          size="sm"
+          onClick={onSwitchCamera}
+          disabled={!isCameraActive}
+          className={cn(
+            "rounded-full transition-transform active:rotate-180",
+            !isCameraActive && "opacity-50 grayscale"
+          )}
         />
 
         {/* Connect / Disconnect */}

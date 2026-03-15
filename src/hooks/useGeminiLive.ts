@@ -7,7 +7,7 @@ import {
   type Session,
   type LiveServerMessage,
 } from "@google/genai";
-import { GEMINI_MODEL, GEMINI_TOOLS, SYSTEM_PROMPT } from "@/lib/constants";
+import { AUDIO_CONFIG, GEMINI_MODEL, GEMINI_TOOLS, SYSTEM_PROMPT } from "@/lib/constants";
 import { createLogger } from "@/lib/logging/logger";
 import { useSceneConfig } from "@/hooks/SceneConfigContext";
 import { useAvatarRuntimeStore } from "@/store/useAvatarRuntimeStore";
@@ -621,7 +621,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
       sessionRef.current?.sendRealtimeInput({
         audio: {
           data: base64Audio,
-          mimeType: "audio/pcm;rate=16000",
+          mimeType: `audio/pcm;rate=${AUDIO_CONFIG.input_hz}`,
         },
       });
       log.trace(
