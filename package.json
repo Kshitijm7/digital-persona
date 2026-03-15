@@ -18,7 +18,7 @@
     "docs:build": "cd docs && npm run docs:build",
     "build:all": "npm run build && npm run docs:build",
     "health-check": "ts-node scripts/health-check.ts",
-    "pre-deploy": "npm run health-check && npm run test:run && npm run build",
+    "pre-deploy": "npm run health-check && npm run test:run && npm run build && npm run docs:build",
     "validate-avatar": "node scripts/validate-avatar.mjs",
     "setup-avatar": "node scripts/download-animations.mjs && npm run validate-avatar"
   },
