@@ -3,6 +3,7 @@ import { withMermaid } from 'vitepress-plugin-mermaid'
 
 // https://vitepress.dev/reference/site-config
 export default withMermaid(defineConfig({
+  base: '/digital-persona/',
   title: "Digital Persona",
   description: "AI-Powered Multimodal Agent with Gemini Live API",
   appearance: true,
