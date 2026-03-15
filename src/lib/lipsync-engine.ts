@@ -92,6 +92,7 @@ export class LipSyncEngine {
   };
   private morphHistory = new Map<string, number>();
   private currentRuntimeOptions: LipSyncRuntimeOptions = {};
+  private currentLipAsymmetry = 0;
 
   /**
    * Native audio fallback: Maps raw volume level to basic jaw and mouth shapes.
@@ -191,9 +192,15 @@ export class LipSyncEngine {
           this.previousViseme = this.lastViseme;
           this.lastViseme = activeViseme;
           this.transitionCarry = 1;
+
+          // Subtle Lip Asymmetry offset re-rolled per fresh viseme transition
+          const asymMax = options.meshPostProcessing?.lipAsymmetryOffset ?? 0;
+          this.currentLipAsymmetry = asymMax > 0 ? (Math.random() * 2 - 1) * asymMax : 0;
         }
 
+        const jawHeavyVisemes = ["viseme_aa", "viseme_O", "viseme_U", "viseme_RR"];
         const carryLambda =
+          jawHeavyVisemes.includes(this.previousViseme) ? 6 :
           activeState === "vowel" ? 10 : activeState === "fricative" ? 14 : 18;
         this.transitionCarry = THREE.MathUtils.damp(this.transitionCarry, 0, carryLambda, delta);
 
@@ -224,7 +231,14 @@ export class LipSyncEngine {
           log.warn("Avatar has no native Oculus viseme targets; using ARKit fallback mapping.");
         }
 
+        // Jaw Decoupling: Audio-energy driven jaw opening
+        const decoupleWeight = options.anatomicalPostProcessing?.jawDecouplingWeight ?? 0;
+        const jawEnergyTarget = (activeGain > 0.1) ? Math.pow(activeGain, 1.2) * decoupleWeight : 0;
+
         if (useNativeVisemes) {
+          let totalWeight = 0;
+          const targetCaps: Record<string, number> = {};
+
           for (const viseme of OCULUS_VISEMES) {
             let target = 0;
             if (viseme === this.lastViseme) target = stabilizedActiveWeight;
@@ -234,7 +248,22 @@ export class LipSyncEngine {
             }
 
             target *= this.getVisemeScale(viseme, options.visemeOverrides);
+            targetCaps[viseme] = target;
+            totalWeight += target;
+          }
+
+          // Morph Weight Capping (Native)
+          const weightCap = options.meshPostProcessing?.morphWeightCap ?? 1.0;
+          const normalizeFactor = totalWeight > weightCap ? weightCap / totalWeight : 1.0;
+
+          for (const viseme of OCULUS_VISEMES) {
+            let target = targetCaps[viseme] * normalizeFactor;
             target = this.applyRegionalPostProcessing(target, viseme, options);
+
+            // Add decoupled jaw energy to the main jaw viseme (usually aa)
+            if (viseme === "viseme_aa" && jawEnergyTarget > 0) {
+              target = THREE.MathUtils.clamp(target + jawEnergyTarget, 0, weightCap);
+            }
 
             this.applyMorph(head, viseme, target, delta, visemeLambda);
             if (teeth && teeth.morphTargetDictionary && teeth.morphTargetInfluences) {
@@ -255,6 +284,8 @@ export class LipSyncEngine {
               ? anticipationWeight * this.getVisemeScale(anticipatedViseme, options.visemeOverrides)
               : anticipationWeight,
             options,
+            jawEnergyTarget,
+            this.currentLipAsymmetry
           );
         }
         return;
@@ -304,6 +335,8 @@ export class LipSyncEngine {
     anticipatedViseme: string | null = null,
     anticipatedWeight: number = 0,
     options: LipSyncRuntimeOptions = {},
+    jawEnergyTarget: number = 0,
+    lipAsymmetry: number = 0
   ) {
     const accum: Partial<Record<(typeof ARKIT_MOUTH_TARGETS)[number], number>> = {};
     for (const target of ARKIT_MOUTH_TARGETS) {
@@ -323,8 +356,30 @@ export class LipSyncEngine {
     blendViseme(previousViseme, carryWeight);
     blendViseme(anticipatedViseme ?? "", anticipatedWeight);
 
+    // Apply Lip Asymmetry
+    if (lipAsymmetry !== 0) {
+      accum.mouthSmileLeft = Math.max(0, (accum.mouthSmileLeft ?? 0) + lipAsymmetry);
+      accum.mouthSmileRight = Math.max(0, (accum.mouthSmileRight ?? 0) - lipAsymmetry);
+      accum.mouthStretchLeft = Math.max(0, (accum.mouthStretchLeft ?? 0) + lipAsymmetry);
+      accum.mouthStretchRight = Math.max(0, (accum.mouthStretchRight ?? 0) - lipAsymmetry);
+    }
+
+    // Apply Jaw Decoupling
+    if (jawEnergyTarget > 0) {
+      accum.jawOpen = (accum.jawOpen ?? 0) + jawEnergyTarget;
+    }
+
+    // Morph Weight Capping (ARKit)
+    let totalWeight = 0;
     for (const target of ARKIT_MOUTH_TARGETS) {
-      const processed = this.applyRegionalPostProcessing(accum[target] ?? 0, target, options);
+      totalWeight += accum[target] ?? 0;
+    }
+    const weightCap = options.meshPostProcessing?.morphWeightCap ?? 1.0;
+    const normalizeFactor = totalWeight > weightCap ? weightCap / totalWeight : 1.0;
+
+    for (const target of ARKIT_MOUTH_TARGETS) {
+      const cappedValue = (accum[target] ?? 0) * normalizeFactor;
+      const processed = this.applyRegionalPostProcessing(cappedValue, target, options);
       this.applyMorph(mesh, target, processed, delta, lambda);
     }
   }

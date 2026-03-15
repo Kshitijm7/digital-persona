@@ -6,8 +6,9 @@
     "saccadeStrength": 0.4,
     "blinkIntervalMs": 3000,
     "blinkDurationMs": 100,
-    "eyelidOpenOffset": 0.0,
-    "lookAtIK": true
+    "eyelidOpenOffset": 0.06,
+    "lookAtIK": true,
+    "browSpeechSync": false
   },
 
   "headDynamics": {
@@ -29,7 +30,8 @@
     "jawDepth": 0.0,
     "tongueStrength": 1.0,
     "tongueHeight": 0.0,
-    "tongueDepth": 0.0
+    "tongueDepth": 0.0,
+    "jawDecouplingWeight": 0.0
   },
 
   "meshPostProcessing": {
@@ -38,7 +40,9 @@
     "lowerFaceSmoothing": 0.0023,
     "skinStrength": 1.0,
     "jawStrength": 1.1,
-    "lipOpenOffset": -0.03
+    "lipOpenOffset": 0.0,
+    "lipAsymmetryOffset": 0.0,
+    "morphWeightCap": 1.0
   },
 
   "visemeOverrides": {

@@ -6,6 +6,8 @@ interface IdleExpressionOptions {
   breathing?: boolean;
   blinking?: boolean;
   browTwitch?: boolean;
+  isSpeaking?: boolean;
+  speakingGain?: number;
   ocularTuning?: OcularTuning;
 }
 
@@ -43,6 +45,8 @@ export class IdleExpressionEngine {
     const breathing = options.breathing ?? true;
     const blinking = options.blinking ?? true;
     const browTwitch = options.browTwitch ?? false;
+    const isSpeaking = options.isSpeaking ?? false;
+    const speakingGain = options.speakingGain ?? 0;
     const ocularTuning = options.ocularTuning;
 
     const blinkDurationMs = Math.max(60, Math.min(400, ocularTuning?.blinkDurationMs ?? 100));
@@ -88,7 +92,11 @@ export class IdleExpressionEngine {
     this.setMorphDamped(head, "eyeWideLeft", Math.max(0, eyelidOpenOffset), delta, 12);
     this.setMorphDamped(head, "eyeWideRight", Math.max(0, eyelidOpenOffset), delta, 12);
 
-    if (browTwitch) {
+    const doBrowSpeechSync = ocularTuning?.browSpeechSync ?? false;
+
+    if (doBrowSpeechSync) {
+      this.updateBrowSpeech(delta, head, isSpeaking, speakingGain);
+    } else if (browTwitch) {
       this.updateBrows(delta, head);
     } else {
       this.isBrowTwitching = false;
@@ -165,6 +173,18 @@ export class IdleExpressionEngine {
       this.setMorphDamped(head, "browOuterUpLeft", weight, delta, 12);
       this.setMorphDamped(head, "browOuterUpRight", weight, delta, 12);
     }
+  }
+
+  private updateBrowSpeech(delta: number, head: THREE.SkinnedMesh, isSpeaking: boolean, speakingGain: number) {
+    if (isSpeaking && speakingGain > 0.55) {
+      this.setMorphDamped(head, "browInnerUp", 0.08, delta, 8);
+    } else {
+      this.setMorphDamped(head, "browInnerUp", 0, delta, 5);
+    }
+    
+    // Clear out other brow targets
+    this.setMorphDamped(head, "browOuterUpLeft", 0, delta, 5);
+    this.setMorphDamped(head, "browOuterUpRight", 0, delta, 5);
   }
 
   private setMorph(mesh: THREE.SkinnedMesh, name: string, value: number) {

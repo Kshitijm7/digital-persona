@@ -12,39 +12,42 @@ import * as THREE from "three";
 import { useMemo, useEffect, useRef } from "react";
 import { SkinPreset } from "@/lib/skinConfig";
 
-export function useSkinTexture(preset: SkinPreset | null): THREE.MeshPhysicalMaterial | null {
+export function useSkinMaterial(
+  baseMaterial: THREE.MeshStandardMaterial | undefined,
+  preset: SkinPreset | null
+): THREE.MeshPhysicalMaterial | null {
   // Keep a stable material reference across renders
   const materialRef = useRef<THREE.MeshPhysicalMaterial | null>(null);
 
   // Create or update the material whenever the preset changes
   const material = useMemo(() => {
-    if (preset?.id === "raw") {
+    if (preset?.id === "raw" || !baseMaterial) {
       return null;
     }
-    if (!preset) {
-      return new THREE.MeshPhysicalMaterial({
-        color: new THREE.Color("#f5cba7"),
-        roughness: 0.62,
-      });
+
+    // Clone the base material to preserve the base texture map (eyebrows, lips, shadows),
+    // then convert it to a MeshPhysicalMaterial for subsurface scattering.
+    const physMat = new THREE.MeshPhysicalMaterial();
+    physMat.copy(baseMaterial);
+
+    if (preset) {
+      physMat.color = new THREE.Color(preset.color);
+      physMat.roughness = preset.roughness;
+      physMat.metalness = 0.0;         // Skin is NOT metallic
+      // Subsurface scattering (SSS)
+      physMat.thickness = preset.thickness;
+      physMat.transmission = preset.transmission;
+      // Oil/sebum surface layer
+      physMat.clearcoat = preset.clearcoat;
+      physMat.clearcoatRoughness = preset.clearcoatRoughness;
+      // Micro-sheen
+      physMat.sheenColor = new THREE.Color(preset.sheenColor);
+      physMat.sheen = 0.3;
+      physMat.side = THREE.FrontSide;
     }
 
-    return new THREE.MeshPhysicalMaterial({
-      color: new THREE.Color(preset.color),
-      roughness: preset.roughness,
-      metalness: 0.0,         // Skin is NOT metallic
-      // Subsurface scattering (SSS)
-      thickness: preset.thickness,
-      transmission: preset.transmission,
-      // Oil/sebum surface layer
-      clearcoat: preset.clearcoat,
-      clearcoatRoughness: preset.clearcoatRoughness,
-      // Micro-sheen (replaces physical sheen property)
-      sheenColor: new THREE.Color(preset.sheenColor),
-      sheen: 0.3,
-      // Side
-      side: THREE.FrontSide,
-    });
-  }, [preset]);
+    return physMat;
+  }, [preset, baseMaterial]);
 
   // When a preset has an `albedo` (base64 data URL or path), load it as texture
   useEffect(() => {
@@ -57,6 +60,7 @@ export function useSkinTexture(preset: SkinPreset | null): THREE.MeshPhysicalMat
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
+        texture.flipY = false; // REQUIRED for applying typical GLTF UV maps correctly
         material.map = texture;
         material.needsUpdate = true;
       },
@@ -81,6 +85,8 @@ export function useSkinTexture(preset: SkinPreset | null): THREE.MeshPhysicalMat
     const old = materialRef.current;
     materialRef.current = material;
     return () => {
+      // Don't auto-dispose the `map` inside standard unmount if it came from the original GLTF!
+      // But we DO need to dispose the created MeshPhysicalMaterial itself.
       if (old && old !== material) old.dispose();
     };
   }, [material]);

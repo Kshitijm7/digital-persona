@@ -23,6 +23,7 @@ export interface OcularTuning {
   blinkDurationMs: number;
   eyelidOpenOffset: number;
   lookAtIK: boolean;
+  browSpeechSync?: boolean;
 }
 
 export interface MeshPostProcessing {
@@ -31,6 +32,8 @@ export interface MeshPostProcessing {
   skinStrength: number;
   jawStrength: number;
   lipOpenOffset: number;
+  lipAsymmetryOffset?: number;
+  morphWeightCap?: number;
 }
 
 export interface HeadDynamics {
@@ -51,6 +54,7 @@ export interface AnatomicalPostProcessing {
   tongueStrength: number;
   tongueHeight: number;
   tongueDepth: number;
+  jawDecouplingWeight?: number;
 }
 
 export interface VisemeOverrides {
@@ -111,6 +115,7 @@ export const DEFAULT_OCULAR_TUNING: OcularTuning = {
   blinkDurationMs: 100,
   eyelidOpenOffset: 0.06,
   lookAtIK: true,
+  browSpeechSync: false,
 };
 
 export const DEFAULT_MESH_POST_PROCESSING: MeshPostProcessing = {
@@ -119,6 +124,8 @@ export const DEFAULT_MESH_POST_PROCESSING: MeshPostProcessing = {
   skinStrength: 1.0,
   jawStrength: 1.1,
   lipOpenOffset: 0,
+  lipAsymmetryOffset: 0.0,
+  morphWeightCap: 1.0,
 };
 
 export const DEFAULT_HEAD_DYNAMICS: HeadDynamics = {
@@ -139,6 +146,7 @@ export const DEFAULT_ANATOMICAL_POST_PROCESSING: AnatomicalPostProcessing = {
   tongueStrength: 1.0,
   tongueHeight: 0.0,
   tongueDepth: 0.0,
+  jawDecouplingWeight: 0.0,
 };
 
 export const DEFAULT_VISEME_OVERRIDES: VisemeOverrides = {
@@ -269,6 +277,7 @@ export function sanitizeAvatarControlOverrides(input: AvatarControlOverrides): A
       blinkDurationMs: clampInteger(input.ocularTuning.blinkDurationMs, 60, 450),
       eyelidOpenOffset: clampNumber(input.ocularTuning.eyelidOpenOffset, -0.25, 0.25),
       lookAtIK: typeof input.ocularTuning.lookAtIK === "boolean" ? input.ocularTuning.lookAtIK : undefined,
+      browSpeechSync: typeof input.ocularTuning.browSpeechSync === "boolean" ? input.ocularTuning.browSpeechSync : undefined,
     };
   }
 
@@ -279,6 +288,8 @@ export function sanitizeAvatarControlOverrides(input: AvatarControlOverrides): A
       skinStrength: clampNumber(input.meshPostProcessing.skinStrength, 0, 2),
       jawStrength: clampNumber(input.meshPostProcessing.jawStrength, 0, 2),
       lipOpenOffset: clampNumber(input.meshPostProcessing.lipOpenOffset, -0.08, 0.08),
+      lipAsymmetryOffset: clampNumber(input.meshPostProcessing.lipAsymmetryOffset, 0, 0.1),
+      morphWeightCap: clampNumber(input.meshPostProcessing.morphWeightCap, 0.5, 2.0),
     };
   }
 
@@ -309,6 +320,7 @@ export function sanitizeAvatarControlOverrides(input: AvatarControlOverrides): A
       tongueStrength: clampNumber(input.anatomicalPostProcessing.tongueStrength, 0, 2),
       tongueHeight: clampNumber(input.anatomicalPostProcessing.tongueHeight, -0.2, 0.2),
       tongueDepth: clampNumber(input.anatomicalPostProcessing.tongueDepth, -0.2, 0.2),
+      jawDecouplingWeight: clampNumber(input.anatomicalPostProcessing.jawDecouplingWeight, 0, 1.0),
     };
   }
 

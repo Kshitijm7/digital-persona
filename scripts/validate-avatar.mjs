@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 // Uses NEXT_PUBLIC_AVATAR_GLB from .env.local or fallback
-let avatarFile = '69aaa1126e4b038c0e57c67a.glb';
+let avatarFile = '69aaa1126e4b038c0e57c672.glb';
 try {
   const envPath = path.join(process.cwd(), '.env.local');
   if (fs.existsSync(envPath)) {
@@ -14,7 +14,7 @@ try {
   // Ignore
 }
 
-const filePath = path.join(process.cwd(), 'public', avatarFile);
+const filePath = path.join(process.cwd(), 'public', 'avatars', avatarFile);
 
 function validateGlb(file) {
   console.log(`Validating Avatar: ${file}`);

@@ -13,7 +13,7 @@ import { useGraph, useFrame } from "@react-three/fiber";
 import { useGLTF, useAnimations } from "@react-three/drei";
 import { GLTF, SkeletonUtils } from "three-stdlib";
 import { SkinPreset } from "@/lib/skinConfig";
-import { useSkinTexture } from "@/hooks/useSkinTexture";
+import { useSkinMaterial } from "@/hooks/useSkinTexture";
 import { normaliseFbxAnimations } from "@/lib/animationUtils";
 import { type FeatureToggles } from "@/hooks/SceneConfigContext";
 import { useDynamicAnimations } from "@/hooks/useDynamicAnimations";
@@ -143,8 +143,9 @@ export function Avatar({
     });
   }, [materials]);
 
-  // Get the PBR skin material with SSS
-  const skinMaterial = useSkinTexture(skinPreset);
+  // Get the PBR skin materials with SSS (preserve unique maps per mesh)
+  const headSkinMaterial = useSkinMaterial(materials.Wolf3D_Skin, skinPreset);
+  const bodySkinMaterial = useSkinMaterial(materials.Wolf3D_Body, skinPreset);
 
   // Combine animations and bind them to the groupRef
   // Apply Mixamo FBX normalization best practice from Visage
@@ -313,6 +314,8 @@ export function Avatar({
       breathing: featureToggles.breathing,
       blinking: featureToggles.blinking,
       browTwitch: false,
+      isSpeaking,
+      speakingGain: lipSyncLevel,
       ocularTuning,
     });
     
@@ -400,14 +403,14 @@ export function Avatar({
           skeleton={nodes.Wolf3D_Outfit_Footwear.skeleton}
         />
       )}
-      {/* Body — uses same PBR skin material for consistency */}
-      {hasSkinnedMesh(nodes.Wolf3D_Body) && (skinMaterial || materials.Wolf3D_Body) && (
+      {/* Body — uses same PBR properties but preserves the unique body map */}
+      {hasSkinnedMesh(nodes.Wolf3D_Body) && (bodySkinMaterial || materials.Wolf3D_Body) && (
         <skinnedMesh
           castShadow
           receiveShadow
           frustumCulled={false}
           geometry={nodes.Wolf3D_Body.geometry}
-          material={skinMaterial || materials.Wolf3D_Body}
+          material={bodySkinMaterial || materials.Wolf3D_Body}
           skeleton={nodes.Wolf3D_Body.skeleton}
         />
       )}
@@ -437,15 +440,15 @@ export function Avatar({
           morphTargetInfluences={nodes.EyeRight.morphTargetInfluences}
         />
       )}
-      {/* Head — receives the full PBR MeshPhysicalMaterial with SSS (if not raw) */}
-      {hasSkinnedMesh(nodes.Wolf3D_Head) && (skinMaterial || materials.Wolf3D_Skin) && (
+      {/* Head — receives the full PBR MeshPhysicalMaterial with SSS while retaining facial details */}
+      {hasSkinnedMesh(nodes.Wolf3D_Head) && (headSkinMaterial || materials.Wolf3D_Skin) && (
         <skinnedMesh
           castShadow
           receiveShadow
           frustumCulled={false}
           name="Wolf3D_Head"
           geometry={nodes.Wolf3D_Head.geometry}
-          material={skinMaterial || materials.Wolf3D_Skin}
+          material={headSkinMaterial || materials.Wolf3D_Skin}
           skeleton={nodes.Wolf3D_Head.skeleton}
           morphTargetDictionary={nodes.Wolf3D_Head.morphTargetDictionary}
           morphTargetInfluences={nodes.Wolf3D_Head.morphTargetInfluences}

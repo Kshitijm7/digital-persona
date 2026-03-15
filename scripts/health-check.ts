@@ -49,7 +49,7 @@ function checkEnvironment() {
   const envContent = fs.readFileSync(envPath, 'utf-8');
   
   // Check API Key
-  const apiKeyMatch = envContent.match(/NEXT_PUBLIC_GEMINI_API_KEY=(.+)/);
+  const apiKeyMatch = envContent.match(/GEMINI_API_KEY=(.+)/);
   if (!apiKeyMatch || apiKeyMatch[1].trim() === '' || apiKeyMatch[1].includes('your_')) {
     addCheck('Environment', 'Gemini API Key', 'FAIL', 'Invalid or missing API key');
   } else if (apiKeyMatch[1].match(/^AIza[A-Za-z0-9_-]{35}$/)) {
@@ -71,7 +71,7 @@ function checkEnvironment() {
 function checkAssets() {
   console.log(`${colors.cyan}[2/7] Checking Asset Availability...${colors.reset}`);
   
-  const avatarPath = path.join(process.cwd(), 'public', 'avatar-transformed.glb');
+  const avatarPath = path.join(process.cwd(), 'public', 'avatars', '69aaa1126e4b038c0e57c672.glb');
   if (fs.existsSync(avatarPath)) {
     const stats = fs.statSync(avatarPath);
     const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
@@ -86,11 +86,11 @@ function checkAssets() {
       addCheck('Assets', 'Avatar Model', 'FAIL', 'Invalid GLB file format');
     }
   } else {
-    addCheck('Assets', 'Avatar Model', 'FAIL', 'avatar-transformed.glb not found in /public');
+    addCheck('Assets', 'Avatar Model', 'FAIL', '69aaa1126e4b038c0e57c672.glb not found in /public/avatars');
   }
 
   // Check for backup avatar
-  const backupPath = path.join(process.cwd(), 'public', 'avatar.glb');
+  const backupPath = path.join(process.cwd(), 'public', 'avatars', '69b1976bf005c9608fd1e704.glb');
   if (fs.existsSync(backupPath)) {
     addCheck('Assets', 'Backup Avatar', 'PASS', 'Backup model available');
   } else {
@@ -171,9 +171,7 @@ function checkConstants() {
     'SYSTEM_PROMPT',
     'GEMINI_TOOLS',
     'GEMINI_MODEL',
-    'GEMINI_WS_URL',
-    'AUDIO_SAMPLE_RATE_INPUT',
-    'AUDIO_SAMPLE_RATE_OUTPUT',
+    'AUDIO_CONFIG',
   ];
 
   for (const exportName of requiredExports) {
@@ -185,8 +183,8 @@ function checkConstants() {
   }
 
   // Check model version
-  if (content.includes('gemini-2.0-flash-live-001')) {
-    addCheck('Constants', 'Gemini Model', 'PASS', 'Using gemini-2.0-flash-live-001');
+  if (content.includes('gemini-2.5-flash-native-audio-preview-12-2025')) {
+    addCheck('Constants', 'Gemini Model', 'PASS', 'Using gemini-2.5-flash-native-audio-preview-12-2025');
   } else {
     addCheck('Constants', 'Gemini Model', 'WARN', 'Model version may be outdated');
   }
