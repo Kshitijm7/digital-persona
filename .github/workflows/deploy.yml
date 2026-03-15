@@ -44,10 +44,13 @@ jobs:
 
       - name: Resolve deploy target
         id: target
+        env:
+          INPUT_SERVICE_NAME: ${{ inputs.service_name }}
+          INPUT_REGION: ${{ inputs.region }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "service=${{ inputs.service_name }}" >> "$GITHUB_OUTPUT"
-            echo "region=${{ inputs.region }}" >> "$GITHUB_OUTPUT"
+            echo "service=$INPUT_SERVICE_NAME" >> "$GITHUB_OUTPUT"
+            echo "region=$INPUT_REGION" >> "$GITHUB_OUTPUT"
           else
             echo "service=digital-persona" >> "$GITHUB_OUTPUT"
             echo "region=${{ env.REGION }}" >> "$GITHUB_OUTPUT"
