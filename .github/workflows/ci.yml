@@ -51,5 +51,9 @@ jobs:
       - name: Build app
         run: npm run build
 
+      - name: Install docs dependencies
+        run: npm ci
+        working-directory: docs
+
       - name: Build documentation
         run: npm run docs:build
