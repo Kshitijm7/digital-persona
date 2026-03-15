@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     ".temp-avatar-creator/**",
     ".temp-animations/**",
     ".temp-wawa/**",
+    "docs/.vitepress/dist/**",
+    "docs/.vitepress/cache/**",
   ]),
 ]);
 

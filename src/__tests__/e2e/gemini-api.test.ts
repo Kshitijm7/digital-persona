@@ -18,7 +18,7 @@ function isPlaceholderKey(key: string | undefined): boolean {
 }
 
 describe('Gemini Live API Integration', () => {
-  let API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  let API_KEY = process.env.GEMINI_API_KEY;
 
   beforeAll(() => {
     // Try to load real API key from .env.local for E2E tests
@@ -26,8 +26,8 @@ describe('Gemini Live API Integration', () => {
       const envLocalPath = path.resolve(process.cwd(), '.env.local');
       if (fs.existsSync(envLocalPath)) {
         const envConfig = dotenv.parse(fs.readFileSync(envLocalPath));
-        if (envConfig.NEXT_PUBLIC_GEMINI_API_KEY) {
-          API_KEY = envConfig.NEXT_PUBLIC_GEMINI_API_KEY;
+        if (envConfig.GEMINI_API_KEY) {
+          API_KEY = envConfig.GEMINI_API_KEY;
         }
       }
     } catch {
@@ -40,7 +40,7 @@ describe('Gemini Live API Integration', () => {
   });
 
   describe('API Configuration', () => {
-    it('should have valid API key format', () => {
+    it.skipIf(isPlaceholderKey(API_KEY))('should have valid API key format', () => {
       expect(API_KEY).toBeDefined();
       expect(API_KEY).toMatch(/^AIza[A-Za-z0-9_-]{35}$/);
     });

@@ -39,24 +39,24 @@ export const ChatMessage = React.memo(function ChatMessage({
       {/* Avatar */}
       <div
         className={cn(
-          "w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5",
+          "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full sm:h-8 sm:w-8",
           isUser
             ? "bg-secondary/10 border border-secondary/10"
             : "bg-primary/10 border border-primary/10"
         )}
       >
         {isUser ? (
-          <User className="w-4 h-4 text-emerald-400" />
+          <User className="h-3.5 w-3.5 text-emerald-400 sm:h-4 sm:w-4" />
         ) : (
-          <Bot className="w-4 h-4 text-primary" />
+          <Bot className="h-3.5 w-3.5 text-primary sm:h-4 sm:w-4" />
         )}
       </div>
 
       {/* Bubble */}
-      <div className="flex flex-col gap-1.5 max-w-[80%]">
+      <div className="flex max-w-[85%] flex-col gap-1.5 sm:max-w-[80%]">
         <div
           className={cn(
-            "rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm",
+            "wrap-break-word rounded-2xl px-3 py-2.5 text-sm leading-relaxed shadow-sm sm:px-4 sm:py-3",
             isUser
               ? "bg-primary text-primary-foreground border-primary/20 rounded-tr-sm"
               : "bg-muted/50 text-foreground border border-white/5 backdrop-blur-sm rounded-tl-sm"

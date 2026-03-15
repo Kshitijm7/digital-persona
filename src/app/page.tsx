@@ -18,6 +18,9 @@ import { WebcamFeed } from "@/components/call/WebcamFeed";
 import { PersonaOverlay } from "@/components/call/PersonaOverlay";
 import { DebugToggle } from "@/components/call/DebugToggle";
 
+// Utilities
+import { useMediaQuery } from "usehooks-ts";
+
 // Chat Components
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { LiquidButton } from "@/components/ui/liquid-glass-button";
@@ -74,19 +77,19 @@ const IdleScreen = memo(({ onStart }: { onStart: () => void }) => (
     transition={{ duration: 0.4 }}
     className="absolute inset-0 flex flex-col items-center justify-center z-10"
   >
-    <div className="relative overflow-hidden rounded-3xl border border-white/6 bg-white/3 px-12 py-10 flex flex-col items-center gap-6 max-w-md backdrop-blur-xl shadow-2xl">
+    <div className="relative mx-4 flex w-full max-w-md flex-col items-center gap-6 overflow-hidden rounded-3xl border border-white/6 bg-white/3 px-6 py-8 backdrop-blur-xl shadow-2xl sm:px-12 sm:py-10">
       {/* Glow Effect */}
       <div className="absolute top-0 right-0 -mr-16 -mt-16 h-64 w-64 rounded-full bg-cyan-400/5 blur-3xl pointer-events-none" />
       
       <div className="relative z-10 flex flex-col items-center gap-6 w-full">
-        <div className="w-20 h-20 rounded-full bg-linear-to-br from-cyan-400/20 to-emerald-400/20 border border-cyan-400/20 flex items-center justify-center animate-pulse-ring shadow-xl">
-          <Sparkles className="w-8 h-8 text-cyan-400" />
+        <div className="flex h-16 w-16 items-center justify-center rounded-full border border-cyan-400/20 bg-linear-to-br from-cyan-400/20 to-emerald-400/20 shadow-xl animate-pulse-ring sm:h-20 sm:w-20">
+          <Sparkles className="h-7 w-7 text-cyan-400 sm:h-8 sm:w-8" />
         </div>
         
         <div className="text-center">
           <TextShimmer 
             duration={2}
-            className="text-2xl font-semibold tracking-wide mb-2 [--base-color:var(--color-cyan-500)] [--base-gradient-color:var(--color-emerald-300)] dark:[--base-color:var(--color-cyan-500)] dark:[--base-gradient-color:var(--color-emerald-300)]"
+            className="mb-2 text-xl font-semibold tracking-wide sm:text-2xl [--base-color:var(--color-cyan-500)] [--base-gradient-color:var(--color-emerald-300)] dark:[--base-color:var(--color-cyan-500)] dark:[--base-gradient-color:var(--color-emerald-300)]"
           >
             Digital Persona
           </TextShimmer>
@@ -99,7 +102,7 @@ const IdleScreen = memo(({ onStart }: { onStart: () => void }) => (
         
         <LiquidButton
           onClick={onStart}
-          className="w-full py-5 rounded-full bg-linear-to-r from-cyan-500 to-emerald-500 text-primary-foreground font-semibold text-sm tracking-wide hover:shadow-[0_0_30px_rgba(34,211,238,0.3)] hover:opacity-100 transition-all duration-500 hover:scale-105 border-0 cursor-pointer"
+          className="w-full rounded-full border-0 bg-linear-to-r from-cyan-500 to-emerald-500 py-4 text-sm font-semibold tracking-wide text-primary-foreground transition-all duration-500 hover:scale-105 hover:opacity-100 hover:shadow-[0_0_30px_rgba(34,211,238,0.3)] sm:py-5 cursor-pointer"
         >
           INITIATE SESSION
         </LiquidButton>
@@ -115,7 +118,18 @@ function HomePage() {
   useAnimationRegistry(); // Fetch animation registry globally
 
   // UI State
+  const isMobile = useMediaQuery("(max-width: 950px)");
   const [isChatOpen, setIsChatOpen] = useState(true);
+
+  // Auto-collapse chat natively when window shrinks to mobile view
+  useEffect(() => {
+    if (isMobile) {
+      setTimeout(() => setIsChatOpen(false), 0);
+    } else {
+      setTimeout(() => setIsChatOpen(true), 0);
+    }
+  }, [isMobile]);
+
   const [currentExpression, setCurrentExpression] = useState<string>("idle");
   const [personaMode, setPersonaMode] = useState<"focus" | "casual" | "presentation">("casual");
   // Skin state — default to warm ivory preset
@@ -424,7 +438,7 @@ function HomePage() {
   const anyError = session.errorMessage || session.micError || session.cameraError;
   if (anyError) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+      <div className="min-h-dvh bg-zinc-950 flex items-center justify-center p-4">
         <div className="glass rounded-2xl p-8 max-w-md w-full">
           <h2 className="text-xl font-semibold mb-4 text-red-500">
             Connection Error
@@ -450,6 +464,7 @@ function HomePage() {
           onSendText={handleSendText}
           isConnected={session.isConnected}
           isTyping={chat.isTyping}
+          onCollapse={() => setIsChatOpen(false)}
           selectedSkinId={selectedSkin?.id ?? null}
           onSkinChange={setSelectedSkin}
           debugMode={debugMode}
@@ -467,7 +482,7 @@ function HomePage() {
       </div>
 
       {/* Floating Header */}
-      <div className="absolute top-0 left-0 right-0 z-10 px-6 py-4 pointer-events-none">
+      <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 px-3 py-3 sm:px-6 sm:py-4">
         <div className="pointer-events-auto inline-block">
           <CallHeader status={session.status} sessionTime={timer.formatted} />
         </div>
@@ -478,7 +493,7 @@ function HomePage() {
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 0.3 }}
-        className="absolute top-6 right-6 w-36 h-48 rounded-2xl overflow-hidden shadow-2xl shadow-black/50 border border-white/10 z-10"
+        className="absolute right-4 top-4 z-10 h-32 w-24 overflow-hidden rounded-xl border border-white/10 shadow-2xl shadow-black/50 sm:right-6 sm:top-6 sm:h-48 sm:w-36 sm:rounded-2xl"
       >
         <WebcamFeed
           videoRef={session.videoRef}
@@ -490,7 +505,7 @@ function HomePage() {
       <DebugToggle debugMode={debugMode} setDebugMode={setDebugMode} />
 
       {/* Persona overlay (Waveform) */}
-      <div className="absolute bottom-24 left-6 z-10 pointer-events-none">
+      <div className="pointer-events-none absolute bottom-24 left-4 z-10 sm:left-6">
         <PersonaOverlay
           audioLevelRef={session.assistantAudioLevelRef}
           isConnected={session.isConnected}
@@ -505,7 +520,7 @@ function HomePage() {
       </AnimatePresence>
 
       {/* Floating Bottom Controls */}
-      <div className="absolute bottom-8 left-0 right-0 z-10 flex justify-center pointer-events-none">
+      <div className="pointer-events-none absolute bottom-4 left-0 right-0 z-10 flex justify-center sm:bottom-8">
         <div className="pointer-events-auto">
           <CallControls
             isConnected={session.isConnected}

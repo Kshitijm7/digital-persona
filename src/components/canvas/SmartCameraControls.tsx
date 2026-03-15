@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls as DreiOrbitControls } from "@react-three/drei";
 import { OrbitControls as OrbitControlsImpl } from "three-stdlib";
@@ -56,21 +56,48 @@ export function SmartCameraControls({
 
   // The base Y level we want to observe when zoomed out (e.g., 1.55)
   const baseTargetY = target[1];
+  const safeMinDistance = Math.min(minDistance, maxDistance);
+  const safeMaxDistance = Math.max(minDistance, maxDistance);
+  const distanceRange = Math.max(safeMaxDistance - safeMinDistance, 0.0001);
+  const shouldContinuouslyUpdate = Boolean(rest.enableDamping);
+  const stableTarget = useMemo(
+    () => new THREE.Vector3(target[0], target[1], target[2]),
+    [target],
+  );
 
   useFrame(() => {
     const controls = controlsRef.current;
-    if (controls) {
-      // Calculate current distance from camera to target
-      let distance = controls.target.distanceTo(camera.position);
-      distance = clamp(distance, maxDistance, minDistance);
-      
-      // Calculate pivot: 1.0 = fully zoomed in, 0.0 = fully zoomed out
-      const pivot = (distance - minDistance) / (maxDistance - minDistance);
+    if (!controls) return;
 
-      // E.g. When pivot is 0 (zoomed to minDistance), we shift target.y down by zoomTargetShift.
-      // This is the exact Visage anti-clipping formula.
-      controls.target.set(target[0], baseTargetY - (zoomTargetShift ?? 0.6) * pivot, target[2]);
-      
+    if (enablePan) {
+      if (shouldContinuouslyUpdate) {
+        controls.update();
+      }
+      return;
+    }
+
+    const distance = clamp(
+      controls.target.distanceTo(camera.position),
+      safeMinDistance,
+      safeMaxDistance,
+    );
+
+    // 1.0 when zoomed in (min distance), 0.0 when zoomed out (max distance)
+    const zoomFactor = (safeMaxDistance - distance) / distanceRange;
+    const desiredTargetY = baseTargetY - (zoomTargetShift ?? 0.6) * zoomFactor;
+
+    const targetChanged =
+      Math.abs(controls.target.x - target[0]) > 0.0001 ||
+      Math.abs(controls.target.y - desiredTargetY) > 0.0001 ||
+      Math.abs(controls.target.z - target[2]) > 0.0001;
+
+    if (targetChanged) {
+      controls.target.set(target[0], desiredTargetY, target[2]);
+      controls.update();
+      return;
+    }
+
+    if (shouldContinuouslyUpdate) {
       controls.update();
     }
   });
@@ -81,7 +108,7 @@ export function SmartCameraControls({
       enableRotate={enableRotate}
       enablePan={enablePan}
       // Start at the base target
-      target={new THREE.Vector3(...target)}
+      target={stableTarget}
       minDistance={minDistance}
       maxDistance={maxDistance}
       minPolarAngle={minPolarAngle}

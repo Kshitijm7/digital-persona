@@ -1,24 +1,92 @@
-name: Build and Test
+name: Build and Deploy to Cloud Run
 
 on:
   push:
-    branches: ["main"]
-  pull_request:
-    branches: ["main"]
+    branches:
+      - main
+    paths-ignore:
+      - "README.md"
+      - "project_docs/**"
+      - "docs/**"
+      - "**/*.md"
+      - "LICENSE"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE*"
+  workflow_dispatch:
+    inputs:
+      service_name:
+        description: "Cloud Run service name to deploy to"
+        required: true
+        default: "digital-persona-dev"
+      region:
+        description: "Cloud Run region"
+        required: true
+        default: "us-central1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-cloudrun
+  cancel-in-progress: false
+
+env:
+  REGION: us-central1
+  ARTIFACT_REPO: digital-persona
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-      - uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Resolve deploy target
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "service=${{ inputs.service_name }}" >> "$GITHUB_OUTPUT"
+            echo "region=${{ inputs.region }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "service=digital-persona" >> "$GITHUB_OUTPUT"
+            echo "region=${{ env.REGION }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
         with:
-          node-version: 24
-          cache: 'npm'
-      - name: Install dependencies
-        run: npm ci
-      - name: Build
-        run: npm run build
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker auth for Artifact Registry
+        run: gcloud auth configure-docker ${{ steps.target.outputs.region }}-docker.pkg.dev --quiet
+
+      - name: Define image URI
+        id: image
+        run: echo "uri=${{ steps.target.outputs.region }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ steps.target.outputs.service }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and Push image
+        run: |
+          docker build -t "${{ steps.image.outputs.uri }}" .
+          docker push "${{ steps.image.outputs.uri }}"
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ steps.target.outputs.service }}
+          region: ${{ steps.target.outputs.region }}
+          image: ${{ steps.image.outputs.uri }}
+          flags: >-
+            --allow-unauthenticated
+            --port=8080
+            --cpu=1
+            --memory=512Mi
+            --concurrency=80
+            --timeout=60
+            --min-instances=0
+            --max-instances=1
+          env_vars: |
+            GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}

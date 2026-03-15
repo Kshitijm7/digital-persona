@@ -199,40 +199,25 @@ export function SceneInner({
         color="#22d3ee"
       />
 
-      {/* Production: constrained zoom-only controls (Visage CameraControls pattern) + Smart Anti-Clipping */}
-      {!debug && (
-        <SmartCameraControls
-          enableRotate={false}
-          enablePan={false}
-          target={[config.camera.target.x, config.camera.target.y, config.camera.target.z]}
-          minDistance={controlsMinDistance}
-          maxDistance={controlsMaxDistance}
-          minPolarAngle={minPolarAngle}
-          maxPolarAngle={maxPolarAngle}
-          zoomTargetShift={zoomTargetShift}
-        />
-      )}
+      <SmartCameraControls
+        makeDefault={debug}
+        enableDamping={debug}
+        dampingFactor={0.05}
+        enableRotate={debug}
+        enablePan={debug}
+        target={[config.camera.target.x, config.camera.target.y, config.camera.target.z]}
+        minDistance={controlsMinDistance}
+        maxDistance={controlsMaxDistance}
+        minPolarAngle={minPolarAngle}
+        maxPolarAngle={maxPolarAngle}
+        zoomTargetShift={zoomTargetShift}
+      />
 
-      {/* Debug mode: full OrbitControls + live camera panel */}
+      {/* Debug mode: live camera panel */}
       {debug && (
-        <>
-          <SmartCameraControls
-            makeDefault
-            enableDamping
-            dampingFactor={0.05}
-            enableRotate={true}
-            enablePan={true}
-            target={[config.camera.target.x, config.camera.target.y, config.camera.target.z]}
-            minDistance={controlsMinDistance}
-            maxDistance={controlsMaxDistance}
-            minPolarAngle={minPolarAngle}
-            maxPolarAngle={maxPolarAngle}
-            zoomTargetShift={zoomTargetShift}
-          />
-          <Suspense fallback={null}>
-            <DebugCameraPanel />
-          </Suspense>
-        </>
+        <Suspense fallback={null}>
+          <DebugCameraPanel />
+        </Suspense>
       )}
     </Canvas>
   );

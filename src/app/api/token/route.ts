@@ -1,13 +1,14 @@
 import { GoogleGenAI } from '@google/genai';
 import { NextResponse } from 'next/server';
+import { getServerGeminiApiKey } from '@/lib/env';
 
 export async function POST() {
   // Initialize the client on the server using the secret server-side key
-  const apiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  const apiKey = getServerGeminiApiKey();
 
   if (!apiKey) {
     return NextResponse.json(
-      { error: "Server missing Gemini API Key configuration." },
+      { error: "Server missing GEMINI_API_KEY configuration." },
       { status: 500 }
     );
   }

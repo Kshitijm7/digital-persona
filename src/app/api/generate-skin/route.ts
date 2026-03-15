@@ -11,6 +11,7 @@
  */
 
 import { GoogleGenAI, Part } from "@google/genai";
+import { getServerGeminiApiKey } from "@/lib/env";
 
 const SKIN_SYSTEM_PROMPT = `You are a 3D assets specialist. Generate a photorealistic human skin texture for a 3D avatar head.
 Requirements:
@@ -31,10 +32,10 @@ export async function POST(request: Request) {
       mimeType?: string;
     };
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    const apiKey = getServerGeminiApiKey();
     if (!apiKey) {
       return Response.json(
-        { error: "GEMINI_API_KEY not configured" },
+        { error: "Server missing GEMINI_API_KEY configuration" },
         { status: 500 }
       );
     }
