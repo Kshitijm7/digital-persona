@@ -55,6 +55,7 @@ export function useAudioProcessor() {
   // rAF handle for playback-level animation loop
   const playbackAnimFrameRef = useRef<number>(0);
   const onAudioScheduledRef = useRef<((startMs: number, durationMs: number) => void) | null>(null);
+  const onPlaybackCompleteRef = useRef<(() => void) | null>(null);
 
   const syncCombinedLevel = useCallback(() => {
     audioLevelRef.current = Math.max(
@@ -274,6 +275,7 @@ export function useAudioProcessor() {
         lastOutputSignalAtRef.current = 0;
         syncCombinedLevel();
         log.debug("Assistant playback turn completed.");
+        onPlaybackCompleteRef.current?.();
       };
 
       // Ensure Lipsync is correctly instantiated and mapped to AudioStreamer
@@ -481,5 +483,6 @@ export function useAudioProcessor() {
     markAssistantTurnComplete,
     ensureStreamer: getStreamer,
     onAudioScheduledRef,
+    onPlaybackCompleteRef,
   };
 }

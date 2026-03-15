@@ -320,6 +320,7 @@ export function useSessionManager() {
 
     // Audio Scheduling Callback
     onAudioScheduledRef: audio.onAudioScheduledRef,
+    onPlaybackComplete: audio.onPlaybackCompleteRef,
 
     /**
      * Register an application-level tool handler.

@@ -144,7 +144,7 @@ function HomePage() {
   const chatMessagesRef = useRef(chat.messages);
   const applySessionPatch = useAvatarRuntimeStore((state) => state.applySessionPatch);
   const clearSessionOverrides = useAvatarRuntimeStore((state) => state.clearSessionOverrides);
-
+  const endCallPendingRef = useRef(false);
 
   useEffect(() => {
     chatMessagesRef.current = chat.messages;
@@ -155,6 +155,8 @@ function HomePage() {
     onTranscript: onTranscriptRef,
     onUserTranscript: onUserTranscriptRef,
     onToolCall: onToolCallRef,
+    onPlaybackComplete: onPlaybackCompleteRef,
+    toggleSession,
     registerTool,
     ...session
   } = useSessionManager();
@@ -352,10 +354,32 @@ function HomePage() {
     // end_call - terminate the session based on voice command
     registerTool("end_call", async () => {
       log.info("Tool override: end_call");
-      await session.toggleSession();
-      return { acknowledged: true };
+      endCallPendingRef.current = true;
+      
+      // Fallback: If the assistant doesn't speak or fails to end, close it in 10s
+      setTimeout(() => {
+        if (endCallPendingRef.current) {
+          log.warn("end_call fallback timer reached. Forcing session close.");
+          endCallPendingRef.current = false;
+          void toggleSession();
+        }
+      }, 10000);
+
+      return { acknowledged: true, instruction: "Say bye to the user and the conversation will end." };
     });
-  }, [registerTool, appendAssistantMessage, applySessionPatch, clearSessionOverrides, personaMode, session.assistantAudioLevelRef, session.switchCamera, session.toggleSession, session]);
+  }, [registerTool, appendAssistantMessage, applySessionPatch, clearSessionOverrides, personaMode, session.assistantAudioLevelRef, session.switchCamera, toggleSession, session]);
+
+  useEffect(() => {
+    if (onPlaybackCompleteRef) {
+      onPlaybackCompleteRef.current = () => {
+        if (endCallPendingRef.current) {
+          log.info("Playback complete, executing queued end_call");
+          endCallPendingRef.current = false;
+          void toggleSession();
+        }
+      };
+    }
+  }, [onPlaybackCompleteRef, toggleSession]);
 
   useEffect(() => {
     if (session.status === "disconnected" || session.status === "error") {
@@ -522,7 +546,7 @@ function HomePage() {
       {/* Idle Screen — hidden when config/debug mode is active */}
       <AnimatePresence>
         {!debugMode && !session.isConnected && session.status !== "connecting" && (
-          <IdleScreen onStart={session.toggleSession} />
+          <IdleScreen onStart={toggleSession} />
         )}
       </AnimatePresence>
 
@@ -534,7 +558,7 @@ function HomePage() {
             isMicActive={session.isMicActive}
             isCameraActive={session.isCameraActive}
             isChatOpen={isChatOpen}
-            onToggleConnection={session.toggleSession}
+            onToggleConnection={toggleSession}
             onToggleMic={session.toggleMic}
             onToggleCamera={session.toggleCamera}
             onToggleChat={() => setIsChatOpen(!isChatOpen)}
