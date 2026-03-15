@@ -2,6 +2,8 @@
  * Avatar registry and client-side avatar helpers.
  */
 
+import { DEFAULT_MESH_CONFIG, type MeshConfig } from "@/lib/avatar-control.types";
+
 export interface AvatarEntry {
   /** Unique key used in config persistence */
   id: string;
@@ -31,13 +33,17 @@ function isReadyPlayerHost(hostname: string): boolean {
   return hostname.includes("readyplayer.me");
 }
 
-function withReadyPlayerParams(url: URL): string {
+function withReadyPlayerParams(url: URL, meshConfig: MeshConfig = DEFAULT_MESH_CONFIG): string {
   if (!isReadyPlayerHost(url.hostname)) return url.toString();
-  // Use literal space to avoid double encoding if we manually added %20
-  url.searchParams.set("morphTargets", "ARKit,Oculus Visemes");
-  url.searchParams.set("lod", "0");
+  const lod = Math.max(0, Math.min(2, meshConfig.meshLod));
+  const textureAtlasValue = meshConfig.textureAtlas || DEFAULT_MESH_CONFIG.textureAtlas;
+
+  url.searchParams.set("morphTargets", meshConfig.morphTargets || DEFAULT_MESH_CONFIG.morphTargets);
+  url.searchParams.set("lod", String(lod));
   url.searchParams.set("pose", "A");
-  url.searchParams.set("textureAtlas", "none");
+  url.searchParams.set("textureAtlas", textureAtlasValue);
+  url.searchParams.set("useDracoCompression", String(Boolean(meshConfig.useDracoCompression)));
+  url.searchParams.set("useMeshOptCompression", String(Boolean(meshConfig.useMeshOptCompression)));
   
   // RPM API often expects literal commas in the query string and %20 for spaces
   return url.toString().replace(/%2C/g, ",").replace(/\+/g, "%20");
@@ -112,7 +118,7 @@ export async function fetchAvatarRegistry(): Promise<AvatarEntry[]> {
 }
 
 /** Normalize Ready Player Me URL, direct GLB URL, or plain avatar ID into fetchable URL. */
-export function normalizeAvatarUrl(input: string): string {
+export function normalizeAvatarUrl(input: string, meshConfig: MeshConfig = DEFAULT_MESH_CONFIG): string {
   const raw = input.trim();
   if (!raw) {
     throw new Error("Avatar URL is empty.");
@@ -120,7 +126,7 @@ export function normalizeAvatarUrl(input: string): string {
 
   const maybeId = getAvatarIdFromInput(raw);
   if (maybeId) {
-    return withReadyPlayerParams(new URL(`https://models.readyplayer.me/${maybeId}.glb`));
+    return withReadyPlayerParams(new URL(`https://models.readyplayer.me/${maybeId}.glb`), meshConfig);
   }
 
   let candidate = raw;
@@ -136,7 +142,7 @@ export function normalizeAvatarUrl(input: string): string {
 
   try {
     const url = new URL(candidate);
-    return withReadyPlayerParams(url);
+    return withReadyPlayerParams(url, meshConfig);
   } catch {
     throw new Error("Avatar URL is invalid.");
   }
@@ -144,7 +150,7 @@ export function normalizeAvatarUrl(input: string): string {
 
 /** Download a remote avatar and convert it to a local data URL for persistence. */
 export async function downloadAvatarAsDataUrl(input: string): Promise<{ sourceUrl: string; dataUrl: string }> {
-  const sourceUrl = normalizeAvatarUrl(input);
+  const sourceUrl = normalizeAvatarUrl(input, DEFAULT_MESH_CONFIG);
   const response = await fetch(sourceUrl);
   if (!response.ok) {
     throw new Error(`Failed to download avatar (${response.status}).`);
@@ -201,7 +207,11 @@ export function removeClientAvatar(id: string): AvatarEntry[] {
 }
 
 /** Resolve an avatar ID to a final URL or data URL. */
-export function getAvatarUrl(id: string, registry: AvatarEntry[]): string {
+export function getAvatarUrl(
+  id: string,
+  registry: AvatarEntry[],
+  meshConfig: MeshConfig = DEFAULT_MESH_CONFIG,
+): string {
   const entry = registry.find((avatar) => avatar.id === id);
   const file = entry?.file ?? registry[0]?.file ?? DEFAULT_AVATARS[0].file;
 
@@ -211,7 +221,7 @@ export function getAvatarUrl(id: string, registry: AvatarEntry[]): string {
 
   if (isHttpUrl(file)) {
     try {
-      return withReadyPlayerParams(new URL(file));
+      return withReadyPlayerParams(new URL(file), meshConfig);
     } catch {
       return file;
     }

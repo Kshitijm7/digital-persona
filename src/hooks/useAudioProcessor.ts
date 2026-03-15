@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AUDIO_CONFIG } from "@/lib/constants";
-import { AudioStreamer } from "@/lib/audio-streamer";
+import { AudioStreamer } from "../lib/audio-streamer";
 import { Lipsync } from "wawa-lipsync";
-import { useLipSyncStore } from "@/store/useLipSyncStore";
+import { DEFAULT_LIPSYNC_TUNING, useLipSyncStore } from "@/store/useLipSyncStore";
 import { createLogger } from "@/lib/logging/logger";
 
 const log = createLogger("useAudioProcessor");
@@ -51,6 +51,7 @@ export function useAudioProcessor() {
   // Playback via AudioStreamer
   const playbackCtxRef = useRef<AudioContext | null>(null);
   const audioStreamerRef = useRef<AudioStreamer | null>(null);
+  const wawaRef = useRef<Lipsync | null>(null);
   // rAF handle for playback-level animation loop
   const playbackAnimFrameRef = useRef<number>(0);
   const onAudioScheduledRef = useRef<((startMs: number, durationMs: number) => void) | null>(null);
@@ -250,6 +251,7 @@ export function useAudioProcessor() {
    * Get or create the AudioStreamer instance (single shared AudioContext).
    */
   const getStreamer = useCallback((): AudioStreamer => {
+    const tuning = useLipSyncStore.getState().tuning ?? DEFAULT_LIPSYNC_TUNING;
     if (!audioStreamerRef.current) {
       if (!playbackCtxRef.current) {
         playbackCtxRef.current = new AudioContext({
@@ -261,6 +263,9 @@ export function useAudioProcessor() {
         playbackCtxRef.current,
         AUDIO_CONFIG.output_hz,
       );
+      streamer.analyserNode.smoothingTimeConstant = tuning.analyserSmoothing;
+      streamer.analyserNode.minDecibels = -100;
+      streamer.analyserNode.maxDecibels = -30;
       audioStreamerRef.current = streamer;
       streamer.onComplete = () => {
         cancelAnimationFrame(playbackAnimFrameRef.current);
@@ -272,7 +277,10 @@ export function useAudioProcessor() {
       };
 
       // Ensure Lipsync is correctly instantiated and mapped to AudioStreamer
-      const wawa = new Lipsync();
+      const wawa = new Lipsync({
+        fftSize: streamer.analyserNode.fftSize,
+        historySize: 2, // Reduced from 6 to minimize latency (2*10ms = 20ms lag)
+      });
       
       // Patch private properties to safely integrate without relying on HTMLAudioElement
       // @ts-expect-error - patching private context to match AudioStreamer
@@ -284,14 +292,28 @@ export function useAudioProcessor() {
       // @ts-expect-error - override sampleRate for wawa
       wawa.sampleRate = streamer.context.sampleRate;
       // @ts-expect-error - recompute binWidth
-      wawa.binWidth = wawa.sampleRate / 2048;
+      wawa.binWidth = wawa.sampleRate / streamer.analyserNode.fftSize;
+      // @ts-expect-error - configurable persistence to reduce viseme lag on rapid speech transitions
+      wawa.maxVisemeDuration = tuning.visemePersistenceMs;
+      // @ts-expect-error - expose streamer for mode detection
+      wawa.audioStreamerRef = audioStreamerRef;
 
+      wawaRef.current = wawa;
       useLipSyncStore.getState().setWawaLipsync(wawa);
+
+      // Reset internal gain to prevent stale levels
+      outputAudioLevelRef.current = 0;
     }
-    audioStreamerRef.current.onAudioScheduled = (start, duration) => {
+    const streamer = audioStreamerRef.current;
+    streamer.analyserNode.smoothingTimeConstant = tuning.analyserSmoothing;
+    if (wawaRef.current) {
+      // @ts-expect-error - runtime tuning for persistence
+      wawaRef.current.maxVisemeDuration = tuning.visemePersistenceMs;
+    }
+    streamer.onAudioScheduled = (start: number, duration: number) => {
       onAudioScheduledRef.current?.(start, duration);
     };
-    return audioStreamerRef.current;
+    return streamer;
   }, [syncCombinedLevel]);
 
   /**
@@ -343,22 +365,8 @@ export function useAudioProcessor() {
     (async () => {
       try {
         const now = performance.now();
-        const signature = `${base64.length}:${base64.slice(0, 48)}:${base64.slice(-48)}`;
-        const DUPLICATE_CHUNK_WINDOW_MS = 2500;
+        const signature = `${base64.length}:${base64.slice(0, 48)}:${base64.slice(Math.max(0, Math.floor(base64.length / 2) - 24), Math.floor(base64.length / 2) + 24)}:${base64.slice(-48)}`;
         const SIGNATURE_TTL_MS = 10000;
-
-        const seenAt = recentChunkSignaturesRef.current.get(signature);
-        if (seenAt !== undefined && now - seenAt < DUPLICATE_CHUNK_WINDOW_MS) {
-          droppedPlaybackChunkCountRef.current += 1;
-          log.debug(
-            {
-              droppedDuplicates: droppedPlaybackChunkCountRef.current,
-              duplicateWindowMs: DUPLICATE_CHUNK_WINDOW_MS,
-            },
-            "Skipping duplicate audio chunk.",
-          );
-          return;
-        }
 
         recentChunkSignaturesRef.current.set(signature, now);
         for (const [seenSignature, seenTime] of recentChunkSignaturesRef.current) {

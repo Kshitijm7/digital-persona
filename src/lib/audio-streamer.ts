@@ -1,306 +1,251 @@
 /**
- * AudioStreamer — Time-scheduled PCM16 audio playback.
- *
- * Ported from the Google `live-api-web-console` reference implementation.
- * Uses `AudioContext.currentTime` scheduling for gapless playback and a
- * GainNode for clean stop/resume without audio pops.
- *
- * @see https://github.com/google-gemini/multimodal-live-api-web-console
+ * Hardened AudioStreamer
+ * Improvements: bounded queue, robust state transitions,
+ * and precise look-ahead scheduling for smooth realtime voice playback.
  */
 
 export class AudioStreamer {
-  private sampleRate: number;
-  private bufferSize: number = 7680;
+  private readonly sampleRate: number;
+  private readonly bufferSize: number = 2048;
+  private readonly maxQueueLength: number = 100;
 
-  /** Queue of Float32 audio buffers waiting to be scheduled. */
   private audioQueue: Float32Array[] = [];
-  private isPlaying: boolean = false;
-  /** Marks that no more chunks are expected for this turn. */
-  private isStreamComplete: boolean = false;
+  private pendingRemainder: Float32Array | null = null;
 
-  private checkInterval: ReturnType<typeof setInterval> | null = null;
-  private scheduleTimeout: ReturnType<typeof setTimeout> | null = null;
-  private scheduledTime: number = 0;
-  private initialBufferTime: number = 0.1; // 100ms initial buffer
-  private activeSources = new Set<AudioBufferSourceNode>();
-  private schedulerGeneration = 0;
+  private isPlaying = false;
+  private isStreamComplete = false;
   private queueCompleteNotified = false;
 
-  /** GainNode sits between sources and destination for clean volume control. */
+  private scheduledTime = 0;
+  private schedulerGeneration = 0;
+
+  private activeSources = new Set<AudioBufferSourceNode>();
+  private scheduleTimeout: ReturnType<typeof setTimeout> | null = null;
+  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  private initialBufferTime = 0.2;
+  private lookAheadTime = 0.4;
+
   public gainNode: GainNode;
-  public analyserNode!: AnalyserNode;
-  public source!: AudioBufferSourceNode;
-  private endOfQueueAudioSource: AudioBufferSourceNode | null = null;
+  public analyserNode: AnalyserNode;
+  public source: AudioBufferSourceNode;
+  private timeDomainData: Uint8Array<ArrayBuffer>;
 
-  /** Called when the queue has been fully drained and the last buffer finishes. */
-  public onComplete = () => {};
-
-  /** 
-   * Fires exactly when a buffer is scheduled.
-   * Passing back the scheduled start time (in MS) and duration (in MS).
-   */
+  public onComplete: () => void = () => {};
   public onAudioScheduled: ((startTimeMs: number, durationMs: number) => void) | null = null;
 
   constructor(public context: AudioContext, sampleRate: number = 24000) {
     this.sampleRate = sampleRate;
     this.gainNode = this.context.createGain();
     this.analyserNode = this.context.createAnalyser();
-    this.analyserNode.fftSize = 2048;
+    this.analyserNode.fftSize = 1024;
+
+    this.timeDomainData = new Uint8Array(this.analyserNode.fftSize) as Uint8Array<ArrayBuffer>;
+
     this.source = this.context.createBufferSource();
     this.gainNode.connect(this.analyserNode);
     this.analyserNode.connect(this.context.destination);
+
     this.addPCM16 = this.addPCM16.bind(this);
   }
 
-  // ── PCM16 → Float32 conversion ───────────────────────────────────────────
-
-  /**
-   * Converts a Uint8Array of PCM16 (little-endian, signed) audio data into a
-   * Float32Array normalised to [-1, 1].
-   */
   private _processPCM16Chunk(chunk: Uint8Array): Float32Array {
-    const float32Array = new Float32Array(chunk.length / 2);
-    const dataView = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+    const samples = Math.floor(chunk.length / 2);
+    const float32 = new Float32Array(samples);
+    const view = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
 
-    for (let i = 0; i < chunk.length / 2; i++) {
-      const int16 = dataView.getInt16(i * 2, true); // little-endian
-      float32Array[i] = int16 / 32768;
+    for (let i = 0; i < samples; i++) {
+      float32[i] = view.getInt16(i * 2, true) / 32768.0;
     }
-    return float32Array;
+
+    return float32;
   }
 
-  // ── Public API ────────────────────────────────────────────────────────────
-
-  /**
-   * Queue a PCM16 audio chunk for playback. Chunks are sliced into
-   * fixed-size buffers and scheduled with look-ahead timing for
-   * gapless output.
-   */
   addPCM16(chunk: Uint8Array) {
-    // A new chunk means the stream hasn't finished yet.
+    if (!chunk.length) return;
+
+    if (this.audioQueue.length > this.maxQueueLength) {
+      this.audioQueue.shift();
+    }
+
     this.isStreamComplete = false;
     this.queueCompleteNotified = false;
 
     let processingBuffer = this._processPCM16Chunk(chunk);
 
-    // Slice into fixed-size buffers for consistent scheduling granularity.
-    while (processingBuffer.length >= this.bufferSize) {
-      const buffer = processingBuffer.slice(0, this.bufferSize);
-      this.audioQueue.push(buffer);
-      processingBuffer = processingBuffer.slice(this.bufferSize);
-    }
-    // Remainder goes in as-is.
-    if (processingBuffer.length > 0) {
-      this.audioQueue.push(processingBuffer);
+    if (this.pendingRemainder && this.pendingRemainder.length > 0) {
+      const merged = new Float32Array(this.pendingRemainder.length + processingBuffer.length);
+      merged.set(this.pendingRemainder);
+      merged.set(processingBuffer, this.pendingRemainder.length);
+      processingBuffer = merged;
+      this.pendingRemainder = null;
     }
 
-    // Kick off scheduling if not already playing.
-    if (!this.isPlaying) {
-      this.isPlaying = true;
-      this.scheduledTime = this.context.currentTime + this.initialBufferTime;
-      this.schedulerGeneration += 1;
-      this.scheduleNextBuffer(this.schedulerGeneration);
-    } else {
+    let offset = 0;
+    while (processingBuffer.length - offset >= this.bufferSize) {
+      this.audioQueue.push(processingBuffer.slice(offset, offset + this.bufferSize));
+      offset += this.bufferSize;
+    }
+
+    if (processingBuffer.length > offset) {
+      this.pendingRemainder = processingBuffer.slice(offset);
+    }
+
+    if (!this.isPlaying && this.audioQueue.length > 2) {
+      this.startPlayback();
+      return;
+    }
+
+    if (this.isPlaying) {
       this.scheduleNextBuffer(this.schedulerGeneration);
     }
   }
 
-  /**
-   * Immediately stop all playback, clear the queue, and ramp gain to zero
-   * to avoid audio pops.
-   */
+  private startPlayback() {
+    this.isPlaying = true;
+    this.queueCompleteNotified = false;
+    this.scheduledTime = this.context.currentTime + this.initialBufferTime;
+    this.scheduleNextBuffer(this.schedulerGeneration);
+  }
+
+  private scheduleNextBuffer(generation: number) {
+    if (!this.isPlaying || generation !== this.schedulerGeneration) return;
+
+    if (this.scheduleTimeout) {
+      clearTimeout(this.scheduleTimeout);
+      this.scheduleTimeout = null;
+    }
+
+    while (
+      this.audioQueue.length > 0 &&
+      this.scheduledTime < this.context.currentTime + this.lookAheadTime
+    ) {
+      const data = this.audioQueue.shift();
+      if (!data) break;
+
+      const buffer = this.context.createBuffer(1, data.length, this.sampleRate);
+      buffer.getChannelData(0).set(data);
+
+      const source = this.context.createBufferSource();
+      source.buffer = buffer;
+      source.connect(this.gainNode);
+
+      if (this.scheduledTime < this.context.currentTime) {
+        this.scheduledTime = this.context.currentTime + 0.05;
+      }
+
+      const startTime = this.scheduledTime;
+      source.start(startTime);
+      this.activeSources.add(source);
+
+      if (this.onAudioScheduled) {
+        this.onAudioScheduled(startTime * 1000, buffer.duration * 1000);
+      }
+
+      source.onended = () => {
+        this.activeSources.delete(source);
+        if (this.isStreamComplete && this.audioQueue.length === 0 && this.activeSources.size === 0) {
+          this.handlePlaybackComplete();
+        }
+      };
+
+      this.scheduledTime += buffer.duration;
+    }
+
+    const nextCheck =
+      this.audioQueue.length > 0
+        ? (this.scheduledTime - this.context.currentTime) * 1000 - 150
+        : 50;
+
+    this.scheduleTimeout = setTimeout(
+      () => this.scheduleNextBuffer(generation),
+      Math.max(20, nextCheck),
+    );
+  }
+
+  private handlePlaybackComplete() {
+    if (this.queueCompleteNotified) return;
+    this.queueCompleteNotified = true;
+    this.isPlaying = false;
+    this.onComplete();
+  }
+
   stop() {
     this.schedulerGeneration += 1;
     this.isPlaying = false;
     this.isStreamComplete = true;
     this.queueCompleteNotified = false;
     this.audioQueue = [];
-    this.scheduledTime = this.context.currentTime;
+    this.pendingRemainder = null;
 
     if (this.scheduleTimeout) {
       clearTimeout(this.scheduleTimeout);
       this.scheduleTimeout = null;
     }
-    if (this.checkInterval) {
-      clearInterval(this.checkInterval);
-      this.checkInterval = null;
+
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
     }
 
-    for (const source of this.activeSources) {
-      try {
-        source.stop();
-      } catch {
-        // Source may already be ended/stopped.
-      }
-      source.disconnect();
-    }
-    this.activeSources.clear();
-    this.endOfQueueAudioSource = null;
-
-    // Smooth gain ramp-down over 100ms to prevent click/pop.
     this.gainNode.gain.cancelScheduledValues(this.context.currentTime);
-    this.gainNode.gain.linearRampToValueAtTime(
-      0,
-      this.context.currentTime + 0.1,
-    );
+    this.gainNode.gain.setTargetAtTime(0, this.context.currentTime, 0.015);
 
-    // Reconnect with fresh gain after ramp completes.
-    setTimeout(() => {
-      this.gainNode.disconnect();
-      this.gainNode = this.context.createGain();
-      this.gainNode.connect(this.analyserNode);
-    }, 200);
+    this.reconnectTimeout = setTimeout(() => {
+      this.reconnectTimeout = null;
+
+      for (const source of this.activeSources) {
+        try {
+          source.stop();
+        } catch {
+          // source may already be stopped
+        }
+        source.disconnect();
+      }
+      this.activeSources.clear();
+
+      this.gainNode.gain.cancelScheduledValues(this.context.currentTime);
+      this.gainNode.gain.setValueAtTime(1, this.context.currentTime);
+    }, 50);
   }
 
-  /**
-   * Resume playback (e.g. after a `stop` or first user interaction).
-   * Resets scheduling origin and restores gain to full.
-   */
   async resume() {
     if (this.context.state === "suspended") {
       await this.context.resume();
     }
+
     this.isStreamComplete = false;
+    this.pendingRemainder = null;
     this.scheduledTime = this.context.currentTime + this.initialBufferTime;
     this.gainNode.gain.setValueAtTime(1, this.context.currentTime);
   }
 
-  /**
-   * Mark the stream as complete. No more chunks are expected.
-   */
   complete() {
     this.isStreamComplete = true;
-    this.scheduleNextBuffer(this.schedulerGeneration);
-  }
 
-  /** Gets real-time volume (0 to 1) from the hardware AnalyserNode */
-  getVolume(): number {
-    if (!this.analyserNode) return 0;
-    
-    const data = new Uint8Array(this.analyserNode.frequencyBinCount);
-    this.analyserNode.getByteFrequencyData(data);
-    
-    let sum = 0;
-    for (let i = 0; i < data.length; i++) {
-       sum += data[i];
-    }
-    const avg = sum / data.length;
-    // Normalize byte (0-255) to float (0-1)
-    return avg / 255;
-  }
-
-  // ── Internal scheduling ──────────────────────────────────────────────────
-
-  private createAudioBuffer(audioData: Float32Array): AudioBuffer {
-    const audioBuffer = this.context.createBuffer(
-      1,
-      audioData.length,
-      this.sampleRate,
-    );
-    audioBuffer.getChannelData(0).set(audioData);
-    return audioBuffer;
-  }
-
-  private scheduleNextBuffer(generation: number) {
-    if (!this.isPlaying || generation !== this.schedulerGeneration) {
+    if (!this.isPlaying && this.audioQueue.length > 0) {
+      this.startPlayback();
       return;
     }
 
-    if (this.scheduleTimeout) {
-      clearTimeout(this.scheduleTimeout);
-      this.scheduleTimeout = null;
+    if (this.isPlaying) {
+      this.scheduleNextBuffer(this.schedulerGeneration);
     }
 
-    const SCHEDULE_AHEAD_TIME = 0.2; // schedule 200ms ahead
+    if (this.isPlaying && this.audioQueue.length === 0 && this.activeSources.size === 0) {
+      this.handlePlaybackComplete();
+    }
+  }
 
-    while (
-      this.isPlaying &&
-      generation === this.schedulerGeneration &&
-      this.audioQueue.length > 0 &&
-      this.scheduledTime < this.context.currentTime + SCHEDULE_AHEAD_TIME
-    ) {
-      const audioData = this.audioQueue.shift()!;
-      const audioBuffer = this.createAudioBuffer(audioData);
-      const source = this.context.createBufferSource();
+  getVolume(): number {
+    this.analyserNode.getByteTimeDomainData(this.timeDomainData);
 
-      // Track end-of-queue for onComplete callback.
-      if (this.audioQueue.length === 0) {
-        if (this.endOfQueueAudioSource) {
-          this.endOfQueueAudioSource.onended = null;
-        }
-        this.endOfQueueAudioSource = source;
-      }
-
-      source.onended = () => {
-        this.activeSources.delete(source);
-        if (
-          !this.audioQueue.length &&
-          this.endOfQueueAudioSource === source
-        ) {
-          this.endOfQueueAudioSource = null;
-          if (this.isStreamComplete && !this.queueCompleteNotified) {
-            this.queueCompleteNotified = true;
-            this.isPlaying = false;
-            this.onComplete();
-          }
-        }
-      };
-
-      source.buffer = audioBuffer;
-      // Connect specifically through the gainNode (which feeds into analyserNode)
-      source.connect(this.gainNode);
-      this.activeSources.add(source);
-
-      // Never schedule in the past. If we fell behind (underrun), add a buffer cushion to recover gapless playback!
-      let startTime = this.scheduledTime;
-      if (startTime < this.context.currentTime) {
-         startTime = this.context.currentTime + this.initialBufferTime;
-         this.scheduledTime = startTime;
-      }
-      source.start(startTime);
-      
-      if (this.onAudioScheduled) {
-        this.onAudioScheduled(startTime * 1000, audioBuffer.duration * 1000);
-      }
-
-      this.scheduledTime = startTime + audioBuffer.duration;
+    let sumSquares = 0;
+    for (const amplitude of this.timeDomainData) {
+      const normalized = (amplitude - 128) / 128;
+      sumSquares += normalized * normalized;
     }
 
-    // If queue is empty, either we're done or we poll for more chunks.
-    if (this.audioQueue.length === 0) {
-      if (this.isStreamComplete) {
-        if (!this.activeSources.size && !this.queueCompleteNotified) {
-          this.queueCompleteNotified = true;
-          this.isPlaying = false;
-          this.onComplete();
-        }
-        if (this.checkInterval) {
-          clearInterval(this.checkInterval);
-          this.checkInterval = null;
-        }
-      } else {
-        // Poll for new chunks (they arrive asynchronously from the server).
-        if (!this.checkInterval) {
-          this.checkInterval = setInterval(() => {
-            if (
-              this.audioQueue.length > 0 &&
-              this.isPlaying &&
-              generation === this.schedulerGeneration
-            ) {
-              this.scheduleNextBuffer(generation);
-            }
-          }, 100);
-        }
-      }
-    } else {
-      // More in queue — schedule the next batch slightly before the current
-      // batch finishes playing.
-      const nextCheckTime =
-        (this.scheduledTime - this.context.currentTime) * 1000;
-      this.scheduleTimeout = setTimeout(
-        () => this.scheduleNextBuffer(generation),
-        Math.max(10, nextCheckTime - 50),
-      );
-    }
+    return Math.sqrt(sumSquares / this.timeDomainData.length);
   }
 }

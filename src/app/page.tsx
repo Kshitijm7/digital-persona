@@ -40,11 +40,17 @@ import { SkinPreset, SKIN_PRESETS } from "@/lib/skinConfig";
 // Emotion
 import { useEmotionStore } from "@/store/useEmotionStore";
 import { createLogger } from "@/lib/logging/logger";
+import { useAvatarRuntimeStore } from "@/store/useAvatarRuntimeStore";
+import { sanitizeControlPatch, type AvatarControlOverrides } from "@/lib/avatar-control.types";
+import { useLipSyncStore } from "@/store/useLipSyncStore";
 
 // Scene Config
 import { SceneConfigProvider } from "@/hooks/SceneConfigContext";
 
 const log = createLogger("app/page");
+const BASE_ANIMATION_MATCH_THRESHOLD = 0.25;
+const SPEAKING_ANIMATION_MATCH_THRESHOLD = 0.32;
+const ASSISTANT_SPEAKING_LEVEL_THRESHOLD = 0.06;
 
 
 // 3D Scene (lazy, no SSR)
@@ -130,7 +136,19 @@ function HomePage() {
   const [selectedSkin, setSelectedSkin] = useState<SkinPreset>(SKIN_PRESETS[0]);
   // Debug mode — enables OrbitControls + live camera panel
   const [debugMode, setDebugMode] = useState(false);
+  const chat = useChatMessages();
+  const appendAssistantMessage = chat.appendAssistantMessage;
+  const addUserMessage = chat.addUserMessage;
   const expressionResetTimeoutRef = useRef<number | null>(null);
+  const lastTranscriptChunkRef = useRef<{ text: string; at: number } | null>(null);
+  const chatMessagesRef = useRef(chat.messages);
+  const applySessionPatch = useAvatarRuntimeStore((state) => state.applySessionPatch);
+  const clearSessionOverrides = useAvatarRuntimeStore((state) => state.clearSessionOverrides);
+  const updateLipSyncTuning = useLipSyncStore((state) => state.updateTuning);
+
+  useEffect(() => {
+    chatMessagesRef.current = chat.messages;
+  }, [chat.messages]);
 
   // Session management
   const {
@@ -140,7 +158,6 @@ function HomePage() {
     ...session
   } = useSessionManager();
   const timer = useSessionTimer(session.isConnected);
-  const chat = useChatMessages();
 
   // (Animation Queue Auto-Progression moved inside useDynamicAnimations.ts for precise timing)
 
@@ -155,11 +172,29 @@ function HomePage() {
       const gestures = (args.gesture_sequence as string[]) || [];
       const durationPerGesture = args.duration_per_gesture_ms as number | undefined;
       const timeScale = args.time_scale as number | undefined;
+      const assistantSpeakingLevel = session.assistantAudioLevelRef.current ?? 0;
+      const isSpeaking = assistantSpeakingLevel >= ASSISTANT_SPEAKING_LEVEL_THRESHOLD;
+      const minScore = isSpeaking
+        ? SPEAKING_ANIMATION_MATCH_THRESHOLD
+        : BASE_ANIMATION_MATCH_THRESHOLD;
+      const disallowTypes = (isSpeaking || personaMode === "focus") ? ["dance", "misc"] : [];
+      const emotionState = useEmotionStore.getState();
+      const recentMessages = chatMessagesRef.current.slice(-4).map((message) => message.content);
+      const contextTexts = [
+        emotionState.textBuffer,
+        ...recentMessages,
+      ].filter((text): text is string => Boolean(text && text.trim()));
       log.info(
         {
           requestedGestures: gestures,
           durationPerGesture,
           timeScale,
+          isSpeaking,
+          assistantSpeakingLevel,
+          minScore,
+          disallowTypes,
+          sentimentScore: emotionState.currentScore,
+          contextCount: contextTexts.length,
         },
         "Tool override: trigger_animation",
       );
@@ -168,23 +203,45 @@ function HomePage() {
         const state = useAnimationStore.getState();
 
         // Resolve all gestures using the advanced semantic matcher.
-        const resolvedSequence = gestures.map((g) => findBestAnimationMatch(g, state.registry));
+        const resolvedSequence = gestures.map((g) =>
+          findBestAnimationMatch(g, state.registry, {
+            minScore,
+            disallowTypes,
+            allowCategoryFallback: !isSpeaking,
+            contextTexts,
+            sentimentScore: emotionState.currentScore,
+          }),
+        );
+        const filteredSequence = resolvedSequence.filter((name) => name !== "idle");
         log.debug(
           {
             requested: gestures,
             resolved: resolvedSequence,
+            filtered: filteredSequence,
           },
           "Resolved animation gestures.",
         );
 
-        // Dispatch to the chronological queue.
-        state.playSequence(
-          resolvedSequence.map((name) => ({
-            name,
-            durationMs: durationPerGesture,
-            timeScale,
-          })),
-        );
+        if (filteredSequence.length > 0) {
+          // Dispatch to the chronological queue.
+          state.playSequence(
+            filteredSequence.map((name) => ({
+              name,
+              durationMs: durationPerGesture,
+              timeScale,
+            })),
+          );
+        } else {
+          log.info(
+            {
+              requestedGestures: gestures,
+              resolved: resolvedSequence,
+              minScore,
+              isSpeaking,
+            },
+            "Skipped trigger_animation: no animation met relevance threshold.",
+          );
+        }
       }
 
       return {
@@ -240,7 +297,7 @@ function HomePage() {
             ? `\`\`\`\n${content}\n\`\`\``
             : content;
 
-      chat.appendAssistantMessage(displayContent);
+      appendAssistantMessage(displayContent);
       log.info(
         {
           contentLength: content.length,
@@ -251,7 +308,67 @@ function HomePage() {
       );
       return { acknowledged: true, characters_displayed: content.length };
     });
-  }, [registerTool, chat]);
+
+    registerTool("set_avatar_controls", (args) => {
+      const rawPatch = (args.patch as AvatarControlOverrides | undefined) ?? {};
+      const sanitized = sanitizeControlPatch(rawPatch);
+      applySessionPatch(sanitized);
+      log.info({ patchKeys: Object.keys(sanitized) }, "Tool override: set_avatar_controls");
+      return { acknowledged: true, applied: sanitized };
+    });
+
+    registerTool("set_emotion_state", (args) => {
+      const patch = sanitizeControlPatch({
+        emotionControl: {
+          emotionState: args.emotionState as "neutral" | "joy" | "anger" | "sadness" | "surprised" | "fear" | "disgust" | undefined,
+          emotionIntensity: typeof args.emotionIntensity === "number" ? args.emotionIntensity : undefined,
+          textConditioning: typeof args.textConditioning === "string" ? args.textConditioning : undefined,
+        },
+      });
+      applySessionPatch(patch);
+      return { acknowledged: true, applied: patch };
+    });
+
+    registerTool("set_ocular_state", (args) => {
+      const patch = sanitizeControlPatch({
+        ocularTuning: {
+          saccadeStrength: typeof args.saccadeStrength === "number" ? args.saccadeStrength : undefined,
+          blinkIntervalMs: typeof args.blinkIntervalMs === "number" ? args.blinkIntervalMs : undefined,
+          blinkDurationMs: typeof args.blinkDurationMs === "number" ? args.blinkDurationMs : undefined,
+          eyelidOpenOffset: typeof args.eyelidOpenOffset === "number" ? args.eyelidOpenOffset : undefined,
+          lookAtIK: typeof args.lookAtIK === "boolean" ? args.lookAtIK : undefined,
+        },
+      });
+      applySessionPatch(patch);
+      return { acknowledged: true, applied: patch };
+    });
+
+    registerTool("set_lipsync_profile", (args) => {
+      const visemeOverrides = args.visemeOverrides as AvatarControlOverrides["visemeOverrides"] | undefined;
+      const aiStyleControl = args.aiStyleControl as AvatarControlOverrides["aiStyleControl"] | undefined;
+      const patch = sanitizeControlPatch({ visemeOverrides, aiStyleControl });
+      applySessionPatch(patch);
+
+      if (aiStyleControl?.coarticulationWindowSize !== undefined) {
+        updateLipSyncTuning({
+          anticipationWindowMs: Math.max(8, Math.min(180, aiStyleControl.coarticulationWindowSize * (1000 / 60))),
+        });
+      }
+
+      return { acknowledged: true, applied: patch };
+    });
+
+    registerTool("reset_avatar_controls", () => {
+      clearSessionOverrides();
+      return { acknowledged: true, cleared: true };
+    });
+  }, [registerTool, appendAssistantMessage, applySessionPatch, clearSessionOverrides, updateLipSyncTuning, personaMode, session.assistantAudioLevelRef]);
+
+  useEffect(() => {
+    if (session.status === "disconnected" || session.status === "error") {
+      clearSessionOverrides();
+    }
+  }, [session.status, clearSessionOverrides]);
 
   useEffect(() => {
     onToolCallRef.current = ({ name, id, args }) => {
@@ -272,6 +389,18 @@ function HomePage() {
   // Wire up transcript handler
   useEffect(() => {
     onTranscriptRef.current = (text) => {
+      const normalized = text.trim();
+      if (!normalized) return;
+
+      const now = Date.now();
+      const previous = lastTranscriptChunkRef.current;
+      if (previous && previous.text === normalized && now - previous.at < 2500) {
+        log.debug({ chunkLength: text.length }, "Dropped duplicate transcript chunk.");
+        return;
+      }
+
+      lastTranscriptChunkRef.current = { text: normalized, at: now };
+
       log.debug({ chunkLength: text.length }, "Transcript chunk received.");
       chat.appendAssistantMessage(text);
       if (text.trim()) {
@@ -299,10 +428,10 @@ function HomePage() {
   const handleSendText = useCallback(
     (text: string) => {
       log.info({ textLength: text.length }, "User text sent from chat panel.");
-      chat.addUserMessage(text);
+      addUserMessage(text);
       session.sendText(text);
     },
-    [chat, session]
+    [addUserMessage, session]
   );
 
   // Error handling
@@ -347,6 +476,7 @@ function HomePage() {
             audioLevelRef={session.assistantAudioLevelRef}
             currentExpression={currentExpression}
             skinPreset={selectedSkin}
+            isConnected={session.isConnected}
             debug={debugMode}
           />
       </div>

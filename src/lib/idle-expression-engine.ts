@@ -1,10 +1,14 @@
 import * as THREE from 'three';
 import { createNoise2D } from 'simplex-noise';
+import { type OcularTuning } from '@/lib/avatar-control.types';
 
 interface IdleExpressionOptions {
   breathing?: boolean;
   blinking?: boolean;
   browTwitch?: boolean;
+  isSpeaking?: boolean;
+  speakingGain?: number;
+  ocularTuning?: OcularTuning;
 }
 
 /**
@@ -24,8 +28,8 @@ export class IdleExpressionEngine {
   private timeSinceLastBlink = 0;
   private blinkState: 'idle' | 'closing' | 'opening' = 'idle';
   private blinkProgress = 0;
-  private readonly BLINK_CLOSE_TIME = 0.1; // 100ms
-  private readonly BLINK_OPEN_TIME = 0.15; // 150ms
+  private blinkCloseTime = 0.1;
+  private blinkOpenTime = 0.15;
 
   // Brow state
   private nextBrowInterval = 3000;
@@ -41,6 +45,13 @@ export class IdleExpressionEngine {
     const breathing = options.breathing ?? true;
     const blinking = options.blinking ?? true;
     const browTwitch = options.browTwitch ?? false;
+    const isSpeaking = options.isSpeaking ?? false;
+    const speakingGain = options.speakingGain ?? 0;
+    const ocularTuning = options.ocularTuning;
+
+    const blinkDurationMs = Math.max(60, Math.min(400, ocularTuning?.blinkDurationMs ?? 100));
+    this.blinkCloseTime = Math.max(0.03, (blinkDurationMs * 0.45) / 1000);
+    this.blinkOpenTime = Math.max(0.03, (blinkDurationMs * 0.55) / 1000);
 
     this.time += delta;
 
@@ -69,61 +80,70 @@ export class IdleExpressionEngine {
     if (!head || !head.morphTargetDictionary || !head.morphTargetInfluences) return;
 
     if (blinking) {
-      this.updateBlinking(delta, head);
+      this.updateBlinking(delta, head, ocularTuning);
     } else {
-      this.setMorph(head, "eyeBlinkLeft", 0);
-      this.setMorph(head, "eyeBlinkRight", 0);
-      this.setMorph(head, "cheekSquintLeft", 0);
-      this.setMorph(head, "cheekSquintRight", 0);
+      this.setMorphDamped(head, "eyeBlinkLeft", 0, delta, 10);
+      this.setMorphDamped(head, "eyeBlinkRight", 0, delta, 10);
+      this.setMorphDamped(head, "cheekSquintLeft", 0, delta, 10);
+      this.setMorphDamped(head, "cheekSquintRight", 0, delta, 10);
     }
 
-    if (browTwitch) {
+    const eyelidOpenOffset = THREE.MathUtils.clamp(ocularTuning?.eyelidOpenOffset ?? 0, -0.25, 0.25);
+    this.setMorphDamped(head, "eyeWideLeft", Math.max(0, eyelidOpenOffset), delta, 12);
+    this.setMorphDamped(head, "eyeWideRight", Math.max(0, eyelidOpenOffset), delta, 12);
+
+    const doBrowSpeechSync = ocularTuning?.browSpeechSync ?? false;
+
+    if (doBrowSpeechSync) {
+      this.updateBrowSpeech(delta, head, isSpeaking, speakingGain);
+    } else if (browTwitch) {
       this.updateBrows(delta, head);
     } else {
       this.isBrowTwitching = false;
       this.browProgress = 0;
-      this.setMorph(head, "browInnerUp", 0);
-      this.setMorph(head, "browOuterUpLeft", 0);
-      this.setMorph(head, "browOuterUpRight", 0);
+      this.setMorphDamped(head, "browInnerUp", 0, delta, 10);
+      this.setMorphDamped(head, "browOuterUpLeft", 0, delta, 10);
+      this.setMorphDamped(head, "browOuterUpRight", 0, delta, 10);
     }
   }
 
-  private updateBlinking(delta: number, head: THREE.SkinnedMesh) {
+  private updateBlinking(delta: number, head: THREE.SkinnedMesh, ocularTuning?: OcularTuning) {
     this.timeSinceLastBlink += delta;
 
     if (this.blinkState === 'idle' && this.timeSinceLastBlink * 1000 > this.nextBlinkInterval) {
       this.blinkState = 'closing';
       this.blinkProgress = 0;
       this.timeSinceLastBlink = 0;
-      // Randomize next interval between 3s and 6s
-      this.nextBlinkInterval = 3000 + Math.random() * 3000;
+      const baseInterval = Math.max(500, Math.min(10000, ocularTuning?.blinkIntervalMs ?? 3000));
+      const jitterRange = baseInterval * 0.2;
+      this.nextBlinkInterval = baseInterval + (Math.random() * 2 - 1) * jitterRange;
     }
 
     let blinkWeight = 0;
 
     if (this.blinkState === 'closing') {
       this.blinkProgress += delta;
-      blinkWeight = Math.min(1, this.blinkProgress / this.BLINK_CLOSE_TIME);
-      if (this.blinkProgress >= this.BLINK_CLOSE_TIME) {
+      blinkWeight = Math.min(1, this.blinkProgress / this.blinkCloseTime);
+      if (this.blinkProgress >= this.blinkCloseTime) {
         this.blinkState = 'opening';
         this.blinkProgress = 0;
       }
     } else if (this.blinkState === 'opening') {
       this.blinkProgress += delta;
-      blinkWeight = Math.max(0, 1 - (this.blinkProgress / this.BLINK_OPEN_TIME));
-      if (this.blinkProgress >= this.BLINK_OPEN_TIME) {
+      blinkWeight = Math.max(0, 1 - (this.blinkProgress / this.blinkOpenTime));
+      if (this.blinkProgress >= this.blinkOpenTime) {
         this.blinkState = 'idle';
         this.blinkProgress = 0;
         blinkWeight = 0;
       }
     }
 
-    this.setMorph(head, "eyeBlinkLeft", blinkWeight);
-    this.setMorph(head, "eyeBlinkRight", blinkWeight);
+    this.setMorphDamped(head, "eyeBlinkLeft", blinkWeight, delta, 18);
+    this.setMorphDamped(head, "eyeBlinkRight", blinkWeight, delta, 18);
     
     // Squeeze the cheeks slightly during blinks
-    this.setMorph(head, "cheekSquintLeft", blinkWeight * 0.3);
-    this.setMorph(head, "cheekSquintRight", blinkWeight * 0.3);
+    this.setMorphDamped(head, "cheekSquintLeft", blinkWeight * 0.3, delta, 16);
+    this.setMorphDamped(head, "cheekSquintRight", blinkWeight * 0.3, delta, 16);
   }
 
   private updateBrows(delta: number, head: THREE.SkinnedMesh) {
@@ -149,10 +169,22 @@ export class IdleExpressionEngine {
         weight = 0;
       }
 
-      this.setMorph(head, "browInnerUp", weight);
-      this.setMorph(head, "browOuterUpLeft", weight);
-      this.setMorph(head, "browOuterUpRight", weight);
+      this.setMorphDamped(head, "browInnerUp", weight, delta, 12);
+      this.setMorphDamped(head, "browOuterUpLeft", weight, delta, 12);
+      this.setMorphDamped(head, "browOuterUpRight", weight, delta, 12);
     }
+  }
+
+  private updateBrowSpeech(delta: number, head: THREE.SkinnedMesh, isSpeaking: boolean, speakingGain: number) {
+    if (isSpeaking && speakingGain > 0.55) {
+      this.setMorphDamped(head, "browInnerUp", 0.08, delta, 8);
+    } else {
+      this.setMorphDamped(head, "browInnerUp", 0, delta, 5);
+    }
+    
+    // Clear out other brow targets
+    this.setMorphDamped(head, "browOuterUpLeft", 0, delta, 5);
+    this.setMorphDamped(head, "browOuterUpRight", 0, delta, 5);
   }
 
   private setMorph(mesh: THREE.SkinnedMesh, name: string, value: number) {
@@ -160,6 +192,15 @@ export class IdleExpressionEngine {
     const influences = mesh.morphTargetInfluences;
     if (dict && influences && dict[name] !== undefined) {
       influences[dict[name]] = value;
+    }
+  }
+
+  private setMorphDamped(mesh: THREE.SkinnedMesh, name: string, target: number, delta: number, lambda: number) {
+    const dict = mesh.morphTargetDictionary;
+    const influences = mesh.morphTargetInfluences;
+    if (dict && influences && dict[name] !== undefined) {
+      const idx = dict[name];
+      influences[idx] = THREE.MathUtils.damp(influences[idx], target, lambda, delta);
     }
   }
 }

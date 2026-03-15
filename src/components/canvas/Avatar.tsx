@@ -12,9 +12,8 @@ import React, { useRef, useEffect, useState } from "react";
 import { useGraph, useFrame } from "@react-three/fiber";
 import { useGLTF, useAnimations } from "@react-three/drei";
 import { GLTF, SkeletonUtils } from "three-stdlib";
-import { PHYSICS_SMOOTHING } from "@/lib/constants";
 import { SkinPreset } from "@/lib/skinConfig";
-import { useSkinTexture } from "@/hooks/useSkinTexture";
+import { useSkinMaterial } from "@/hooks/useSkinTexture";
 import { normaliseFbxAnimations } from "@/lib/animationUtils";
 import { type FeatureToggles } from "@/hooks/SceneConfigContext";
 import { useDynamicAnimations } from "@/hooks/useDynamicAnimations";
@@ -25,6 +24,22 @@ import { LipSyncEngine } from "@/lib/lipsync-engine";
 import { EmotionEngine } from "@/lib/emotion-engine";
 import { useLipSyncStore } from "@/store/useLipSyncStore";
 import { createLogger } from "@/lib/logging/logger";
+import {
+  DEFAULT_AI_STYLE_CONTROL,
+  DEFAULT_ANATOMICAL_POST_PROCESSING,
+  DEFAULT_EMOTION_CONTROL,
+  DEFAULT_HEAD_DYNAMICS,
+  DEFAULT_MESH_POST_PROCESSING,
+  DEFAULT_OCULAR_TUNING,
+  DEFAULT_VISEME_OVERRIDES,
+  type AIStyleControl,
+  type AnatomicalPostProcessing,
+  type EmotionControl,
+  type HeadDynamics,
+  type MeshPostProcessing,
+  type OcularTuning,
+  type VisemeOverrides,
+} from "@/lib/avatar-control.types";
 
 const log = createLogger("Avatar");
 
@@ -63,6 +78,13 @@ interface AvatarProps {
   currentExpression?: string;
   skinPreset?: SkinPreset | null;
   featureToggles?: FeatureToggles;
+  emotionControl?: EmotionControl;
+  ocularTuning?: OcularTuning;
+  meshPostProcessing?: MeshPostProcessing;
+  headDynamics?: HeadDynamics;
+  anatomicalPostProcessing?: AnatomicalPostProcessing;
+  visemeOverrides?: VisemeOverrides;
+  aiStyleControl?: AIStyleControl;
 }
 
 const DEFAULT_FEATURES: FeatureToggles = {
@@ -71,7 +93,7 @@ const DEFAULT_FEATURES: FeatureToggles = {
   gazeDrift: false,
   blinking: true,
   hoverEffect: false,
-  headMovement: false,
+  headMovement: true,
   googleSearch: true,
   proactiveAudio: true,
 };
@@ -80,7 +102,20 @@ const DEFAULT_FEATURES: FeatureToggles = {
  * Wolf3D avatar with real-time lip-sync, idle breathing,
  * MeshPhysicalMaterial skin with SSS, and gaze drift.
  */
-export function Avatar({ audioLevelRef, avatarUrl, currentExpression, skinPreset = null, featureToggles = DEFAULT_FEATURES }: AvatarProps) {
+export function Avatar({
+  audioLevelRef,
+  avatarUrl,
+  currentExpression,
+  skinPreset = null,
+  featureToggles = DEFAULT_FEATURES,
+  emotionControl = DEFAULT_EMOTION_CONTROL,
+  ocularTuning = DEFAULT_OCULAR_TUNING,
+  meshPostProcessing = DEFAULT_MESH_POST_PROCESSING,
+  headDynamics = DEFAULT_HEAD_DYNAMICS,
+  anatomicalPostProcessing = DEFAULT_ANATOMICAL_POST_PROCESSING,
+  visemeOverrides = DEFAULT_VISEME_OVERRIDES,
+  aiStyleControl = DEFAULT_AI_STYLE_CONTROL,
+}: AvatarProps) {
   const groupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
 
@@ -108,8 +143,9 @@ export function Avatar({ audioLevelRef, avatarUrl, currentExpression, skinPreset
     });
   }, [materials]);
 
-  // Get the PBR skin material with SSS
-  const skinMaterial = useSkinTexture(skinPreset);
+  // Get the PBR skin materials with SSS (preserve unique maps per mesh)
+  const headSkinMaterial = useSkinMaterial(materials.Wolf3D_Skin, skinPreset);
+  const bodySkinMaterial = useSkinMaterial(materials.Wolf3D_Body, skinPreset);
 
   // Combine animations and bind them to the groupRef
   // Apply Mixamo FBX normalization best practice from Visage
@@ -172,6 +208,17 @@ export function Avatar({ audioLevelRef, avatarUrl, currentExpression, skinPreset
   const gazeEngine = React.useMemo(() => new GazeEngine(), []);
   const lipsyncEngine = React.useMemo(() => new LipSyncEngine(), []);
   const emotionEngine = React.useMemo(() => new EmotionEngine(), []);
+  
+  // Verify morph targets once
+  const hasLoggedMorphs = useRef(false);
+  useEffect(() => {
+    const head = nodes.Wolf3D_Head as THREE.SkinnedMesh;
+    if (head?.morphTargetDictionary && !hasLoggedMorphs.current) {
+      console.log("[Avatar] Mesh Morph Targets:", Object.keys(head.morphTargetDictionary));
+      hasLoggedMorphs.current = true;
+    }
+  }, [nodes.Wolf3D_Head]);
+
 
   // Safeguard: Reset zero/NaN scales on bones to prevent mesh collapse
   React.useEffect(() => {
@@ -200,10 +247,14 @@ export function Avatar({ audioLevelRef, avatarUrl, currentExpression, skinPreset
 
     const rawLevel = audioLevelRef.current ?? 0;
 
-    // Smooth the audio level to avoid jitter
+    // Fast attack + slower release keeps onset aligned while avoiding jitter.
+    const attackAlpha = 1 - Math.exp(-delta * 24);
+    const releaseAlpha = 1 - Math.exp(-delta * 8);
+    const smoothingAlpha = rawLevel > smoothedLevel.current ? attackAlpha : releaseAlpha;
     smoothedLevel.current +=
-      (rawLevel - smoothedLevel.current) * PHYSICS_SMOOTHING.lerp_factor;
+      (rawLevel - smoothedLevel.current) * smoothingAlpha;
     const level = smoothedLevel.current;
+    const lipSyncLevel = Math.max(rawLevel, level);
     const isSpeaking = level > 0.05;
 
     // Keep body idle subtle while speaking so visemes remain the visual focus.
@@ -221,25 +272,59 @@ export function Avatar({ audioLevelRef, avatarUrl, currentExpression, skinPreset
 
     // Drive jaw/mouth morph targets for lip-sync using LipSyncEngine
     if (featureToggles.lipSync) {
-      lipsyncEngine.updateFromAudioLevel(level, delta, nodes, useLipSyncStore.getState().wawaLipsync);
+      const { wawaLipsync, tuning } = useLipSyncStore.getState();
+      const coarticulationFrames = Math.max(1, aiStyleControl.coarticulationWindowSize || 1);
+      const coarticulationWindowMs = Math.max(8, Math.min(180, coarticulationFrames * (1000 / 60)));
+      const runtimeTuning = {
+        ...tuning,
+        anticipationWindowMs: coarticulationWindowMs,
+      };
+      lipsyncEngine.updateFromAudioLevel(
+        lipSyncLevel,
+        delta,
+        nodes,
+        wawaLipsync,
+        runtimeTuning,
+        {
+          visemeOverrides,
+          meshPostProcessing,
+          anatomicalPostProcessing,
+        },
+      );
     }
 
     // Execute Emotion Engine (handles UI override, sentiments, and hover effects)
-    /* eslint-disable */
-    emotionEngine.update(delta, nodes, currentExpression || "idle", hovered, featureToggles as any, isSpeaking);
-    /* eslint-enable */
+     
+    emotionEngine.update(
+      delta,
+      nodes,
+      currentExpression || "idle",
+      hovered,
+      featureToggles,
+      isSpeaking,
+      {
+        emotionControl,
+        aiStyleControl,
+      },
+    );
+     
 
     // Execute procedural idle engines only for enabled channels.
     idleEngine.update(delta, nodes, {
       breathing: featureToggles.breathing,
       blinking: featureToggles.blinking,
       browTwitch: false,
+      isSpeaking,
+      speakingGain: lipSyncLevel,
+      ocularTuning,
     });
     
     if (featureToggles.gazeDrift || featureToggles.headMovement) {
       gazeEngine.update(delta, camera, nodes, state.pointer, isSpeaking, {
         eyeDrift: featureToggles.gazeDrift,
         headMovement: featureToggles.headMovement,
+        ocularTuning,
+        headDynamics,
       });
     }
 
@@ -318,14 +403,14 @@ export function Avatar({ audioLevelRef, avatarUrl, currentExpression, skinPreset
           skeleton={nodes.Wolf3D_Outfit_Footwear.skeleton}
         />
       )}
-      {/* Body — uses same PBR skin material for consistency */}
-      {hasSkinnedMesh(nodes.Wolf3D_Body) && (skinMaterial || materials.Wolf3D_Body) && (
+      {/* Body — uses same PBR properties but preserves the unique body map */}
+      {hasSkinnedMesh(nodes.Wolf3D_Body) && (bodySkinMaterial || materials.Wolf3D_Body) && (
         <skinnedMesh
           castShadow
           receiveShadow
           frustumCulled={false}
           geometry={nodes.Wolf3D_Body.geometry}
-          material={skinMaterial || materials.Wolf3D_Body}
+          material={bodySkinMaterial || materials.Wolf3D_Body}
           skeleton={nodes.Wolf3D_Body.skeleton}
         />
       )}
@@ -355,15 +440,15 @@ export function Avatar({ audioLevelRef, avatarUrl, currentExpression, skinPreset
           morphTargetInfluences={nodes.EyeRight.morphTargetInfluences}
         />
       )}
-      {/* Head — receives the full PBR MeshPhysicalMaterial with SSS (if not raw) */}
-      {hasSkinnedMesh(nodes.Wolf3D_Head) && (skinMaterial || materials.Wolf3D_Skin) && (
+      {/* Head — receives the full PBR MeshPhysicalMaterial with SSS while retaining facial details */}
+      {hasSkinnedMesh(nodes.Wolf3D_Head) && (headSkinMaterial || materials.Wolf3D_Skin) && (
         <skinnedMesh
           castShadow
           receiveShadow
           frustumCulled={false}
           name="Wolf3D_Head"
           geometry={nodes.Wolf3D_Head.geometry}
-          material={skinMaterial || materials.Wolf3D_Skin}
+          material={headSkinMaterial || materials.Wolf3D_Skin}
           skeleton={nodes.Wolf3D_Head.skeleton}
           morphTargetDictionary={nodes.Wolf3D_Head.morphTargetDictionary}
           morphTargetInfluences={nodes.Wolf3D_Head.morphTargetInfluences}

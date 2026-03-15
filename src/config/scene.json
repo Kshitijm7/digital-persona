@@ -1,0 +1,161 @@
+{
+  "camera": {
+    "position": {
+      "x": 0.06923252085764106,
+      "y": 0.46076319646263303,
+      "z": 0.512825990391791
+    },
+    "fov": 45,
+    "target": {
+      "x": 0,
+      "y": 0.46,
+      "z": 0.01
+    },
+    "controlsMinDistance": 0.5,
+    "controlsMaxDistance": 3.2,
+    "minPolarAngle": 1.5,
+    "maxPolarAngle": 1.4,
+    "zoomTargetShift": 0
+  },
+  "avatar": {
+    "position": {
+      "x": 0,
+      "y": 0.02,
+      "z": 0.01
+    },
+    "rotation": {
+      "x": 0,
+      "y": 0.09,
+      "z": 0
+    },
+    "scale": 0.7,
+    "model": "male",
+    "idleAnimation": "masculine_idle_m_standing_idle_002"
+  },
+  "lighting": {
+    "keyLight": {
+      "position": {
+        "x": 1.5,
+        "y": 1.6,
+        "z": 1.5
+      },
+      "intensity": 2.5,
+      "color": "#fff5e6"
+    },
+    "fillLight": {
+      "position": {
+        "x": -1.5,
+        "y": 0.8,
+        "z": 1.5
+      },
+      "intensity": 0.5,
+      "color": "#31578c"
+    },
+    "rimLight": {
+      "position": {
+        "x": 0,
+        "y": 1.8,
+        "z": -1.5
+      },
+      "intensity": 3,
+      "color": "#ffffff"
+    }
+  },
+  "features": {
+    "lipSync": true,
+    "breathing": true,
+    "gazeDrift": false,
+    "blinking": true,
+    "hoverEffect": false,
+    "headMovement": true,
+    "googleSearch": true,
+    "proactiveAudio": true
+  },
+  "lipSyncTuning": {
+    "clockCompensationRatio": 0.6,
+    "maxClockCompensationMs": 70,
+    "anticipationWindowMs": 65,
+    "anticipationWeightMax": 0.24,
+    "resetSilenceHoldMs": 240,
+    "minSwitchMsPlosive": 12,
+    "minSwitchMsFricative": 22,
+    "minSwitchMsVowel": 30,
+    "minSwitchMsSilence": 38,
+    "lambdaPlosive": 34,
+    "lambdaFricative": 24,
+    "lambdaVowel": 18,
+    "lambdaSilence": 16,
+    "adaptiveNoiseFloor": true,
+    "speechThresholdOffset": 0.018,
+    "noiseFloorAdaptLambda": 2.6,
+    "noiseFloorReleaseLambda": 0.55,
+    "noiseFloorMin": 0.006,
+    "noiseFloorMax": 0.08,
+    "analyserSmoothing": 0.18,
+    "visemePersistenceMs": 85
+  },
+  "emotionControl": {
+    "emotionState": "neutral",
+    "emotionIntensity": 0.44,
+    "textConditioning": "speaks with calm neutral expression",
+    "fineGrainedAUs": []
+  },
+  "ocularTuning": {
+    "saccadeStrength": 0.4,
+    "blinkIntervalMs": 3000,
+    "blinkDurationMs": 100,
+    "eyelidOpenOffset": 0,
+    "lookAtIK": true
+  },
+  "meshPostProcessing": {
+    "upperFaceSmoothing": 0.001,
+    "lowerFaceSmoothing": 0.0023,
+    "skinStrength": 1,
+    "jawStrength": 1.1,
+    "lipOpenOffset": -0.03
+  },
+  "headDynamics": {
+    "headMotionAccelerationLimit": 0.15,
+    "generateIdleMotion": true,
+    "pitchRange": [
+      -15,
+      15
+    ],
+    "yawRange": [
+      -20,
+      20
+    ]
+  },
+  "anatomicalPostProcessing": {
+    "lowerFaceStrength": 1.3,
+    "upperFaceStrength": 1,
+    "faceMaskLevel": 0.6,
+    "faceMaskSoftness": 0.0085,
+    "jawStrength": 1,
+    "jawHeight": 0,
+    "jawDepth": 0,
+    "tongueStrength": 1,
+    "tongueHeight": 0,
+    "tongueDepth": 0
+  },
+  "visemeOverrides": {
+    "drivingDataScale": 1,
+    "strengthBMP": 120,
+    "strengthFV": 100,
+    "strengthWOo": 150,
+    "strengthSZTD": 100
+  },
+  "aiStyleControl": {
+    "emotionTextPrompt": "neutral professional expression",
+    "emotionIntensity": 0.35,
+    "cfgScale": 2,
+    "coarticulationWindowSize": 5
+  },
+  "meshConfig": {
+    "meshLod": 0,
+    "useDracoCompression": true,
+    "useMeshOptCompression": true,
+    "morphTargets": "ARKit,Oculus Visemes",
+    "textureAtlas": "none"
+  }
+}

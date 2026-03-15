@@ -9,6 +9,21 @@ export interface ChatMessage {
   timestamp: Date;
 }
 
+function mergeStreamingText(existing: string, incoming: string): string {
+  if (!incoming) return existing;
+  if (!existing) return incoming;
+  if (existing.endsWith(incoming)) return existing;
+
+  const maxOverlap = Math.min(existing.length, incoming.length);
+  for (let overlap = maxOverlap; overlap > 0; overlap -= 1) {
+    if (existing.slice(-overlap) === incoming.slice(0, overlap)) {
+      return existing + incoming.slice(overlap);
+    }
+  }
+
+  return existing + incoming;
+}
+
 /**
  * Chat messages management hook
  * Handles message state and operations
@@ -42,12 +57,19 @@ export function useChatMessages() {
   }, []);
 
   const appendAssistantMessage = useCallback((content: string) => {
+    if (!content) return;
+
     setMessages((prev) => {
       const lastMessage = prev[prev.length - 1];
       if (lastMessage && lastMessage.role === "assistant") {
+        const merged = mergeStreamingText(lastMessage.content, content);
+        if (merged === lastMessage.content) {
+          return prev;
+        }
+
         return [
           ...prev.slice(0, -1),
-          { ...lastMessage, content: lastMessage.content + content },
+          { ...lastMessage, content: merged },
         ];
       } else {
         return [

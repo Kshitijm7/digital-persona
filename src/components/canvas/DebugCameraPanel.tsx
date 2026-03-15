@@ -79,10 +79,15 @@ export default function DebugCameraPanel() {
 
   const buildSnippet = useCallback(
     (r: CameraReading) =>
-      `// ── Scene.tsx camera config ─────────────────\n` +
-      `camera={{ position: [${fmt(r.px)}, ${fmt(r.py)}, ${fmt(r.pz)}], fov: ${Math.round(r.fov)} }}\n\n` +
-      `// ── OrbitControls target ────────────────────\n` +
-      `target={[${fmt(r.tx)}, ${fmt(r.ty)}, ${fmt(r.tz)}]}`,
+      JSON.stringify(
+        {
+          position: { x: Number(fmt(r.px)), y: Number(fmt(r.py)), z: Number(fmt(r.pz)) },
+          fov: Math.round(r.fov),
+          target: { x: Number(fmt(r.tx)), y: Number(fmt(r.ty)), z: Number(fmt(r.tz)) }
+        },
+        null,
+        2
+      ),
     []
   );
 
@@ -96,9 +101,9 @@ export default function DebugCameraPanel() {
   const handleSet = useCallback(async () => {
     const payload = {
       camera: {
-        position: [reading.px, reading.py, reading.pz] as [number, number, number],
+        position: { x: reading.px, y: reading.py, z: reading.pz },
         fov: Math.round(reading.fov),
-        target: [reading.tx, reading.ty, reading.tz] as [number, number, number],
+        target: { x: reading.tx, y: reading.ty, z: reading.tz },
       }
     };
     
@@ -109,7 +114,7 @@ export default function DebugCameraPanel() {
     setTimeout(() => setSaved(false), 2000);
 
     try {
-      await fetch("/api/camera", {
+      await fetch("/api/scene", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

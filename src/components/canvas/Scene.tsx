@@ -11,8 +11,11 @@ import { Avatar } from "./Avatar";
 import { SkinPreset } from "@/lib/skinConfig";
 import { getAvatarUrl } from "@/lib/avatars";
 import { useSceneConfig } from "@/hooks/SceneConfigContext";
+import { useAvatarRuntimeStore } from "@/store/useAvatarRuntimeStore";
+import { mergeAvatarControls } from "@/lib/avatar-control.types";
 import { SceneLoader } from "./SceneLoader";
 import { SmartCameraControls } from "./SmartCameraControls";
+import { useEmotionStore } from "@/store/useEmotionStore";
 
 const DebugCameraPanel = lazy(() => import("./DebugCameraPanel"));
 
@@ -32,6 +35,7 @@ export interface SceneProps {
   audioLevelRef: React.RefObject<number>;
   currentExpression?: string;
   skinPreset?: SkinPreset | null;
+  isConnected?: boolean;
   /** When true, enables OrbitControls + live debug panel. Default: false */
   debug?: boolean;
 }
@@ -49,11 +53,32 @@ export function SceneInner({
   audioLevelRef,
   currentExpression = "idle",
   skinPreset = null,
+  isConnected = false,
   debug = false,
 }: SceneProps) {
   const { config, avatarRegistry } = useSceneConfig();
+  const sessionOverrides = useAvatarRuntimeStore((state) => state.sessionOverrides);
   const features = config.features;
-  const avatarUrl = getAvatarUrl(config.avatar.model, avatarRegistry);
+
+  const effectiveControls = React.useMemo(
+    () => mergeAvatarControls(
+      {
+        emotionControl: config.emotionControl,
+        ocularTuning: config.ocularTuning,
+        meshPostProcessing: config.meshPostProcessing,
+        headDynamics: config.headDynamics,
+        anatomicalPostProcessing: config.anatomicalPostProcessing,
+        visemeOverrides: config.visemeOverrides,
+        aiStyleControl: config.aiStyleControl,
+        meshConfig: config.meshConfig,
+      },
+      isConnected ? sessionOverrides : {},
+      !isConnected,
+    ),
+    [config, isConnected, sessionOverrides],
+  );
+
+  const avatarUrl = getAvatarUrl(config.avatar.model, avatarRegistry, effectiveControls.meshConfig);
 
   /* Camera controls distance limits — from config or Visage CAMERA defaults */
   const controlsMinDistance = config.camera.controlsMinDistance ?? 0.5;
@@ -62,15 +87,41 @@ export function SceneInner({
   const maxPolarAngle = config.camera.maxPolarAngle ?? 1.4;
   const zoomTargetShift = config.camera.zoomTargetShift ?? 0.6;
 
+  // Implementation of P1 (TTL-based decay / Hysteresis) for live sessions
+  React.useEffect(() => {
+    if (!isConnected) return;
+
+    // We run a relatively smooth heartbeat at ~250ms that gently degrades active expression overrides
+    const decayTimer = setInterval(() => {
+      // 1. Decay explicit tool-called overrides
+      const runtimeStore = useAvatarRuntimeStore.getState();
+      const hasOverrides = runtimeStore.sessionOverrides.emotionControl || runtimeStore.sessionOverrides.aiStyleControl;
+      
+      if (hasOverrides) {
+        const timeSinceUpdate = Date.now() - runtimeStore.lastUpdatedAt;
+        // If the agent hasn't issued a new expression tool-call in 3.5 seconds, we start drifting back to baseline
+        if (timeSinceUpdate > 3500) {
+          runtimeStore.decaySessionOverrides(0.9); // ~10% intensity reduction every 250ms
+        }
+      }
+
+      // 2. Decay procedural sentiment score so smiles/frowns don't get permanently stuck
+      useEmotionStore.getState().decayScore();
+
+    }, 250);
+
+    return () => clearInterval(decayTimer);
+  }, [isConnected]);
+
   return (
     <Canvas
       /* key={fov} forces a clean Canvas remount when FOV changes (Visage best practice) */
       key={config.camera.fov}
       camera={{
-        position: config.camera.position as [number, number, number],
+        position: [config.camera.position.x, config.camera.position.y, config.camera.position.z],
         fov: config.camera.fov || 50,
       }}
-      shadows="soft"
+      shadows
       dpr={DPR_RANGE}
       gl={{
         antialias: true,
@@ -89,7 +140,7 @@ export function SceneInner({
 
       {/* Key light */}
       <spotLight
-        position={config.lighting.keyLight.position as [number, number, number]}
+        position={[config.lighting.keyLight.position.x, config.lighting.keyLight.position.y, config.lighting.keyLight.position.z]}
         angle={0.25}
         penumbra={0.8}
         intensity={config.lighting.keyLight.intensity}
@@ -100,7 +151,7 @@ export function SceneInner({
 
       {/* Fill light */}
       <spotLight
-        position={config.lighting.fillLight.position as [number, number, number]}
+        position={[config.lighting.fillLight.position.x, config.lighting.fillLight.position.y, config.lighting.fillLight.position.z]}
         angle={0.35}
         penumbra={1}
         intensity={config.lighting.fillLight.intensity}
@@ -109,15 +160,15 @@ export function SceneInner({
 
       {/* Rim light */}
       <pointLight
-        position={config.lighting.rimLight.position as [number, number, number]}
+        position={[config.lighting.rimLight.position.x, config.lighting.rimLight.position.y, config.lighting.rimLight.position.z]}
         intensity={config.lighting.rimLight.intensity}
         color={config.lighting.rimLight.color}
       />
 
       <Suspense fallback={<SceneLoader />}>
         <group
-          position={config.avatar.position as [number, number, number]}
-          rotation={config.avatar.rotation as [number, number, number]}
+          position={[config.avatar.position.x, config.avatar.position.y, config.avatar.position.z]}
+          rotation={[config.avatar.rotation.x, config.avatar.rotation.y, config.avatar.rotation.z]}
           scale={config.avatar.scale}
         >
           <Avatar
@@ -126,6 +177,13 @@ export function SceneInner({
             currentExpression={currentExpression}
             skinPreset={skinPreset}
             featureToggles={features}
+            emotionControl={effectiveControls.emotionControl}
+            ocularTuning={effectiveControls.ocularTuning}
+            meshPostProcessing={effectiveControls.meshPostProcessing}
+            headDynamics={effectiveControls.headDynamics}
+            anatomicalPostProcessing={effectiveControls.anatomicalPostProcessing}
+            visemeOverrides={effectiveControls.visemeOverrides}
+            aiStyleControl={effectiveControls.aiStyleControl}
           />
         </group>
         <Environment preset="studio" />
@@ -135,6 +193,7 @@ export function SceneInner({
         opacity={0.35}
         scale={10}
         blur={2.4}
+        near={0.1}
         far={0.8}
         position={[0, 0, 0]}
         color="#22d3ee"
@@ -146,7 +205,7 @@ export function SceneInner({
         dampingFactor={0.05}
         enableRotate={debug}
         enablePan={debug}
-        target={config.camera.target as [number, number, number]}
+        target={[config.camera.target.x, config.camera.target.y, config.camera.target.z]}
         minDistance={controlsMinDistance}
         maxDistance={controlsMaxDistance}
         minPolarAngle={minPolarAngle}

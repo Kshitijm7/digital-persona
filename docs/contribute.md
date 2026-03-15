@@ -8,7 +8,7 @@ We believe that open collaboration is the fastest way to innovate. Digital Perso
 </div>
 <div class="image-content">
 
-![Digital Persona Avatar](/hero-humanoid.png)
+![Digital Persona Avatar](/assets/hero-humanoid-multi.svg)
 
 </div>
 </div>

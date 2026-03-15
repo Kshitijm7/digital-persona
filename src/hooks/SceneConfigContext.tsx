@@ -1,7 +1,29 @@
 "use client";
 
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from "react";
-import initialConfig from "@/config/camera.json";
+import initialConfig from "@/config/scene.json";
+import avatarTuningConfig from "@/config/avatar-tuning.json";
+import { DEFAULT_LIPSYNC_TUNING, type LipSyncTuning, useLipSyncStore } from "@/store/useLipSyncStore";
+import {
+  DEFAULT_AI_STYLE_CONTROL,
+  DEFAULT_ANATOMICAL_POST_PROCESSING,
+  DEFAULT_EMOTION_CONTROL,
+  DEFAULT_HEAD_DYNAMICS,
+  DEFAULT_MESH_CONFIG,
+  DEFAULT_MESH_POST_PROCESSING,
+  DEFAULT_OCULAR_TUNING,
+  DEFAULT_VISEME_OVERRIDES,
+  type AIStyleControl,
+  type AnatomicalPostProcessing,
+  type EmotionControl,
+  type HeadDynamics,
+  type MeshConfig,
+  type MeshPostProcessing,
+  type OcularTuning,
+  type VisemeOverrides,
+  sanitizeControlPatch,
+  sanitizeEffectiveControls,
+} from "@/lib/avatar-control.types";
 import {
   type AvatarEntry,
   DEFAULT_AVATARS,
@@ -13,17 +35,19 @@ import {
 
 /* ─── Types ────────────────────────────────────────────────────────────────── */
 
+export type Vector3D = { x: number; y: number; z: number };
+
 export interface LightConfig {
-  position: [number, number, number];
+  position: Vector3D;
   intensity: number;
   color: string;
 }
 
 export interface SceneConfig {
   camera: {
-    position: [number, number, number];
+    position: Vector3D;
     fov: number;
-    target: [number, number, number];
+    target: Vector3D;
     controlsMinDistance?: number;
     controlsMaxDistance?: number;
     minPolarAngle?: number;
@@ -31,8 +55,8 @@ export interface SceneConfig {
     zoomTargetShift?: number;
   };
   avatar: {
-    position: [number, number, number];
-    rotation: [number, number, number];
+    position: Vector3D;
+    rotation: Vector3D;
     scale: number;
     model: string;
     idleAnimation: string;
@@ -43,6 +67,15 @@ export interface SceneConfig {
     rimLight: LightConfig;
   };
   features: FeatureToggles;
+  lipSyncTuning: LipSyncTuning;
+  emotionControl: EmotionControl;
+  ocularTuning: OcularTuning;
+  meshPostProcessing: MeshPostProcessing;
+  headDynamics: HeadDynamics;
+  anatomicalPostProcessing: AnatomicalPostProcessing;
+  visemeOverrides: VisemeOverrides;
+  aiStyleControl: AIStyleControl;
+  meshConfig: MeshConfig;
 }
 
 export interface FeatureToggles {
@@ -74,7 +107,7 @@ const DEFAULT_FEATURES: FeatureToggles = {
   gazeDrift: false,
   blinking: true,
   hoverEffect: false,
-  headMovement: false,
+  headMovement: true,
   googleSearch: true,
   proactiveAudio: true,
 };
@@ -84,6 +117,53 @@ const SceneConfigCtx = createContext<SceneConfigContextValue | null>(null);
 /* ─── Provider ─────────────────────────────────────────────────────────────── */
 
 export function SceneConfigProvider({ children }: { children: ReactNode }) {
+  const setLipSyncTuning = useLipSyncStore((state) => state.updateTuning);
+  // avatar-tuning.json provides configurable defaults; scene.json takes precedence over it;
+  // TypeScript DEFAULT_* constants are the last-resort fallback.
+  const cfg = avatarTuningConfig as Record<string, unknown>;
+  const sceneCfg = initialConfig as Record<string, unknown>;
+  const sanitizedInitialControls = sanitizeEffectiveControls({
+    emotionControl: {
+      ...DEFAULT_EMOTION_CONTROL,
+      ...(cfg.emotionControl as Partial<EmotionControl> || {}),
+      ...(sceneCfg.emotionControl as Partial<EmotionControl> || {}),
+    },
+    ocularTuning: {
+      ...DEFAULT_OCULAR_TUNING,
+      ...(cfg.ocularTuning as Partial<OcularTuning> || {}),
+      ...(sceneCfg.ocularTuning as Partial<OcularTuning> || {}),
+    },
+    meshPostProcessing: {
+      ...DEFAULT_MESH_POST_PROCESSING,
+      ...(cfg.meshPostProcessing as Partial<MeshPostProcessing> || {}),
+      ...(sceneCfg.meshPostProcessing as Partial<MeshPostProcessing> || {}),
+    },
+    headDynamics: {
+      ...DEFAULT_HEAD_DYNAMICS,
+      ...(cfg.headDynamics as Partial<HeadDynamics> || {}),
+      ...(sceneCfg.headDynamics as Partial<HeadDynamics> || {}),
+    },
+    anatomicalPostProcessing: {
+      ...DEFAULT_ANATOMICAL_POST_PROCESSING,
+      ...(cfg.anatomicalPostProcessing as Partial<AnatomicalPostProcessing> || {}),
+      ...(sceneCfg.anatomicalPostProcessing as Partial<AnatomicalPostProcessing> || {}),
+    },
+    visemeOverrides: {
+      ...DEFAULT_VISEME_OVERRIDES,
+      ...(cfg.visemeOverrides as Partial<VisemeOverrides> || {}),
+      ...(sceneCfg.visemeOverrides as Partial<VisemeOverrides> || {}),
+    },
+    aiStyleControl: {
+      ...DEFAULT_AI_STYLE_CONTROL,
+      ...(cfg.aiStyleControl as Partial<AIStyleControl> || {}),
+      ...(sceneCfg.aiStyleControl as Partial<AIStyleControl> || {}),
+    },
+    meshConfig: {
+      ...DEFAULT_MESH_CONFIG,
+      ...(sceneCfg.meshConfig as Partial<MeshConfig> || {}),
+    },
+  });
+
   // Ensure default features exist if loading from older JSON without them
   const initial: SceneConfig = {
     ...initialConfig,
@@ -91,11 +171,34 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
       ...DEFAULT_FEATURES,
       ...((initialConfig as Record<string, unknown>).features as Partial<FeatureToggles> || {}),
     },
+    lipSyncTuning: {
+      ...DEFAULT_LIPSYNC_TUNING,
+      ...((initialConfig as Record<string, unknown>).lipSyncTuning as Partial<LipSyncTuning> || {}),
+    },
+    emotionControl: sanitizedInitialControls.emotionControl,
+    ocularTuning: sanitizedInitialControls.ocularTuning,
+    meshPostProcessing: sanitizedInitialControls.meshPostProcessing,
+    headDynamics: sanitizedInitialControls.headDynamics,
+    anatomicalPostProcessing: sanitizedInitialControls.anatomicalPostProcessing,
+    visemeOverrides: sanitizedInitialControls.visemeOverrides,
+    aiStyleControl: sanitizedInitialControls.aiStyleControl,
+    meshConfig: sanitizedInitialControls.meshConfig,
   } as SceneConfig;
 
   const [config, _setConfig] = useState<SceneConfig>(initial);
 
   const updateConfig = useCallback((patch: Partial<SceneConfig>) => {
+    const sanitizedControlPatch = sanitizeControlPatch({
+      emotionControl: patch.emotionControl,
+      ocularTuning: patch.ocularTuning,
+      meshPostProcessing: patch.meshPostProcessing,
+      headDynamics: patch.headDynamics,
+      anatomicalPostProcessing: patch.anatomicalPostProcessing,
+      visemeOverrides: patch.visemeOverrides,
+      aiStyleControl: patch.aiStyleControl,
+      meshConfig: patch.meshConfig,
+    });
+
     _setConfig((prev) => ({
       ...prev,
       ...patch,
@@ -103,6 +206,33 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
       avatar: patch.avatar ? { ...prev.avatar, ...patch.avatar } : prev.avatar,
       lighting: patch.lighting ? { ...prev.lighting, ...patch.lighting } : prev.lighting,
       features: patch.features ? { ...prev.features, ...patch.features } : prev.features,
+      lipSyncTuning: patch.lipSyncTuning
+        ? { ...prev.lipSyncTuning, ...patch.lipSyncTuning }
+        : prev.lipSyncTuning,
+      emotionControl: sanitizedControlPatch.emotionControl
+        ? { ...prev.emotionControl, ...sanitizedControlPatch.emotionControl }
+        : prev.emotionControl,
+      ocularTuning: sanitizedControlPatch.ocularTuning
+        ? { ...prev.ocularTuning, ...sanitizedControlPatch.ocularTuning }
+        : prev.ocularTuning,
+      meshPostProcessing: sanitizedControlPatch.meshPostProcessing
+        ? { ...prev.meshPostProcessing, ...sanitizedControlPatch.meshPostProcessing }
+        : prev.meshPostProcessing,
+      headDynamics: sanitizedControlPatch.headDynamics
+        ? { ...prev.headDynamics, ...sanitizedControlPatch.headDynamics }
+        : prev.headDynamics,
+      anatomicalPostProcessing: sanitizedControlPatch.anatomicalPostProcessing
+        ? { ...prev.anatomicalPostProcessing, ...sanitizedControlPatch.anatomicalPostProcessing }
+        : prev.anatomicalPostProcessing,
+      visemeOverrides: sanitizedControlPatch.visemeOverrides
+        ? { ...prev.visemeOverrides, ...sanitizedControlPatch.visemeOverrides }
+        : prev.visemeOverrides,
+      aiStyleControl: sanitizedControlPatch.aiStyleControl
+        ? { ...prev.aiStyleControl, ...sanitizedControlPatch.aiStyleControl }
+        : prev.aiStyleControl,
+      meshConfig: sanitizedControlPatch.meshConfig
+        ? { ...prev.meshConfig, ...sanitizedControlPatch.meshConfig }
+        : prev.meshConfig,
     }));
   }, []);
 
@@ -148,6 +278,10 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
     const saved = removeClientAvatarFromStorage(id);
     setClientAvatarRegistry(saved);
   }, []);
+
+  useEffect(() => {
+    setLipSyncTuning(config.lipSyncTuning);
+  }, [config.lipSyncTuning, setLipSyncTuning]);
 
   return (
     <SceneConfigCtx.Provider
