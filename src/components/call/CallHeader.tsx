@@ -2,7 +2,7 @@
 
 import { GlassPanel } from "@/components/shared/GlassPanel";
 import { StatusDot } from "@/components/shared/StatusDot";
-import { Sparkles } from "lucide-react";
+import { Logo } from "@/components/ui/Logo";
 import { cn } from "@/lib/utils";
 import type { GeminiStatus } from "@/hooks/useGeminiLive";
 
@@ -32,7 +32,7 @@ export function CallHeader({ status, sessionTime }: CallHeaderProps) {
       <div className="flex items-center gap-2 sm:gap-3">
         <GlassPanel rounded="xl" className="flex items-center gap-2 bg-white/5 px-2.5 py-2.5 shadow-xl border-white/5 sm:gap-3 sm:px-3.5 sm:py-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary shadow-[0_0_20px_rgba(var(--primary-rgb),0.3)] sm:h-9 sm:w-9">
-            <Sparkles className="h-4 w-4 text-primary-foreground sm:h-5 sm:w-5" />
+            <Logo className="h-4 w-4 text-primary-foreground sm:h-5 sm:w-5" />
           </div>
           <div className="pr-1 sm:pr-2">
             <h1 className="text-[11px] font-bold tracking-wider text-foreground sm:text-[13px]">

@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState, memo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles } from "lucide-react";
+import { Logo } from "@/components/ui/Logo";
 
 // Error Boundary
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -83,7 +83,7 @@ const IdleScreen = memo(({ onStart }: { onStart: () => void }) => (
       
       <div className="relative z-10 flex flex-col items-center gap-6 w-full">
         <div className="flex h-16 w-16 items-center justify-center rounded-full border border-cyan-400/20 bg-linear-to-br from-cyan-400/20 to-emerald-400/20 shadow-xl animate-pulse-ring sm:h-20 sm:w-20">
-          <Sparkles className="h-7 w-7 text-cyan-400 sm:h-8 sm:w-8" />
+          <Logo className="h-7 w-7 text-cyan-400 sm:h-8 sm:w-8" />
         </div>
         
         <div className="text-center">

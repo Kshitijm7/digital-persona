@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description:
     "A real-time 3D Digital Persona powered by Gemini Live API",
   icons: {
-    icon: "/logo.jpg",
+    icon: "/logo.svg",
   },
 };
 

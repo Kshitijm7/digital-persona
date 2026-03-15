@@ -27,8 +27,9 @@ export function useSkinMaterial(
 
     // Clone the base material to preserve the base texture map (eyebrows, lips, shadows),
     // then convert it to a MeshPhysicalMaterial for subsurface scattering.
+    // We use the MeshStandardMaterial prototype to copy to avoid TypeError on undefined physical maps.
     const physMat = new THREE.MeshPhysicalMaterial();
-    physMat.copy(baseMaterial);
+    THREE.MeshStandardMaterial.prototype.copy.call(physMat, baseMaterial);
 
     if (preset) {
       physMat.color = new THREE.Color(preset.color);

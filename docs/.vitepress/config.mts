@@ -6,6 +6,7 @@ export default withMermaid(defineConfig({
   base: '/digital-persona/',
   title: "Digital Persona",
   description: "AI-Powered Multimodal Agent with Gemini Live API",
+  head: [['link', { rel: 'icon', href: '/digital-persona/logo.svg' }]],
   mermaid: {
     look: 'handDrawn'
   },
@@ -15,7 +16,10 @@ export default withMermaid(defineConfig({
     }
   },
   themeConfig: {
-    logo: '/logo.jpg',
+    logo: {
+      light: '/digital-persona/logo-black.svg',
+      dark: '/digital-persona/logo-white.svg'
+    },
 
     search: {
       provider: 'local'
