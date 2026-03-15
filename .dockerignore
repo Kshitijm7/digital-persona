@@ -5,6 +5,7 @@ node_modules
 .agents
 .vscode
 project_docs
+docs
 .temp-*
 temp-*
 *.tsbuildinfo
@@ -14,3 +15,8 @@ coverage
 README.md
 LICENSE
 src/__tests__
+scripts
+vitest.config.ts
+check-glb.js
+skills-lock.json
+eslint.config.mjs

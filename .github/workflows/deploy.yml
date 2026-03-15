@@ -26,6 +26,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: deploy-cloudrun
+  cancel-in-progress: false
+
 env:
   REGION: us-central1
   ARTIFACT_REPO: digital-persona

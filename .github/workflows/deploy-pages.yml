@@ -6,8 +6,6 @@ on:
     paths:
       - "docs/**"
       - ".github/workflows/deploy-pages.yml"
-      - "package.json"
-      - "package-lock.json"
   workflow_dispatch:
 
 permissions:

@@ -1,18 +1,12 @@
 name: Documentation CI
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "docs/**"
-      - ".github/workflows/ci-docs.yml"
-      - ".github/workflows/deploy-pages.yml"
   pull_request:
     branches:
       - main
     paths:
       - "docs/**"
+      - ".github/workflows/ci-docs.yml"
 
 permissions:
   contents: read
