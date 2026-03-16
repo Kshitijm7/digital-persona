@@ -101,10 +101,15 @@ jobs:
             --allow-unauthenticated
             --port=8080
             --cpu=1
-            --memory=512Mi
-            --concurrency=80
-            --timeout=60
-            --min-instances=0
-            --max-instances=1
+            --memory=1Gi
+            --concurrency=25
+            --timeout=300
+            --min-instances=1
+            --max-instances=10
+            --cpu-boost
+            --no-cpu-throttling
           env_vars: |
             GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+            DISABLE_LOGS_IN_PROD=true
+            LOG_LEVEL_PROD=silent
+            NEXT_PUBLIC_LOG_LEVEL_PROD=silent

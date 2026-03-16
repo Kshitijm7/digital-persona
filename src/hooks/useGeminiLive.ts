@@ -15,10 +15,13 @@ import { useAvatarRuntimeStore } from "@/store/useAvatarRuntimeStore";
 const log = createLogger("useGeminiLive");
 
 /** Maximum time (ms) to wait for a tool handler before returning a timeout error. */
-const TOOL_HANDLER_TIMEOUT_MS = 10_000;
+const TOOL_HANDLER_TIMEOUT_MS = 4_000;
 const DUPLICATE_AUDIO_WINDOW_MS = 500;
 const AUDIO_SIGNATURE_TTL_MS = 5000;
 const TEXT_DEDUP_WINDOW_MS = 1200;
+const AUDIO_CHUNK_LOG_INTERVAL = 100;
+const DUPLICATE_AUDIO_LOG_INTERVAL = 50;
+const PREFETCH_TOKEN_MAX_AGE_MS = 45_000;
 
 const TOOL_SILENCE_POLICY = [
   "TOOL_EXECUTION_RULES:",
@@ -92,7 +95,47 @@ export function useGeminiLive(): UseGeminiLiveReturn {
   const forwardedAudioChunkCountRef = useRef(0);
   const droppedAudioChunkCountRef = useRef(0);
   const lastTextPayloadRef = useRef<{ text: string; sentAt: number } | null>(null);
+  const warmTokenRef = useRef<{ token: string; fetchedAt: number } | null>(null);
+  const tokenPrefetchPromiseRef = useRef<Promise<void> | null>(null);
   const compatibilityProfileRef = useRef<LiveCompatibilityProfile>("full");
+
+  const fetchToken = useCallback(async (): Promise<string> => {
+    const tokenRes = await fetch("/api/token", { method: "POST" });
+    if (!tokenRes.ok) {
+      throw new Error("Failed to fetch Ephemeral Token");
+    }
+    const { token, error } = await tokenRes.json();
+    if (error) {
+      throw new Error(error);
+    }
+    return token as string;
+  }, []);
+
+  const prefetchToken = useCallback(async (force = false): Promise<void> => {
+    const now = Date.now();
+    const cached = warmTokenRef.current;
+    if (!force && cached && now - cached.fetchedAt < PREFETCH_TOKEN_MAX_AGE_MS) {
+      return;
+    }
+
+    if (tokenPrefetchPromiseRef.current) {
+      return tokenPrefetchPromiseRef.current;
+    }
+
+    tokenPrefetchPromiseRef.current = (async () => {
+      try {
+        const token = await fetchToken();
+        warmTokenRef.current = { token, fetchedAt: Date.now() };
+        log.debug("Prefetched Gemini ephemeral token.");
+      } catch (err) {
+        log.debug({ err }, "Token prefetch failed; connect will fetch token on demand.");
+      } finally {
+        tokenPrefetchPromiseRef.current = null;
+      }
+    })();
+
+    return tokenPrefetchPromiseRef.current;
+  }, [fetchToken]);
 
   const registerTool = useCallback((name: string, handler: ToolHandler) => {
     toolRegistryRef.current.set(name, handler);
@@ -165,14 +208,15 @@ export function useGeminiLive(): UseGeminiLiveReturn {
     );
 
     try {
-      const tokenRes = await fetch("/api/token", { method: "POST" });
-      if (!tokenRes.ok) {
-        throw new Error("Failed to fetch Ephemeral Token");
-      }
-      const { token, error } = await tokenRes.json();
-      if (error) {
-        throw new Error(error);
-      }
+      const warmToken = warmTokenRef.current;
+      const now = Date.now();
+      const token =
+        warmToken && now - warmToken.fetchedAt < PREFETCH_TOKEN_MAX_AGE_MS
+          ? warmToken.token
+          : await fetchToken();
+
+      warmTokenRef.current = null;
+      void prefetchToken(true);
 
       clientRef.current = new GoogleGenAI({
         apiKey: token,
@@ -206,7 +250,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
         }
 
         if (message.setupComplete) {
-          log.info({ connectionId }, "Setup complete.");
+          log.debug({ connectionId }, "Setup complete.");
           return;
         }
 
@@ -222,14 +266,14 @@ export function useGeminiLive(): UseGeminiLiveReturn {
 
         if (message.toolCallCancellation) {
           const cancelledIds = message.toolCallCancellation.ids ?? [];
-          log.info({ connectionId, cancelledIds }, "Tool calls cancelled.");
+          log.debug({ connectionId, cancelledIds }, "Tool calls cancelled.");
           onToolCallCancellation.current?.(cancelledIds);
           return;
         }
 
         if (message.serverContent) {
           if (message.serverContent.interrupted) {
-            log.info({ connectionId }, "Interrupted by user speech; stopping playback.");
+            log.debug({ connectionId }, "Interrupted by user speech; stopping playback.");
             onInterrupted.current?.();
             return;
           }
@@ -249,13 +293,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
 
           if (message.serverContent.outputTranscription?.text) {
             const userText = message.serverContent.outputTranscription.text;
-            log.debug(
-              {
-                connectionId,
-                transcript: userText,
-              },
-              "Official user transcript received.",
-            );
+            log.trace({ connectionId, length: userText.length }, "Official user transcript received.");
             onUserTranscript.current?.(userText);
           }
 
@@ -271,14 +309,19 @@ export function useGeminiLive(): UseGeminiLiveReturn {
 
                 if (seenAt !== undefined && now - seenAt < DUPLICATE_AUDIO_WINDOW_MS) {
                   droppedAudioChunkCountRef.current += 1;
-                  log.debug(
-                    {
-                      connectionId,
-                      droppedAudioDuplicates: droppedAudioChunkCountRef.current,
-                      duplicateWindowMs: DUPLICATE_AUDIO_WINDOW_MS,
-                    },
-                    "Skipping duplicate audio chunk from Live API stream.",
-                  );
+                  if (
+                    droppedAudioChunkCountRef.current === 1 ||
+                    droppedAudioChunkCountRef.current % DUPLICATE_AUDIO_LOG_INTERVAL === 0
+                  ) {
+                    log.debug(
+                      {
+                        connectionId,
+                        droppedAudioDuplicates: droppedAudioChunkCountRef.current,
+                        duplicateWindowMs: DUPLICATE_AUDIO_WINDOW_MS,
+                      },
+                      "Skipping duplicate audio chunk from Live API stream.",
+                    );
+                  }
                   continue;
                 }
 
@@ -292,7 +335,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
                 forwardedAudioChunkCountRef.current += 1;
                 if (
                   forwardedAudioChunkCountRef.current === 1 ||
-                  forwardedAudioChunkCountRef.current % 20 === 0
+                  forwardedAudioChunkCountRef.current % AUDIO_CHUNK_LOG_INTERVAL === 0
                 ) {
                   log.debug(
                     {
@@ -309,7 +352,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
               }
 
               if (part.text) {
-                log.debug({ connectionId, transcript: part.text }, "Part transcript.");
+                log.trace({ connectionId, length: part.text.length }, "Part transcript.");
                 onTranscript.current?.(part.text);
               }
             }
@@ -327,15 +370,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
             const callArgs = (call.args ?? {}) as Record<string, unknown>;
             const callId = call.id ?? "";
 
-            log.info(
-              {
-                connectionId,
-                callName,
-                callId,
-                argKeys: Object.keys(callArgs),
-              },
-              "Tool call received.",
-            );
+            log.debug({ connectionId, callName, callId }, "Tool call received.");
 
             onToolCall.current?.({ name: callName, args: callArgs, id: callId });
 
@@ -428,13 +463,12 @@ export function useGeminiLive(): UseGeminiLiveReturn {
 
               sessionRef.current.sendToolResponse(finalToolResponsePayload);
 
-              log.info(
+              log.debug(
                 {
                   connectionId,
                   callName,
                   callId,
                   durationMs: Math.round(performance.now() - handlerStart),
-                  resultKeys: Object.keys(result),
                 },
                 "Tool response sent.",
               );
@@ -449,14 +483,16 @@ export function useGeminiLive(): UseGeminiLiveReturn {
     };
 
     try {
-      const avatarBaselineSummary = JSON.stringify({
-        emotionControl: config.emotionControl,
-        ocularTuning: config.ocularTuning,
-        headDynamics: config.headDynamics,
-        visemeOverrides: config.visemeOverrides,
-        aiStyleControl: config.aiStyleControl,
-        policy: "Use subtle, bounded, natural updates. Prefer small incremental patches over abrupt changes.",
-      });
+      const avatarBaselineSummary = [
+        `emotionState=${config.emotionControl.emotionState}`,
+        `emotionIntensity=${config.emotionControl.emotionIntensity}`,
+        `lookAtIK=${config.ocularTuning.lookAtIK}`,
+        `saccadeStrength=${config.ocularTuning.saccadeStrength}`,
+        `headMotionAccelerationLimit=${config.headDynamics.headMotionAccelerationLimit}`,
+        `cfgScale=${config.aiStyleControl.cfgScale}`,
+        `coarticulationWindowSize=${config.aiStyleControl.coarticulationWindowSize}`,
+        "policy=Use subtle bounded updates; prefer incremental patches over abrupt changes.",
+      ].join("\n");
 
       const session = await ai.live.connect({
         model: GEMINI_MODEL,
@@ -586,8 +622,9 @@ export function useGeminiLive(): UseGeminiLiveReturn {
     config.emotionControl,
     config.ocularTuning,
     config.headDynamics,
-    config.visemeOverrides,
     config.aiStyleControl,
+    fetchToken,
+    prefetchToken,
     downgradeCompatibilityProfile,
   ]);
 
@@ -684,10 +721,12 @@ export function useGeminiLive(): UseGeminiLiveReturn {
   }, []);
 
   useEffect(() => {
+    void prefetchToken();
+
     return () => {
       disconnect();
     };
-  }, [disconnect]);
+  }, [disconnect, prefetchToken]);
 
   return {
     status,

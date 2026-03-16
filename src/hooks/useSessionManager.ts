@@ -10,7 +10,7 @@ const log = createLogger("useSessionManager");
 const AMBIENT_INPUT_FLOOR = 0.006;
 const ASSISTANT_ECHO_BLOCK_THRESHOLD = 0.22;
 const ASSISTANT_ECHO_RELEASE_THRESHOLD = 0.32;
-const ASSISTANT_HOLDOFF_MS = 900;
+const ASSISTANT_HOLDOFF_MS = 500;
 
 /**
  * Centralized session management hook.

@@ -2,6 +2,7 @@ import pino from "pino";
 import { loggingConfig } from "./config";
 
 const isDev = process.env.NODE_ENV === "development";
+const isBrowser = typeof window !== "undefined";
 
 // Custom serializers to redact sensitive information and format objects
 const serializers = {
@@ -37,7 +38,27 @@ const serializers = {
   }
 };
 
-const isBrowser = typeof window !== "undefined";
+function formatBrowserLog(level: string, entry: unknown) {
+  const payload = (entry ?? {}) as Record<string, unknown>;
+  const moduleName = typeof payload.module === "string" ? payload.module : "app";
+  const msg = typeof payload.msg === "string" ? payload.msg : "";
+  const time = typeof payload.time === "number" ? new Date(payload.time).toISOString() : "";
+
+  const context = { ...payload };
+  delete context.level;
+  delete context.msg;
+  delete context.time;
+  delete context.module;
+  delete context.pid;
+  delete context.hostname;
+
+  const prefix = `[${time || "no-time"}] [${level.toUpperCase()}] [${moduleName}]`;
+  if (Object.keys(context).length > 0) {
+    // Keep context structured while making the primary line human-readable.
+    return { prefix, msg, context };
+  }
+  return { prefix, msg };
+}
 
 const transport =
   !isBrowser && isDev
@@ -55,11 +76,87 @@ const transport =
  */
 export const logger = pino(
   {
-    level: loggingConfig.server.level,
+    level: isBrowser ? loggingConfig.client.level : loggingConfig.server.level,
     serializers: serializers,
-    browser: {
-      asObject: true,
-    },
+    browser: isBrowser
+      ? {
+          asObject: true,
+          write: {
+            trace: (entry: unknown) => {
+              const { prefix, msg, context } = formatBrowserLog("trace", entry) as {
+                prefix: string;
+                msg: string;
+                context?: Record<string, unknown>;
+              };
+              if (context) {
+                console.debug(`${prefix} ${msg}`, context);
+                return;
+              }
+              console.debug(`${prefix} ${msg}`);
+            },
+            debug: (entry: unknown) => {
+              const { prefix, msg, context } = formatBrowserLog("debug", entry) as {
+                prefix: string;
+                msg: string;
+                context?: Record<string, unknown>;
+              };
+              if (context) {
+                console.debug(`${prefix} ${msg}`, context);
+                return;
+              }
+              console.debug(`${prefix} ${msg}`);
+            },
+            info: (entry: unknown) => {
+              const { prefix, msg, context } = formatBrowserLog("info", entry) as {
+                prefix: string;
+                msg: string;
+                context?: Record<string, unknown>;
+              };
+              if (context) {
+                console.info(`${prefix} ${msg}`, context);
+                return;
+              }
+              console.info(`${prefix} ${msg}`);
+            },
+            warn: (entry: unknown) => {
+              const { prefix, msg, context } = formatBrowserLog("warn", entry) as {
+                prefix: string;
+                msg: string;
+                context?: Record<string, unknown>;
+              };
+              if (context) {
+                console.warn(`${prefix} ${msg}`, context);
+                return;
+              }
+              console.warn(`${prefix} ${msg}`);
+            },
+            error: (entry: unknown) => {
+              const { prefix, msg, context } = formatBrowserLog("error", entry) as {
+                prefix: string;
+                msg: string;
+                context?: Record<string, unknown>;
+              };
+              if (context) {
+                console.error(`${prefix} ${msg}`, context);
+                return;
+              }
+              console.error(`${prefix} ${msg}`);
+            },
+            fatal: (entry: unknown) => {
+              const { prefix, msg, context } = formatBrowserLog("fatal", entry) as {
+                prefix: string;
+                msg: string;
+                context?: Record<string, unknown>;
+              };
+              if (context) {
+                console.error(`${prefix} ${msg}`, context);
+                return;
+              }
+              console.error(`${prefix} ${msg}`);
+            },
+          },
+        }
+      : undefined,
   },
   transport
 );

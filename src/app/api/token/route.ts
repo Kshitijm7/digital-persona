@@ -2,6 +2,39 @@ import { GoogleGenAI } from '@google/genai';
 import { NextResponse } from 'next/server';
 import { getServerGeminiApiKey } from '@/lib/env';
 
+type GenAIGlobalCache = {
+  __genAIClient?: GoogleGenAI;
+  __genAIClientApiKey?: string;
+};
+
+let productionClient: GoogleGenAI | null = null;
+
+function getCachedClient(apiKey: string): GoogleGenAI {
+  if (process.env.NODE_ENV === "production") {
+    if (!productionClient) {
+      productionClient = new GoogleGenAI({
+        apiKey,
+        httpOptions: { apiVersion: "v1alpha" },
+      });
+    }
+    return productionClient;
+  }
+
+  const globalCache = globalThis as unknown as GenAIGlobalCache;
+  const shouldRecreate =
+    !globalCache.__genAIClient || globalCache.__genAIClientApiKey !== apiKey;
+
+  if (shouldRecreate) {
+    globalCache.__genAIClient = new GoogleGenAI({
+      apiKey,
+      httpOptions: { apiVersion: "v1alpha" },
+    });
+    globalCache.__genAIClientApiKey = apiKey;
+  }
+
+  return globalCache.__genAIClient!;
+}
+
 export async function POST() {
   // Initialize the client on the server using the secret server-side key
   const apiKey = getServerGeminiApiKey();
@@ -13,10 +46,7 @@ export async function POST() {
     );
   }
 
-  const ai = new GoogleGenAI({ 
-    apiKey,
-    httpOptions: { apiVersion: "v1alpha" } 
-  }); 
+  const ai = getCachedClient(apiKey);
 
   try {
     // Generate a secure short-lived token restricted to the Live API

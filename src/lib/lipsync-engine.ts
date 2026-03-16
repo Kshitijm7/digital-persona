@@ -71,6 +71,62 @@ interface LipSyncRuntimeOptions {
   anatomicalPostProcessing?: AnatomicalPostProcessing;
 }
 
+class VisemeQueue<T> {
+  private items: T[] = [];
+  private headIndex = 0;
+  private readonly cleanupThreshold: number;
+
+  constructor(cleanupThreshold = 128) {
+    this.cleanupThreshold = cleanupThreshold;
+  }
+
+  enqueue(item: T) {
+    this.items.push(item);
+  }
+
+  dequeue(): T | undefined {
+    if (this.headIndex >= this.items.length) return undefined;
+    const item = this.items[this.headIndex];
+    this.headIndex += 1;
+    this.compactIfNeeded();
+    return item;
+  }
+
+  peek(): T | undefined {
+    if (this.headIndex >= this.items.length) return undefined;
+    return this.items[this.headIndex];
+  }
+
+  peekLast(): T | undefined {
+    if (this.length === 0) return undefined;
+    return this.items[this.items.length - 1];
+  }
+
+  trimToMax(maxLength: number) {
+    if (maxLength < 0) return;
+    while (this.length > maxLength) {
+      this.headIndex += 1;
+    }
+    this.compactIfNeeded();
+  }
+
+  clear() {
+    this.items = [];
+    this.headIndex = 0;
+  }
+
+  get length() {
+    return this.items.length - this.headIndex;
+  }
+
+  private compactIfNeeded() {
+    if (this.headIndex >= this.cleanupThreshold) {
+      this.items = this.items.slice(this.headIndex);
+      this.headIndex = 0;
+    }
+  }
+}
+
 export class LipSyncEngine {
   private currentTuning: LipSyncTuning = { ...DEFAULT_LIPSYNC_TUNING };
   private lastViseme = 'viseme_sil';
@@ -82,7 +138,7 @@ export class LipSyncEngine {
   private lastDetectedAtMs = 0;
   private lastNonSilenceAtMs = 0;
   private dynamicNoiseFloor = LIPSYNC_LEVEL_FLOOR;
-  private pendingVisemes: ScheduledViseme[] = [];
+  private pendingVisemes = new VisemeQueue<ScheduledViseme>();
   private activeScheduledViseme: ScheduledViseme = {
     viseme: "viseme_sil",
     state: "silence",
@@ -156,7 +212,7 @@ export class LipSyncEngine {
         if (normalizedDetected !== "viseme_sil") {
           this.lastNonSilenceAtMs = clockMs;
         } else if (clockMs - this.lastNonSilenceAtMs > tuning.resetSilenceHoldMs) {
-          this.pendingVisemes.length = 0;
+          this.pendingVisemes.clear();
         }
 
         if (!isPlaybackMode) {
@@ -168,7 +224,7 @@ export class LipSyncEngine {
             capturedAtMs: clockMs,
             applyAtMs: clockMs,
           };
-          this.pendingVisemes.length = 0;
+          this.pendingVisemes.clear();
         } else {
           this.enqueueViseme({
             viseme: normalizedDetected,
@@ -294,7 +350,7 @@ export class LipSyncEngine {
       }
     }
 
-    this.pendingVisemes.length = 0;
+    this.pendingVisemes.clear();
     if (tuning.adaptiveNoiseFloor) {
       this.getEffectiveFloor(level, delta, tuning);
     } else {
@@ -481,7 +537,7 @@ export class LipSyncEngine {
   }
 
   private enqueueViseme(frame: ScheduledViseme) {
-    const lastQueued = this.pendingVisemes[this.pendingVisemes.length - 1];
+    const lastQueued = this.pendingVisemes.peekLast();
     if (
       lastQueued &&
       lastQueued.viseme === frame.viseme &&
@@ -493,15 +549,21 @@ export class LipSyncEngine {
       return;
     }
 
-    this.pendingVisemes.push(frame);
-    if (this.pendingVisemes.length > MAX_PENDING_VISEMES) {
-      this.pendingVisemes.splice(0, this.pendingVisemes.length - MAX_PENDING_VISEMES);
-    }
+    this.pendingVisemes.enqueue(frame);
+    this.pendingVisemes.trimToMax(MAX_PENDING_VISEMES);
   }
 
   private advanceScheduledViseme(clockMs: number) {
-    while (this.pendingVisemes.length > 0 && this.pendingVisemes[0].applyAtMs <= clockMs) {
-      this.activeScheduledViseme = this.pendingVisemes.shift()!;
+    while (this.pendingVisemes.length > 0) {
+      const next = this.pendingVisemes.peek();
+      if (!next || next.applyAtMs > clockMs) {
+        break;
+      }
+      const dequeued = this.pendingVisemes.dequeue();
+      if (!dequeued) {
+        break;
+      }
+      this.activeScheduledViseme = dequeued;
     }
   }
 
@@ -518,7 +580,7 @@ export class LipSyncEngine {
     activeViseme: string,
     tuning: LipSyncTuning,
   ): { viseme: string | null; weight: number } {
-    const next = this.pendingVisemes[0];
+    const next = this.pendingVisemes.peek();
     if (!next || next.viseme === activeViseme || next.viseme === "viseme_sil") {
       return { viseme: null, weight: 0 };
     }

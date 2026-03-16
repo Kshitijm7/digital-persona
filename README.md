@@ -218,6 +218,19 @@ Create a `.env.local` file in the project root:
 
 ```env
 GEMINI_API_KEY=your_gemini_api_key_here
+
+# Logging (local/dev)
+LOG_LEVEL_DEV=debug
+NEXT_PUBLIC_LOG_LEVEL_DEV=debug
+
+# Optional generic overrides
+# LOG_LEVEL=debug
+# NEXT_PUBLIC_LOG_LEVEL=debug
+
+# Production controls (used in deploy pipeline)
+# DISABLE_LOGS_IN_PROD=true
+# LOG_LEVEL_PROD=silent
+# NEXT_PUBLIC_LOG_LEVEL_PROD=silent
 ```
 
 ### Running Locally

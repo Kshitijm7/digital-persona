@@ -26,6 +26,9 @@ concurrency:
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
+    env:
+      LOG_LEVEL: error
+      NEXT_PUBLIC_LOG_LEVEL: error
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

@@ -156,11 +156,24 @@ function HomePage() {
     onUserTranscript: onUserTranscriptRef,
     onToolCall: onToolCallRef,
     onPlaybackComplete: onPlaybackCompleteRef,
+    isConnected,
+    status,
+    errorMessage,
+    micError,
+    cameraError,
+    assistantAudioLevelRef,
+    isMicActive,
+    isCameraActive,
+    facingMode,
+    videoRef,
     toggleSession,
+    toggleMic,
+    toggleCamera,
+    switchCamera,
+    sendText,
     registerTool,
-    ...session
   } = useSessionManager();
-  const timer = useSessionTimer(session.isConnected);
+  const timer = useSessionTimer(isConnected);
 
   // (Animation Queue Auto-Progression moved inside useDynamicAnimations.ts for precise timing)
 
@@ -174,7 +187,7 @@ function HomePage() {
     registerTool("trigger_animation", (args) => {
       const baseAnimation = args.base_animation as string;
       const intensity = (args.intensity as number | undefined) ?? 1.0;
-      const assistantSpeakingLevel = session.assistantAudioLevelRef.current ?? 0;
+      const assistantSpeakingLevel = assistantAudioLevelRef.current ?? 0;
       const isSpeaking = assistantSpeakingLevel >= ASSISTANT_SPEAKING_LEVEL_THRESHOLD;
       const minScore = isSpeaking
         ? SPEAKING_ANIMATION_MATCH_THRESHOLD
@@ -347,7 +360,7 @@ function HomePage() {
     // switch_camera - swap between user and environment lenses
     registerTool("switch_camera", async () => {
       log.info("Tool override: switch_camera");
-      const success = await session.switchCamera();
+      const success = await switchCamera();
       return { acknowledged: true, success };
     });
 
@@ -367,7 +380,7 @@ function HomePage() {
 
       return { acknowledged: true, instruction: "Say bye to the user and the conversation will end." };
     });
-  }, [registerTool, appendAssistantMessage, applySessionPatch, clearSessionOverrides, personaMode, session.assistantAudioLevelRef, session.switchCamera, toggleSession, session]);
+  }, [registerTool, appendAssistantMessage, applySessionPatch, assistantAudioLevelRef, switchCamera, toggleSession]);
 
   useEffect(() => {
     if (onPlaybackCompleteRef) {
@@ -382,10 +395,10 @@ function HomePage() {
   }, [onPlaybackCompleteRef, toggleSession]);
 
   useEffect(() => {
-    if (session.status === "disconnected" || session.status === "error") {
+    if (status === "disconnected" || status === "error") {
       clearSessionOverrides();
     }
-  }, [session.status, clearSessionOverrides]);
+  }, [status, clearSessionOverrides]);
 
   useEffect(() => {
     onToolCallRef.current = ({ name, id, args }) => {
@@ -459,13 +472,13 @@ function HomePage() {
     (text: string) => {
       log.info({ textLength: text.length }, "User text sent from chat panel.");
       addUserMessage(text);
-      session.sendText(text);
+      sendText(text);
     },
-    [addUserMessage, session]
+    [addUserMessage, sendText]
   );
 
   // Error handling
-  const anyError = session.errorMessage || session.micError || session.cameraError;
+  const anyError = errorMessage || micError || cameraError;
   if (anyError) {
     return (
       <div className="min-h-dvh bg-zinc-950 flex items-center justify-center p-4">
@@ -492,7 +505,7 @@ function HomePage() {
         <ChatPanel
           messages={chat.messages}
           onSendText={handleSendText}
-          isConnected={session.isConnected}
+          isConnected={isConnected}
           isTyping={chat.isTyping}
           onCollapse={() => setIsChatOpen(false)}
           selectedSkinId={selectedSkin?.id ?? null}
@@ -503,10 +516,10 @@ function HomePage() {
     >
       <div className="absolute inset-0 scan-line z-0" data-persona-mode={personaMode}>
           <Scene
-            audioLevelRef={session.assistantAudioLevelRef}
+            audioLevelRef={assistantAudioLevelRef}
             currentExpression={currentExpression}
             skinPreset={selectedSkin}
-            isConnected={session.isConnected}
+            isConnected={isConnected}
             debug={debugMode}
           />
       </div>
@@ -514,7 +527,7 @@ function HomePage() {
       {/* Floating Header */}
       <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 px-3 py-3 sm:px-6 sm:py-4">
         <div className="pointer-events-auto inline-block">
-          <CallHeader status={session.status} sessionTime={timer.formatted} />
+          <CallHeader status={status} sessionTime={timer.formatted} />
         </div>
       </div>
 
@@ -526,9 +539,9 @@ function HomePage() {
         className="absolute right-4 top-4 z-10 h-32 w-24 overflow-hidden rounded-xl border border-white/10 shadow-2xl shadow-black/50 sm:right-6 sm:top-6 sm:h-48 sm:w-36 sm:rounded-2xl"
       >
         <WebcamFeed
-          videoRef={session.videoRef}
-          isActive={session.isCameraActive}
-          facingMode={session.facingMode}
+          videoRef={videoRef}
+          isActive={isCameraActive}
+          facingMode={facingMode}
         />
       </motion.div>
 
@@ -538,14 +551,14 @@ function HomePage() {
       {/* Persona overlay (Waveform) */}
       <div className="pointer-events-none absolute bottom-24 left-4 z-10 sm:left-6">
         <PersonaOverlay
-          audioLevelRef={session.assistantAudioLevelRef}
-          isConnected={session.isConnected}
+          audioLevelRef={assistantAudioLevelRef}
+          isConnected={isConnected}
         />
       </div>
 
       {/* Idle Screen — hidden when config/debug mode is active */}
       <AnimatePresence>
-        {!debugMode && !session.isConnected && session.status !== "connecting" && (
+        {!debugMode && !isConnected && status !== "connecting" && (
           <IdleScreen onStart={toggleSession} />
         )}
       </AnimatePresence>
@@ -554,15 +567,15 @@ function HomePage() {
       <div className="pointer-events-none absolute bottom-4 left-0 right-0 z-10 flex justify-center sm:bottom-8">
         <div className="pointer-events-auto">
           <CallControls
-            isConnected={session.isConnected}
-            isMicActive={session.isMicActive}
-            isCameraActive={session.isCameraActive}
+            isConnected={isConnected}
+            isMicActive={isMicActive}
+            isCameraActive={isCameraActive}
             isChatOpen={isChatOpen}
             onToggleConnection={toggleSession}
-            onToggleMic={session.toggleMic}
-            onToggleCamera={session.toggleCamera}
+            onToggleMic={toggleMic}
+            onToggleCamera={toggleCamera}
             onToggleChat={() => setIsChatOpen(!isChatOpen)}
-            onSwitchCamera={session.switchCamera}
+            onSwitchCamera={switchCamera}
           />
         </div>
       </div>
