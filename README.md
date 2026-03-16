@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/public/assets/hero-humanoid-multi.svg" alt="Digital Persona Hero" width="40%" />
+  <img src="docs/public/assets/hero-humanoid-multi.svg" alt="Digital Persona Hero" width="20%" />
   <h1>Digital Persona</h1>
   <p><strong>A Persistent, Emotionally Reactive 3D Avatar Powered by Gemini 2.5 Flash Native Audio.</strong></p>
     <p>
