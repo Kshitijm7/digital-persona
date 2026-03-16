@@ -1,5 +1,6 @@
 <div align="center">
-  <h1>Digital Persona 🤖</h1>
+  <img src="docs/public/assets/hero-humanoid-multi.svg" alt="Digital Persona Hero" width="40%" />
+  <h1>Digital Persona</h1>
   <p><strong>A Persistent, Emotionally Reactive 3D Avatar Powered by Gemini 2.5 Flash Native Audio.</strong></p>
     <p>
         <a href="https://github.com/Kshitijm7/digital-persona/actions/workflows/deploy.yml"><img src="https://github.com/Kshitijm7/digital-persona/actions/workflows/deploy.yml/badge.svg" alt="App Deployment" /></a>
@@ -182,15 +183,16 @@ sequenceDiagram
 
 | Layer | Technologies |
 |-------|-------------|
-| **Framework** | Next.js 16, React 19, TypeScript |
-| **3D Rendering** | Three.js, React Three Fiber, Drei |
-| **AI Core** | `@google/genai` SDK, Gemini 2.5 Flash Native Audio |
-| **Audio Pipeline** | 16-bit PCM, 16kHz mono, WebSocket streaming |
-| **State Management** | Zustand (transient high-FPS 3D render loops) |
-| **UI / Styling** | Tailwind CSS v4, Framer Motion, Radix UI |
-| **Testing** | Vitest, Testing Library |
-| **Deployment** | Docker → Cloud Run, GitHub Pages (docs) |
-| **Documentation** | VitePress + Mermaid |
+| **Framework** | Next.js 16 • React 19 • TypeScript • Tanstack Query |
+| **3D Rendering** | Three.js • React Three Fiber • Drei • Three-stdlib |
+| **AI Core** | `@google/genai` SDK • Gemini 2.5 Flash • wawa-lipsync • Phonemize |
+| **Audio Pipeline** | 16-bit PCM • 16kHz mono • WebSocket streaming |
+| **State Management** | Zustand • React Context |
+| **UI / Styling** | Tailwind CSS v4 • Framer Motion • Radix UI • Lucide • CVA |
+| **Utilities** | Pino (Structured Logging) • Sentiment • Simplex-noise • Usehooks-ts |
+| **Testing** | Vitest • Testing Library • Happy DOM • JSDOM |
+| **Deployment** | Docker • Cloud Run • GitHub Actions • GitHub Pages |
+| **Documentation** | VitePress • Mermaid |
 
 ---
 
@@ -304,5 +306,5 @@ This project is licensed under the **Apache License 2.0** — see the [LICENSE](
 ---
 
 <div align="center">
-  <sub>Built with ❤️ by <a href="https://github.com/Kshitijm7">Kshitij Mittal</a> for the Google Gemini Live Agent Challenge</sub>
+  <sub>Built with ❤️ by <a href="https://github.com/Kshitijm7">Kshitij Mittal</a> with the Google Gemini Live API</sub>
 </div>
