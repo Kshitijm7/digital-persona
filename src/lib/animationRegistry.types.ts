@@ -3,10 +3,20 @@ export type AnimationCategory = "idle" | "dance" | "expression" | "gesture" | "m
 export interface AnimationMeta {
   name: string;
   url: string;
-  type?: string; 
+  type?: string;
   category?: AnimationCategory; // legacy
-  
-  // Semantic Metadata for Fuzzy Matching
+
+  /**
+   * Optional per-animation crossfade duration in milliseconds.
+   * When set, Avatar.tsx should use this instead of the global CROSSFADE_DURATION_MS.
+   * Recommended ranges:
+   *   - Sharp gestures (snap, point):   80–120 ms
+   *   - Standard gestures (wave, nod):  150–200 ms
+   *   - Slow transitions (dance, idle): 250–300 ms
+   */
+  crossfadeDurationMs?: number;
+
+  // Semantic metadata for fuzzy matching
   primary_emotion?: string;
   valence?: "positive" | "negative" | "neutral";
   action?: string;

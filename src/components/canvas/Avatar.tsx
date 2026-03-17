@@ -1,12 +1,3 @@
-/*
-  Avatar Component — loads the Ready Player Me GLB model
-  and drives lip-sync via morph targets based on audio level.
-  Auto-generated mesh structure from gltfjsx, enhanced with:
-  - MeshPhysicalMaterial + subsurface scattering for photorealistic skin
-  - SkinPreset system for hot-swappable skin tones
-  - Gaze drift (realistic look-around when listening)
-*/
-
 import * as THREE from "three";
 import React, { useRef, useEffect, useState } from "react";
 import { useGraph, useFrame } from "@react-three/fiber";
@@ -16,7 +7,10 @@ import { SkinPreset } from "@/lib/skinConfig";
 import { useSkinMaterial } from "@/hooks/useSkinTexture";
 import { normaliseFbxAnimations } from "@/lib/animationUtils";
 import { type FeatureToggles } from "@/hooks/SceneConfigContext";
-import { useDynamicAnimations } from "@/hooks/useDynamicAnimations";
+import {
+  useDynamicAnimations,
+  CROSSFADE_DURATION_MS,
+} from "@/hooks/useDynamicAnimations";
 import { useAnimationStore } from "@/store/useAnimationStore";
 import { IdleExpressionEngine } from "@/lib/idle-expression-engine";
 import { GazeEngine } from "@/lib/gaze-engine";
@@ -74,7 +68,6 @@ type GLTFResult = GLTF & {
 interface AvatarProps {
   audioLevelRef: React.RefObject<number | null>;
   avatarUrl: string;
-  currentAnimation?: string;
   currentExpression?: string;
   skinPreset?: SkinPreset | null;
   featureToggles?: FeatureToggles;
@@ -121,16 +114,20 @@ export function Avatar({
 
   const { scene, animations: avatarAnimations } = useGLTF(avatarUrl);
 
-  const currentAnimationName = useAnimationStore((state) => state.currentAnimation);
-  const activeQueueItems = useAnimationStore((state) => state.animationQueue);
-  const wawaLipsync = useLipSyncStore((state) => state.wawaLipsync);
-  const lipSyncTuning = useLipSyncStore((state) => state.tuning);
-  const { activeClip } = useDynamicAnimations();
+  const currentAnimationName = useAnimationStore((s) => s.currentAnimation);
+  const activeQueueItems = useAnimationStore((s) => s.animationQueue);
+  const registry = useAnimationStore((s) => s.registry);
+  const wawaLipsync = useLipSyncStore((s) => s.wawaLipsync);
+  const lipSyncTuning = useLipSyncStore((s) => s.tuning);
+
+  // idleClip: preloaded by useDynamicAnimations so the mixer always has a
+  // ready crossfade target when the queue drains — no async wait at that moment.
+  const { activeClip, idleClip } = useDynamicAnimations();
 
   const clone = React.useMemo(() => SkeletonUtils.clone(scene), [scene]);
   const { nodes, materials } = useGraph(clone) as unknown as GLTFResult;
 
-  // Visage material normalization: Prevents texture pixelation and sets specific roughness
+  // Visage material normalization: prevents texture pixelation and sets roughness
   React.useEffect(() => {
     Object.values(materials).forEach((material) => {
       if (!material) return;
@@ -140,115 +137,138 @@ export function Avatar({
         mat.depthWrite = true;
       }
       if (mat.name.toLowerCase().includes("hair")) {
-        mat.roughness = 0.9; // Standard Visage hair roughness
+        mat.roughness = 0.9;
       }
     });
   }, [materials]);
 
-  // Get the PBR skin materials with SSS (preserve unique maps per mesh)
   const headSkinMaterial = useSkinMaterial(materials.Wolf3D_Skin, skinPreset);
   const bodySkinMaterial = useSkinMaterial(materials.Wolf3D_Body, skinPreset);
 
-  // Combine avatar's own clips with the dynamically loaded activeClip.
-  // activeClip now has a unique name like "dance__<uuid>" so each queued
-  // instance gets its own AnimationAction in the mixer, enabling proper
-  // crossfades even when the same animation is queued consecutively.
-  // normaliseFbxAnimations is now done at load time in useDynamicAnimations,
-  // so we only normalise the avatar's built-in clips here.
+  // Combine avatar's built-in clips with the dynamically loaded activeClip and
+  // the always-preloaded idleClip. Each queued clip has a unique name like
+  // "dance__<uuid>" so the mixer creates a distinct AnimationAction per item,
+  // enabling proper crossfades even for back-to-back identical animations.
+  // normaliseFbxAnimations is applied only to the avatar's built-in clips here —
+  // dynamically loaded clips are normalised once at load time in useDynamicAnimations.
   const normalizedAnimations = React.useMemo(() => {
     const baseClips = normaliseFbxAnimations([...(avatarAnimations || [])]);
-    return activeClip ? [...baseClips, activeClip] : baseClips;
-  }, [avatarAnimations, activeClip]);
+    const dynamic: THREE.AnimationClip[] = [];
+    if (activeClip) dynamic.push(activeClip);
+    // Register idleClip separately from activeClip so the mixer always holds
+    // a ready idle action regardless of what the queue is currently playing.
+    if (idleClip && idleClip !== activeClip) dynamic.push(idleClip);
+    return [...baseClips, ...dynamic];
+  }, [avatarAnimations, activeClip, idleClip]);
 
   const { actions } = useAnimations(normalizedAnimations, groupRef);
 
   const previousActionRef = useRef<THREE.AnimationAction | null>(null);
 
-  // The activeClip.name is the unique key (e.g. "dance__<uuid>") that maps to
-  // a distinct AnimationAction in the `actions` dictionary. We use it as the
-  // primary dependency so that even repeated same-name animations trigger a
-  // new effect run and get a proper crossfade.
+  // activeClip.name is the unique key (e.g. "dance__<uuid>") that maps to a
+  // distinct AnimationAction. Using it as a dependency ensures that even
+  // repeated same-name animations trigger a new effect run and a proper crossfade.
   const activeClipName = activeClip?.name ?? null;
 
   useEffect(() => {
-    // Resolve which action key to play:
-    // 1. If we have a unique activeClip name AND it exists in actions, use it.
-    // 2. Otherwise fall back to currentAnimationName (for built-in avatar anims).
-    const actionName = (activeClipName && actions[activeClipName])
-      ? activeClipName
-      : (currentAnimationName && actions[currentAnimationName])
-        ? currentAnimationName
-        : undefined;
+    // Resolve which action to play:
+    // 1. Unique activeClip name exists in actions → use it (dynamic clip).
+    // 2. Fall back to currentAnimationName for built-in avatar clips.
+    const actionName =
+      (activeClipName && actions[activeClipName])
+        ? activeClipName
+        : (currentAnimationName && actions[currentAnimationName])
+          ? currentAnimationName
+          : undefined;
 
     if (!actionName || !actions[actionName]) return;
 
     const currentAction = actions[actionName];
     const isIdleAction = currentAnimationName === "idle";
 
-    // Retrieve custom scaling from Gemini logic
-    const activeData = activeQueueItems.find(item => item.name === currentAnimationName);
-    const speed = activeData?.timeScale || 1.0;
+    const activeData = activeQueueItems.find(
+      (item) => item.name === currentAnimationName
+    );
+    const speed = activeData?.timeScale ?? 1.0;
     currentAction.setEffectiveTimeScale(speed);
 
     if (isIdleAction) {
       currentAction.setLoop(THREE.LoopRepeat, Infinity);
     } else {
-      // Play once — the queue timer in useDynamicAnimations will advance
-      // to the next animation or back to idle when the clip finishes.
+      // Play once — useDynamicAnimations queue timer advances to the next
+      // animation or back to idle when the clip finishes.
       currentAction.setLoop(THREE.LoopOnce, 1);
     }
 
     currentAction.reset().play();
     log.debug({ animation: actionName, speed }, "Playing Avatar animation");
 
-    // Crossfade from the previous action. Because each queued clip has a
-    // unique name, previousActionRef.current will always differ from
-    // currentAction, so we always get a smooth crossfade — even for the
-    // same animation played back-to-back.
-    if (previousActionRef.current && previousActionRef.current !== currentAction) {
-      log.debug({ from: previousActionRef.current.getClip().name, to: actionName }, "Crossfading Avatar animation");
-      currentAction.crossFadeFrom(previousActionRef.current, 0.5, true);
+    // Resolve crossfade duration: per-animation registry override takes
+    // priority, then the shared constant (200 ms — within the 100–300 ms
+    // humanoid best-practice range).
+    const animMeta = registry[currentAnimationName];
+    const crossfadeSec =
+      (animMeta?.crossfadeDurationMs ?? CROSSFADE_DURATION_MS) / 1000;
+
+    // Because each queued clip has a unique name, previousActionRef.current
+    // will always differ from currentAction — we always get a smooth crossfade
+    // even when the same animation is queued back-to-back.
+    if (
+      previousActionRef.current &&
+      previousActionRef.current !== currentAction
+    ) {
+      log.debug(
+        {
+          from: previousActionRef.current.getClip().name,
+          to: actionName,
+          crossfadeSec,
+        },
+        "Crossfading Avatar animation"
+      );
+      currentAction.crossFadeFrom(previousActionRef.current, crossfadeSec, true);
     } else {
-      currentAction.fadeIn(0.5);
+      currentAction.fadeIn(crossfadeSec);
     }
 
-    // Keep track of what is playing so the NEXT animation can fade from it
     previousActionRef.current = currentAction;
 
     return () => {
-       // We intentionally DO NOT fadeOut here anymore, because the incoming 
-       // `crossFadeFrom` handles the weight dialing down automatically!
+      // Intentionally empty: crossFadeFrom handles weight dial-down automatically.
     };
-  }, [activeClipName, currentAnimationName, actions, activeQueueItems]);
+  }, [activeClipName, currentAnimationName, actions, activeQueueItems, registry]);
 
   const idleEngine = React.useMemo(() => new IdleExpressionEngine(), []);
   const gazeEngine = React.useMemo(() => new GazeEngine(), []);
   const lipsyncEngine = React.useMemo(() => new LipSyncEngine(), []);
   const emotionEngine = React.useMemo(() => new EmotionEngine(), []);
+
   const coarticulationWindowMs = React.useMemo(() => {
-    const coarticulationFrames = Math.max(1, aiStyleControl.coarticulationWindowSize || 1);
+    const coarticulationFrames = Math.max(
+      1,
+      aiStyleControl.coarticulationWindowSize || 1
+    );
     return Math.max(8, Math.min(180, coarticulationFrames * (1000 / 60)));
   }, [aiStyleControl.coarticulationWindowSize]);
+
   const runtimeLipSyncTuning = React.useMemo(
-    () => ({
-      ...lipSyncTuning,
-      anticipationWindowMs: coarticulationWindowMs,
-    }),
-    [lipSyncTuning, coarticulationWindowMs],
+    () => ({ ...lipSyncTuning, anticipationWindowMs: coarticulationWindowMs }),
+    [lipSyncTuning, coarticulationWindowMs]
   );
-  
-  // Verify morph targets once
+
+  // Verify morph targets once on mount
   const hasLoggedMorphs = useRef(false);
   useEffect(() => {
     const head = nodes.Wolf3D_Head as THREE.SkinnedMesh;
     if (head?.morphTargetDictionary && !hasLoggedMorphs.current) {
-      log.debug({ morphTargets: Object.keys(head.morphTargetDictionary) }, "[Avatar] Mesh Morph Targets");
+      log.debug(
+        { morphTargets: Object.keys(head.morphTargetDictionary) },
+        "[Avatar] Mesh Morph Targets"
+      );
       hasLoggedMorphs.current = true;
     }
   }, [nodes.Wolf3D_Head]);
 
-
-  // Safeguard: Reset zero/NaN scales on bones to prevent mesh collapse
+  // Safeguard: reset zero/NaN bone scales to prevent mesh collapse
   React.useEffect(() => {
     Object.values(nodes).forEach((node) => {
       const obj = node as THREE.Object3D;
@@ -265,12 +285,10 @@ export function Avatar({
     });
   }, [nodes]);
 
-  // Smoothed value for lip-sync
   const smoothedLevel = useRef(0);
 
   useFrame((state, delta) => {
     const camera = state.camera;
-    // Race Condition Guard: wait for the head mesh to be ready
     if (!nodes.Wolf3D_Head || !nodes.Wolf3D_Teeth) return;
 
     const rawLevel = audioLevelRef.current ?? 0;
@@ -278,27 +296,39 @@ export function Avatar({
     // Fast attack + slower release keeps onset aligned while avoiding jitter.
     const attackAlpha = 1 - Math.exp(-delta * 24);
     const releaseAlpha = 1 - Math.exp(-delta * 8);
-    const smoothingAlpha = rawLevel > smoothedLevel.current ? attackAlpha : releaseAlpha;
-    smoothedLevel.current +=
-      (rawLevel - smoothedLevel.current) * smoothingAlpha;
+    const smoothingAlpha =
+      rawLevel > smoothedLevel.current ? attackAlpha : releaseAlpha;
+    smoothedLevel.current += (rawLevel - smoothedLevel.current) * smoothingAlpha;
     const level = smoothedLevel.current;
     const lipSyncLevel = Math.max(rawLevel, level);
     const isSpeaking = level > 0.05;
 
-    // Keep body idle subtle while speaking so visemes remain the visual focus.
-    const activeBodyAction = activeClipName ? actions[activeClipName] : actions[currentAnimationName];
+    // Reduce idle body animation weight while speaking so visemes remain
+    // the visual focus — then restore it when speech ends.
+    const activeBodyAction = activeClipName
+      ? actions[activeClipName]
+      : actions[currentAnimationName];
     if (currentAnimationName === "idle" && activeBodyAction) {
       const targetWeight = isSpeaking ? 0.2 : 1;
       const targetScale = isSpeaking ? 0.25 : 1;
       activeBodyAction.setEffectiveWeight(
-        THREE.MathUtils.damp(activeBodyAction.getEffectiveWeight(), targetWeight, 8, delta),
+        THREE.MathUtils.damp(
+          activeBodyAction.getEffectiveWeight(),
+          targetWeight,
+          8,
+          delta
+        )
       );
       activeBodyAction.setEffectiveTimeScale(
-        THREE.MathUtils.damp(activeBodyAction.getEffectiveTimeScale(), targetScale, 10, delta),
+        THREE.MathUtils.damp(
+          activeBodyAction.getEffectiveTimeScale(),
+          targetScale,
+          10,
+          delta
+        )
       );
     }
 
-    // Drive jaw/mouth morph targets for lip-sync using LipSyncEngine
     if (featureToggles.lipSync) {
       lipsyncEngine.updateFromAudioLevel(
         lipSyncLevel,
@@ -306,16 +336,10 @@ export function Avatar({
         nodes,
         wawaLipsync,
         runtimeLipSyncTuning,
-        {
-          visemeOverrides,
-          meshPostProcessing,
-          anatomicalPostProcessing,
-        },
+        { visemeOverrides, meshPostProcessing, anatomicalPostProcessing }
       );
     }
 
-    // Execute Emotion Engine (handles UI override, sentiments, and hover effects)
-     
     emotionEngine.update(
       delta,
       nodes,
@@ -323,14 +347,9 @@ export function Avatar({
       hovered,
       featureToggles,
       isSpeaking,
-      {
-        emotionControl,
-        aiStyleControl,
-      },
+      { emotionControl, aiStyleControl }
     );
-     
 
-    // Execute procedural idle engines only for enabled channels.
     idleEngine.update(delta, nodes, {
       breathing: featureToggles.breathing,
       blinking: featureToggles.blinking,
@@ -339,7 +358,7 @@ export function Avatar({
       speakingGain: lipSyncLevel,
       ocularTuning,
     });
-    
+
     if (featureToggles.gazeDrift || featureToggles.headMovement) {
       gazeEngine.update(delta, camera, nodes, state.pointer, isSpeaking, {
         eyeDrift: featureToggles.gazeDrift,
@@ -348,12 +367,12 @@ export function Avatar({
         headDynamics,
       });
     }
-
   });
 
   const hasSkinnedMesh = (
-    mesh: THREE.SkinnedMesh | undefined,
-  ): mesh is THREE.SkinnedMesh => Boolean(mesh?.geometry && mesh?.skeleton);
+    mesh: THREE.SkinnedMesh | undefined
+  ): mesh is THREE.SkinnedMesh =>
+    Boolean(mesh?.geometry && mesh?.skeleton);
 
   return (
     <group
@@ -404,37 +423,39 @@ export function Avatar({
           skeleton={nodes.Wolf3D_Outfit_Top.skeleton}
         />
       )}
-      {hasSkinnedMesh(nodes.Wolf3D_Outfit_Bottom) && materials.Wolf3D_Outfit_Bottom && (
-        <skinnedMesh
-          castShadow
-          receiveShadow
-          frustumCulled={false}
-          geometry={nodes.Wolf3D_Outfit_Bottom.geometry}
-          material={materials.Wolf3D_Outfit_Bottom}
-          skeleton={nodes.Wolf3D_Outfit_Bottom.skeleton}
-        />
-      )}
-      {hasSkinnedMesh(nodes.Wolf3D_Outfit_Footwear) && materials.Wolf3D_Outfit_Footwear && (
-        <skinnedMesh
-          castShadow
-          receiveShadow
-          frustumCulled={false}
-          geometry={nodes.Wolf3D_Outfit_Footwear.geometry}
-          material={materials.Wolf3D_Outfit_Footwear}
-          skeleton={nodes.Wolf3D_Outfit_Footwear.skeleton}
-        />
-      )}
-      {/* Body — uses same PBR properties but preserves the unique body map */}
-      {hasSkinnedMesh(nodes.Wolf3D_Body) && (bodySkinMaterial || materials.Wolf3D_Body) && (
-        <skinnedMesh
-          castShadow
-          receiveShadow
-          frustumCulled={false}
-          geometry={nodes.Wolf3D_Body.geometry}
-          material={bodySkinMaterial || materials.Wolf3D_Body}
-          skeleton={nodes.Wolf3D_Body.skeleton}
-        />
-      )}
+      {hasSkinnedMesh(nodes.Wolf3D_Outfit_Bottom) &&
+        materials.Wolf3D_Outfit_Bottom && (
+          <skinnedMesh
+            castShadow
+            receiveShadow
+            frustumCulled={false}
+            geometry={nodes.Wolf3D_Outfit_Bottom.geometry}
+            material={materials.Wolf3D_Outfit_Bottom}
+            skeleton={nodes.Wolf3D_Outfit_Bottom.skeleton}
+          />
+        )}
+      {hasSkinnedMesh(nodes.Wolf3D_Outfit_Footwear) &&
+        materials.Wolf3D_Outfit_Footwear && (
+          <skinnedMesh
+            castShadow
+            receiveShadow
+            frustumCulled={false}
+            geometry={nodes.Wolf3D_Outfit_Footwear.geometry}
+            material={materials.Wolf3D_Outfit_Footwear}
+            skeleton={nodes.Wolf3D_Outfit_Footwear.skeleton}
+          />
+        )}
+      {hasSkinnedMesh(nodes.Wolf3D_Body) &&
+        (bodySkinMaterial || materials.Wolf3D_Body) && (
+          <skinnedMesh
+            castShadow
+            receiveShadow
+            frustumCulled={false}
+            geometry={nodes.Wolf3D_Body.geometry}
+            material={bodySkinMaterial || materials.Wolf3D_Body}
+            skeleton={nodes.Wolf3D_Body.skeleton}
+          />
+        )}
       {hasSkinnedMesh(nodes.EyeLeft) && materials.Wolf3D_Eye && (
         <skinnedMesh
           castShadow
@@ -461,20 +482,20 @@ export function Avatar({
           morphTargetInfluences={nodes.EyeRight.morphTargetInfluences}
         />
       )}
-      {/* Head — receives the full PBR MeshPhysicalMaterial with SSS while retaining facial details */}
-      {hasSkinnedMesh(nodes.Wolf3D_Head) && (headSkinMaterial || materials.Wolf3D_Skin) && (
-        <skinnedMesh
-          castShadow
-          receiveShadow
-          frustumCulled={false}
-          name="Wolf3D_Head"
-          geometry={nodes.Wolf3D_Head.geometry}
-          material={headSkinMaterial || materials.Wolf3D_Skin}
-          skeleton={nodes.Wolf3D_Head.skeleton}
-          morphTargetDictionary={nodes.Wolf3D_Head.morphTargetDictionary}
-          morphTargetInfluences={nodes.Wolf3D_Head.morphTargetInfluences}
-        />
-      )}
+      {hasSkinnedMesh(nodes.Wolf3D_Head) &&
+        (headSkinMaterial || materials.Wolf3D_Skin) && (
+          <skinnedMesh
+            castShadow
+            receiveShadow
+            frustumCulled={false}
+            name="Wolf3D_Head"
+            geometry={nodes.Wolf3D_Head.geometry}
+            material={headSkinMaterial || materials.Wolf3D_Skin}
+            skeleton={nodes.Wolf3D_Head.skeleton}
+            morphTargetDictionary={nodes.Wolf3D_Head.morphTargetDictionary}
+            morphTargetInfluences={nodes.Wolf3D_Head.morphTargetInfluences}
+          />
+        )}
       {hasSkinnedMesh(nodes.Wolf3D_Teeth) && materials.Wolf3D_Teeth && (
         <skinnedMesh
           castShadow
