@@ -2,57 +2,59 @@ import { create } from "zustand";
 import Sentiment from "sentiment";
 import emotionTuning from "@/config/emotion-tuning.json";
 
-// Fix #4: instantiate the analyser once at module level — it is a stateless
-// utility class and does not belong in Zustand's serialisable state tree.
+// Stateless utility — instantiated once at module level, not in Zustand state.
 const sentimentAnalyzer = new Sentiment();
 
-/** Maximum rolling buffer length (characters). */
-const TEXT_BUFFER_MAX_LEN = 150;
+const TEXT_BUFFER_MAX_LEN  = 150;
+const MIN_SENTIMENT_WORDS  = 2;
+const DECAY_FLOOR          = 0.05;
 
-/**
- * Minimum number of sentiment-bearing words required in the buffer before
- * the score is updated.  Prevents single-word chunks from causing noisy
- * swings (Fix #5).
- */
-const MIN_SENTIMENT_WORDS = 2;
-
-/** Score magnitude below which we treat the value as effectively neutral. */
-const DECAY_FLOOR = 0.05;
+// How long (ms) after the last text chunk before the score begins auto-decaying.
+// Prevents the emotion layer staying at peak intensity indefinitely after the
+// AI finishes speaking.
+const AUTO_DECAY_IDLE_MS = 4000;
 
 interface EmotionStore {
   currentScore: number;
   textBuffer: string;
+  /**
+   * Timestamp (performance.now()) of the last analyzeText call.
+   * Used by startAutoDecay to determine when to begin decaying.
+   */
+  lastAnalyzedAt: number;
+
   analyzeText: (text: string) => void;
   decayScore: () => void;
   clearBuffer: () => void;
+
+  /**
+   * Start the auto-decay interval. Call once on app mount.
+   * Returns a cleanup function — call it on unmount.
+   * This keeps decay logic inside the store rather than requiring every
+   * consumer to manually wire a useEffect.
+   */
+  startAutoDecay: () => () => void;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const useEmotionStore = create<EmotionStore>((set, get) => ({
-  currentScore: 0,
-  textBuffer: "",
+  currentScore:   0,
+  textBuffer:     "",
+  lastAnalyzedAt: 0,
 
-  // Fix #5, #7, #8: use a single atomic `set` call so rapid concurrent
-  // invocations always operate on the latest committed state; only update
-  // `currentScore` when enough sentiment-bearing words are present.
   analyzeText: (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
 
     set((state) => {
-      // Rolling buffer — keep the tail so recent context dominates
       const newBuffer = (state.textBuffer + " " + trimmed).slice(
         -TEXT_BUFFER_MAX_LEN
       );
-
       const result = sentimentAnalyzer.analyze(newBuffer);
 
-      // Fix #8: only update score when there is enough signal
       if (result.words.length < MIN_SENTIMENT_WORDS) {
-        return { textBuffer: newBuffer };
+        return { textBuffer: newBuffer, lastAnalyzedAt: performance.now() };
       }
 
-      // Fix #5: clamp boosted score to [-1, 1]
       const boosted = Math.max(
         -1,
         Math.min(
@@ -61,12 +63,14 @@ export const useEmotionStore = create<EmotionStore>((set, get) => ({
         )
       );
 
-      return { textBuffer: newBuffer, currentScore: boosted };
+      return {
+        textBuffer:     newBuffer,
+        currentScore:   boosted,
+        lastAnalyzedAt: performance.now(),
+      };
     });
   },
 
-  // Fix #6: decayScore is now wired — call this from a useEffect in the
-  // component that consumes emotion state (e.g. on each turn-complete).
   decayScore: () => {
     set((state) => {
       if (state.currentScore === 0) return state;
@@ -75,5 +79,23 @@ export const useEmotionStore = create<EmotionStore>((set, get) => ({
     });
   },
 
-  clearBuffer: () => set({ textBuffer: "", currentScore: 0 }),
+  clearBuffer: () =>
+    set({ textBuffer: "", currentScore: 0, lastAnalyzedAt: 0 }),
+
+  startAutoDecay: () => {
+    // Tick every 500 ms. Checks whether enough idle time has elapsed before
+    // decaying — this means decay only starts after the AI has been silent
+    // for AUTO_DECAY_IDLE_MS, not during active speech.
+    const interval = setInterval(() => {
+      const state = get();
+      if (state.currentScore === 0) return;
+
+      const idleMs = performance.now() - state.lastAnalyzedAt;
+      if (idleMs < AUTO_DECAY_IDLE_MS) return;
+
+      state.decayScore();
+    }, 500);
+
+    return () => clearInterval(interval);
+  },
 }));

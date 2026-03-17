@@ -27,7 +27,6 @@ const DEFAULT_IDLE_URL = "/animations/masculine/idle/F_Standing_Idle_001.glb";
 // Keeping them separate means you can tune the blend feel without changing
 // when the queue advances.
 export const CROSSFADE_DURATION_MS = 200;
-const ADVANCE_OFFSET_MS = CROSSFADE_DURATION_MS;
 
 // ─── Shared async GLB cache ──────────────────────────────────────────────────
 //

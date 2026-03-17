@@ -66,10 +66,12 @@
     "breathing": true,
     "gazeDrift": false,
     "blinking": true,
-    "hoverEffect": false,
+    "hoverEffect": true,
     "headMovement": true,
     "googleSearch": true,
-    "proactiveAudio": true
+    "proactiveAudio": true,
+    "saccades": true,
+    "microExpressions": true
   },
   "lipSyncTuning": {
     "clockCompensationRatio": 0.6,
@@ -105,14 +107,19 @@
     "blinkIntervalMs": 3000,
     "blinkDurationMs": 100,
     "eyelidOpenOffset": 0,
-    "lookAtIK": true
+    "lookAtIK": true,
+    "browSpeechSync": false,
+    "saccadeIntervalMinMs": 800,
+    "saccadeIntervalMaxMs": 3200
   },
   "meshPostProcessing": {
     "upperFaceSmoothing": 0.001,
     "lowerFaceSmoothing": 0.0023,
     "skinStrength": 1,
     "jawStrength": 1.1,
-    "lipOpenOffset": -0.03
+    "lipOpenOffset": -0.03,
+    "lipAsymmetryOffset": 0,
+    "morphWeightCap": 1
   },
   "headDynamics": {
     "headMotionAccelerationLimit": 0.15,
@@ -136,7 +143,8 @@
     "jawDepth": 0,
     "tongueStrength": 1,
     "tongueHeight": 0,
-    "tongueDepth": 0
+    "tongueDepth": 0,
+    "jawDecouplingWeight": 0
   },
   "visemeOverrides": {
     "drivingDataScale": 1,

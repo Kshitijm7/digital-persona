@@ -56,6 +56,28 @@ export interface LightConfig {
   color: string;
 }
 
+export interface FeatureToggles {
+  lipSync: boolean;
+  breathing: boolean;
+  gazeDrift: boolean;
+  blinking: boolean;
+  hoverEffect: boolean;
+  headMovement: boolean;
+  googleSearch: boolean;
+  proactiveAudio: boolean;
+  /**
+   * Enable saccadic eye jumps independently of continuous gaze drift.
+   * Saccades (instantaneous fixation-point snaps) add realism even when
+   * smooth gaze drift is disabled — e.g. for a focused professional avatar.
+   */
+  saccades: boolean;
+  /**
+   * Enable micro-expression noise (2–5% random upper-face blendshape
+   * activations). Suppressed automatically during speech.
+   */
+  microExpressions: boolean;
+}
+
 export interface SceneConfig {
   camera: {
     position: Vector3D;
@@ -91,17 +113,6 @@ export interface SceneConfig {
   meshConfig: MeshConfig;
 }
 
-export interface FeatureToggles {
-  lipSync: boolean;
-  breathing: boolean;
-  gazeDrift: boolean;
-  blinking: boolean;
-  hoverEffect: boolean;
-  headMovement: boolean;
-  googleSearch: boolean;
-  proactiveAudio: boolean;
-}
-
 interface SceneConfigContextValue {
   config: SceneConfig;
   updateConfig: (patch: Partial<SceneConfig>) => void;
@@ -123,10 +134,15 @@ const DEFAULT_FEATURES: FeatureToggles = {
   headMovement: true,
   googleSearch: true,
   proactiveAudio: true,
+  // Saccades and micro-expressions are on by default — they are lightweight
+  // and provide the highest realism-per-cost of all procedural systems.
+  saccades: true,
+  microExpressions: true,
 };
 
-// ─── Fix SC1: compute initial config ONCE outside the component ───────────────
-// This runs at module load time, not on every render.
+// ─── Initial config builder ───────────────────────────────────────────────────
+// Runs at module load time (not on every render).
+
 function buildInitialConfig(): SceneConfig {
   const cfg = avatarTuningConfig as Record<string, unknown>;
   const sceneCfg = initialConfig as Record<string, unknown>;
@@ -201,12 +217,10 @@ function buildInitialConfig(): SceneConfig {
   } as SceneConfig;
 }
 
-// Fix SC4: load client avatars with try/catch for Safari private mode
 function safeLoadClientAvatars(): AvatarEntry[] {
   try {
     return loadClientAvatars();
   } catch (err) {
-    // localStorage unavailable (Safari private, quota exceeded, etc.)
     console.warn("[SceneConfig] Could not load client avatars:", err);
     return [];
   }
@@ -216,12 +230,11 @@ const INITIAL_CONFIG = buildInitialConfig();
 
 const SceneConfigCtx = createContext<SceneConfigContextValue | null>(null);
 
-// ─── Provider ──────────────────────────────────────────────────────────────────
+// ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function SceneConfigProvider({ children }: { children: ReactNode }) {
   const setLipSyncTuning = useLipSyncStore((s) => s.updateTuning);
 
-  // Fix SC1: use the module-level constant as initial state
   const [config, _setConfig] = useState<SceneConfig>(INITIAL_CONFIG);
 
   // ── Config actions ──────────────────────────────────────────────────────────
@@ -241,7 +254,6 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
     _setConfig((prev) => ({
       ...prev,
       ...patch,
-      // Deep-merge structural fields so partial patches don't wipe siblings
       camera: patch.camera ? { ...prev.camera, ...patch.camera } : prev.camera,
       avatar: patch.avatar ? { ...prev.avatar, ...patch.avatar } : prev.avatar,
       lighting: patch.lighting
@@ -253,7 +265,6 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
       lipSyncTuning: patch.lipSyncTuning
         ? { ...prev.lipSyncTuning, ...patch.lipSyncTuning }
         : prev.lipSyncTuning,
-      // Sanitized control fields
       emotionControl: sanitizedControlPatch.emotionControl
         ? { ...prev.emotionControl, ...sanitizedControlPatch.emotionControl }
         : prev.emotionControl,
@@ -306,7 +317,6 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
   const [baseAvatarRegistry, setBaseAvatarRegistry] =
     useState<AvatarEntry[]>(DEFAULT_AVATARS);
 
-  // Fix SC3: error handling for avatar registry fetch
   useEffect(() => {
     fetchAvatarRegistry()
       .then(setBaseAvatarRegistry)
@@ -315,11 +325,9 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
           "[SceneConfig] Failed to fetch avatar registry; using defaults.",
           err
         );
-        // Keep DEFAULT_AVATARS — already set as initial state
       });
   }, []);
 
-  // Fix SC4: safe localStorage read
   const [clientAvatarRegistry, setClientAvatarRegistry] = useState<
     AvatarEntry[]
   >(() => safeLoadClientAvatars());
@@ -350,9 +358,7 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // ── LipSync tuning sync (Fix SC5) ───────────────────────────────────────────
-  // Use a ref to track the last synced value so we only call setLipSyncTuning
-  // when lipSyncTuning actually changes identity, not on every config render.
+  // ── LipSync tuning sync ─────────────────────────────────────────────────────
   const lastLipSyncTuningRef = useRef(config.lipSyncTuning);
   useEffect(() => {
     if (config.lipSyncTuning !== lastLipSyncTuningRef.current) {
@@ -361,9 +367,7 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
     }
   }, [config.lipSyncTuning, setLipSyncTuning]);
 
-  // ── Fix SC2: memoize context value so consumers don't re-render on every
-  // unrelated state change (e.g. avatarRegistry loading).
-  // This is the root fix for `connect` recreating on every render.
+  // ── Context value ───────────────────────────────────────────────────────────
   const contextValue = useMemo<SceneConfigContextValue>(
     () => ({
       config,
@@ -392,14 +396,12 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// ─── Hook ──────────────────────────────────────────────────────────────────────
+// ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useSceneConfig() {
   const ctx = useContext(SceneConfigCtx);
   if (!ctx) {
-    throw new Error(
-      "useSceneConfig must be used within <SceneConfigProvider>"
-    );
+    throw new Error("useSceneConfig must be used within <SceneConfigProvider>");
   }
   return ctx;
 }

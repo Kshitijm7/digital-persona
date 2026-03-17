@@ -58,12 +58,12 @@ import { SceneConfigProvider } from "@/hooks/SceneConfigContext";
 
 const log = createLogger("app/page");
 
-const BASE_ANIMATION_MATCH_THRESHOLD = 0.15;
-const SPEAKING_ANIMATION_MATCH_THRESHOLD = 0.2;
-const ASSISTANT_SPEAKING_LEVEL_THRESHOLD = 0.06;
-const EXPRESSION_AUTO_RESET_MS = 4_000;
-const END_CALL_FALLBACK_MS = 10_000;
-const TRANSCRIPT_DEDUP_WINDOW_MS = 2_500;
+const BASE_ANIMATION_MATCH_THRESHOLD      = 0.15;
+const SPEAKING_ANIMATION_MATCH_THRESHOLD  = 0.2;
+const ASSISTANT_SPEAKING_LEVEL_THRESHOLD  = 0.06;
+const EXPRESSION_AUTO_RESET_MS            = 4_000;
+const END_CALL_FALLBACK_MS                = 10_000;
+const TRANSCRIPT_DEDUP_WINDOW_MS          = 2_500;
 
 // ─── 3D Scene (lazy, no SSR) ──────────────────────────────────────────────────
 
@@ -81,7 +81,6 @@ function SceneLoader() {
 }
 
 // ─── Idle screen ──────────────────────────────────────────────────────────────
-// Memoised so it never re-renders while the session is live.
 
 const IdleScreen = memo(({ onStart }: { onStart: () => void }) => (
   <motion.div
@@ -127,8 +126,6 @@ const IdleScreen = memo(({ onStart }: { onStart: () => void }) => (
 IdleScreen.displayName = "IdleScreen";
 
 // ─── Error banner ─────────────────────────────────────────────────────────────
-// Fix #4: Inline error banner instead of an early-return that destroys the tree.
-// The 3D scene, audio context, and all refs stay mounted.
 
 interface ErrorBannerProps {
   message: string;
@@ -172,9 +169,10 @@ function HomePage() {
   // ── UI state ────────────────────────────────────────────────────────────────
   const isMobile = useMediaQuery("(max-width: 950px)");
 
-  // Fix #9: drive chat panel open/closed synchronously via layout effect,
-  // no setTimeout needed — avoids the extra render-cycle flicker.
   const [isChatOpen, setIsChatOpen] = useState(!isMobile);
+
+  // Sync chat panel open state when viewport crosses the mobile breakpoint.
+  // useLayoutEffect prevents a one-frame flicker vs useEffect.
   useLayoutEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsChatOpen(!isMobile);
@@ -186,20 +184,18 @@ function HomePage() {
   >("casual");
   const [selectedSkin, setSelectedSkin] = useState<SkinPreset>(SKIN_PRESETS[0]);
   const [debugMode, setDebugMode] = useState(false);
-
-  // Fix #4: dismissable inline error banner instead of early-return
   const [dismissedError, setDismissedError] = useState<string | null>(null);
 
   // ── Chat ────────────────────────────────────────────────────────────────────
   const chat = useChatMessages();
 
-  // Fix #5 + #11: pull stable function references out of the chat object so
-  // effects that depend on them don't re-run on every new message.
+  // Pull stable function references out of the chat object so effects that
+  // depend on them don't re-run on every new message.
   const appendAssistantMessage = chat.appendAssistantMessage;
-  const addUserMessage = chat.addUserMessage;
+  const addUserMessage          = chat.addUserMessage;
 
   // ── Avatar store ────────────────────────────────────────────────────────────
-  const applySessionPatch = useAvatarRuntimeStore((s) => s.applySessionPatch);
+  const applySessionPatch    = useAvatarRuntimeStore((s) => s.applySessionPatch);
   const clearSessionOverrides = useAvatarRuntimeStore(
     (s) => s.clearSessionOverrides
   );
@@ -209,20 +205,18 @@ function HomePage() {
     null
   );
 
-  // Fix #1 + #2 + #3: stable ref for toggleSession so tool handlers and
-  // playback-complete callbacks always call the latest version without
-  // being listed as effect dependencies (which would cause re-registration).
+  // Stable ref for toggleSession so tool handlers always call the latest
+  // version without needing to be listed as effect dependencies (which would
+  // cause full re-registration on every session state change).
   const toggleSessionRef = useRef<() => void>(() => {});
 
-  // Track end-call pending state as a ref — no render needed.
-  const endCallPendingRef = useRef(false);
-  // Ref for the end-call fallback timer so we can cancel it on unmount.
-  const endCallFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+  const endCallPendingRef         = useRef(false);
+  const endCallFallbackTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
 
-  // Fix #8: shared dedup set for display_text ↔ transcript to prevent
-  // the same content appearing twice in chat.
+  // Shared dedup set — prevents the same content appearing in chat from both
+  // the display_text tool and the transcript stream simultaneously.
   const recentAssistantTextsRef = useRef<Map<string, number>>(new Map());
 
   // ── Session manager ─────────────────────────────────────────────────────────
@@ -249,22 +243,19 @@ function HomePage() {
     registerTool,
   } = useSessionManager();
 
-  // Keep the ref current so closures in tool handlers always call the
-  // latest version without capturing it as a dep (Fix #1, #2, #3, #12).
+  // Keep toggleSessionRef current whenever the session manager recreates it.
   useEffect(() => {
     toggleSessionRef.current = toggleSession;
   }, [toggleSession]);
 
   const timer = useSessionTimer(isConnected);
 
-  // ── Error handling (Fix #4, #6) ─────────────────────────────────────────────
-  // Compute the visible error string. Dismissed errors are hidden until a new
-  // error supersedes them.
+  // ── Error handling ──────────────────────────────────────────────────────────
   const rawError = errorMessage ?? micError ?? cameraError?.message ?? null;
+  const visibleError =
+    rawError && rawError !== dismissedError ? rawError : null;
 
-  const visibleError = rawError && rawError !== dismissedError ? rawError : null;
-
-  // Reset the dismissed state whenever a new error arrives.
+  // Reset dismissed state when a new distinct error arrives.
   const prevRawErrorRef = useRef<string | null>(null);
   useEffect(() => {
     if (rawError && rawError !== prevRawErrorRef.current) {
@@ -274,9 +265,8 @@ function HomePage() {
     prevRawErrorRef.current = rawError ?? null;
   }, [rawError]);
 
-  // Fix #6: only clear session overrides on intentional stops, not during
-  // auto-reconnect transitions. We gate on the status having been "connected"
-  // first so we don't clear on the initial mount.
+  // Clear session overrides only on intentional disconnects, not during
+  // auto-reconnect transitions. Gate on having been "connected" first.
   const wasConnectedRef = useRef(false);
   useEffect(() => {
     if (status === "connected") {
@@ -292,17 +282,16 @@ function HomePage() {
     }
   }, [status, clearSessionOverrides]);
 
-  // ── Shared text-dedup helper (Fix #8) ──────────────────────────────────────
-  // Returns true if the text should be shown; false if it was seen recently.
+  // ── Shared text-dedup helper ────────────────────────────────────────────────
   const shouldShowAssistantText = useCallback(
     (text: string, windowMs = TRANSCRIPT_DEDUP_WINDOW_MS): boolean => {
       const normalized = text.trim();
       if (!normalized) return false;
-      const now = Date.now();
+      const now    = Date.now();
       const seenAt = recentAssistantTextsRef.current.get(normalized);
       if (seenAt !== undefined && now - seenAt < windowMs) return false;
       recentAssistantTextsRef.current.set(normalized, now);
-      // Prune old entries to avoid unbounded growth
+      // Prune entries older than 2× the window to prevent unbounded growth
       for (const [key, ts] of recentAssistantTextsRef.current) {
         if (now - ts > windowMs * 2) {
           recentAssistantTextsRef.current.delete(key);
@@ -313,7 +302,7 @@ function HomePage() {
     []
   );
 
-  // ── Tool: expression helper ─────────────────────────────────────────────────
+  // ── Expression helper ───────────────────────────────────────────────────────
   const applyExpression = useCallback((expr: string) => {
     if (!expr) return;
     if (expressionResetTimerRef.current !== null) {
@@ -328,35 +317,24 @@ function HomePage() {
     }, EXPRESSION_AUTO_RESET_MS);
   }, []);
 
-  // ── Register application-level tool handlers ────────────────────────────────
-  //
-  // Fix #1, #12: `toggleSession` is deliberately NOT in the dep array.
-  // Instead we use `toggleSessionRef` (updated via a separate effect above).
-  // This means the tool registry is built ONCE on mount and stays stable for
-  // the entire component lifetime, eliminating all stale-handler windows.
-  //
-  // All other deps below (`registerTool`, `appendAssistantMessage`,
-  // `applySessionPatch`, `assistantAudioLevelRef`, `switchCamera`,
-  // `applyExpression`, `shouldShowAssistantText`) are genuinely stable:
-  //   - `registerTool`            memoised in useGeminiLive (no deps)
-  //   - `appendAssistantMessage`  stable from useChatMessages
-  //   - `applySessionPatch`       zustand selector (stable)
-  //   - `assistantAudioLevelRef`  ref object (stable identity)
-  //   - `switchCamera`            stable from useWebcam
-  //   - `applyExpression`         useCallback with no deps that change
-  //   - `shouldShowAssistantText` useCallback with no deps that change
+  // ── Tool handler registration ───────────────────────────────────────────────
+  // Registered once on mount. `toggleSession` is intentionally omitted from
+  // the dependency array — it is accessed through `toggleSessionRef` (kept
+  // current by the effect above) so re-registration on every session state
+  // change is avoided.
   useEffect(() => {
     log.info("Registering page-level tool handlers.");
 
     // ── trigger_animation ───────────────────────────────────────────────────
     registerTool("trigger_animation", (args) => {
       const baseAnimation = args.base_animation as string;
-      const intensity = (args.intensity as number | undefined) ?? 1.0;
+      const intensity     = (args.intensity as number | undefined) ?? 1.0;
 
-      const assistantSpeakingLevel = assistantAudioLevelRef.current ?? 0;
+      const assistantSpeakingLevel =
+        assistantAudioLevelRef.current ?? 0;
       const isSpeaking =
         assistantSpeakingLevel >= ASSISTANT_SPEAKING_LEVEL_THRESHOLD;
-        
+
       const isDirectAnimationRequest = baseAnimation.includes("_");
       const minScore = isSpeaking
         ? SPEAKING_ANIMATION_MATCH_THRESHOLD
@@ -365,16 +343,11 @@ function HomePage() {
           : BASE_ANIMATION_MATCH_THRESHOLD;
 
       const emotionState = useEmotionStore.getState();
-      const recentMessages = useAnimationStore
-        .getState()
-        .registry
-        ? []
-        : [];
 
-      const contextTexts = [
-        emotionState.textBuffer,
-        ...recentMessages,
-      ].filter((t): t is string => Boolean(t?.trim()));
+      // Context texts improve fuzzy matching by weighting recent sentiment
+      const contextTexts = [emotionState.textBuffer].filter(
+        (t): t is string => Boolean(t?.trim())
+      );
 
       log.info(
         {
@@ -395,10 +368,6 @@ function HomePage() {
 
       const animState = useAnimationStore.getState();
 
-      // Build a stacked sequence using the fuzzy matcher.
-      // - Generic intents ("dance") → random same-type picks for variety
-      // - Specific intents ("hip hop dance") → top-N fuzzy-ranked peers
-      // - Non-stackable types (gesture, etc.) → single animation
       const sequence = findAnimationSequence(
         baseAnimation,
         animState.registry,
@@ -447,11 +416,10 @@ function HomePage() {
     });
 
     // ── display_text ────────────────────────────────────────────────────────
-    // Fix #8: dedup against the transcript stream.
     registerTool("display_text", (args) => {
       const content = args.content as string;
-      const format = (args.format as string) ?? "plain";
-      const lang = (args.language as string | undefined) ?? "";
+      const format  = (args.format as string) ?? "plain";
+      const lang    = (args.language as string | undefined) ?? "";
 
       const displayContent =
         format === "code" && lang
@@ -460,7 +428,6 @@ function HomePage() {
             ? `\`\`\`\n${content}\n\`\`\``
             : content;
 
-      // Only push if the transcript stream hasn't already shown this text
       if (shouldShowAssistantText(displayContent, 3_000)) {
         appendAssistantMessage(displayContent);
       }
@@ -486,7 +453,7 @@ function HomePage() {
         applied.mode = mode;
       }
 
-      const emotionStateArg = args.emotionState as string | undefined;
+      const emotionStateArg  = args.emotionState as string | undefined;
       const emotionIntensity =
         typeof args.emotionIntensity === "number"
           ? args.emotionIntensity
@@ -533,24 +500,20 @@ function HomePage() {
     });
 
     // ── end_call ────────────────────────────────────────────────────────────
-    // Fix #1 + #2: reads toggleSession through a stable ref so this handler
-    // never needs to be re-registered when toggleSession recreates.
+    // Reads toggleSession through toggleSessionRef so this handler never needs
+    // to be re-registered when the session manager recreates toggleSession.
     registerTool("end_call", () => {
       log.info("Tool override: end_call");
       endCallPendingRef.current = true;
 
-      // Cancel any previously scheduled fallback before scheduling a new one.
       if (endCallFallbackTimerRef.current !== null) {
         clearTimeout(endCallFallbackTimerRef.current);
       }
 
-      // Fix #2: use ref so the fallback always calls the current toggleSession.
       endCallFallbackTimerRef.current = setTimeout(() => {
         endCallFallbackTimerRef.current = null;
         if (endCallPendingRef.current) {
-          log.warn(
-            "end_call fallback timer reached. Forcing session close."
-          );
+          log.warn("end_call fallback timer reached. Forcing session close.");
           endCallPendingRef.current = false;
           toggleSessionRef.current();
         }
@@ -558,8 +521,7 @@ function HomePage() {
 
       return {
         acknowledged: true,
-        instruction:
-          "Say bye to the user and the conversation will end.",
+        instruction: "Say bye to the user and the conversation will end.",
       };
     });
   }, [
@@ -573,9 +535,7 @@ function HomePage() {
     // toggleSession intentionally omitted — accessed via toggleSessionRef
   ]);
 
-  // ── Wire onPlaybackComplete (Fix #3) ────────────────────────────────────────
-  // Uses toggleSessionRef so this effect is never forced to re-run when
-  // toggleSession recreates, eliminating the null-ref window.
+  // ── Wire onPlaybackComplete ─────────────────────────────────────────────────
   useEffect(() => {
     if (!onPlaybackCompleteRef) return;
     onPlaybackCompleteRef.current = () => {
@@ -593,7 +553,6 @@ function HomePage() {
       if (onPlaybackCompleteRef) onPlaybackCompleteRef.current = null;
     };
   }, [onPlaybackCompleteRef]);
-  // toggleSession intentionally omitted — accessed via toggleSessionRef
 
   // ── Tool call observer ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -612,30 +571,24 @@ function HomePage() {
     };
   }, [onToolCallRef]);
 
-  // ── Transcript handler (Fix #5) ─────────────────────────────────────────────
-  // `appendAssistantMessage` is a stable ref pulled from the chat hook above,
-  // not the `chat` object itself — this effect will not re-run on new messages.
+  // ── Transcript handler ──────────────────────────────────────────────────────
   useEffect(() => {
     onTranscriptRef.current = (text: string) => {
       const normalized = text.trim();
       if (!normalized) return;
 
-      // Fix #8: share the dedup gate with display_text
       if (!shouldShowAssistantText(normalized)) return;
 
       log.debug({ chunkLength: text.length }, "Transcript chunk received.");
       appendAssistantMessage(text);
-
-      if (normalized) {
-        useEmotionStore.getState().analyzeText(normalized);
-      }
+      useEmotionStore.getState().analyzeText(normalized);
     };
     return () => {
       onTranscriptRef.current = null;
     };
   }, [onTranscriptRef, appendAssistantMessage, shouldShowAssistantText]);
 
-  // ── User transcript handler ──────────────────────────────────────────────────
+  // ── User transcript handler ─────────────────────────────────────────────────
   useEffect(() => {
     onUserTranscriptRef.current = (text: string) => {
       const normalized = text.trim();
@@ -648,7 +601,7 @@ function HomePage() {
     };
   }, [onUserTranscriptRef, addUserMessage]);
 
-  // ── Expression timer cleanup on unmount ─────────────────────────────────────
+  // ── Cleanup on unmount ──────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       if (expressionResetTimerRef.current !== null) {
@@ -662,7 +615,7 @@ function HomePage() {
     };
   }, []);
 
-  // ── Send chat text ───────────────────────────────────────────────────────────
+  // ── Send chat text ──────────────────────────────────────────────────────────
   const handleSendText = useCallback(
     (text: string) => {
       log.info({ textLength: text.length }, "User text sent from chat panel.");
@@ -672,12 +625,11 @@ function HomePage() {
     [addUserMessage, sendText]
   );
 
-  // ── Derived state ────────────────────────────────────────────────────────────
-  // Fix #15: show idle screen only when truly disconnected (not error state).
+  // ── Derived state ───────────────────────────────────────────────────────────
   const showIdleScreen =
     !debugMode && !isConnected && status === "disconnected";
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <VideoCallLayout
       isChatOpen={isChatOpen}
@@ -740,7 +692,7 @@ function HomePage() {
         />
       </div>
 
-      {/* Fix #4: inline error banner — does not destroy the component tree */}
+      {/* Inline error banner — does not destroy the component tree */}
       <AnimatePresence>
         {visibleError && (
           <ErrorBanner
@@ -750,7 +702,7 @@ function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* Fix #15: idle screen only when genuinely disconnected */}
+      {/* Idle screen — only when genuinely disconnected */}
       <AnimatePresence>
         {showIdleScreen && <IdleScreen onStart={toggleSession} />}
       </AnimatePresence>
@@ -775,10 +727,10 @@ function HomePage() {
   );
 }
 
-// ─── Root export (Fix #10) ────────────────────────────────────────────────────
-// SceneConfigProvider sits OUTSIDE the ErrorBoundary so config context
-// survives error recovery — the boundary can re-render its children
-// (HomePage) without losing the provider.
+// ─── Root export ──────────────────────────────────────────────────────────────
+// SceneConfigProvider sits outside ErrorBoundary so config context survives
+// error recovery — the boundary can re-render HomePage without losing the
+// provider or triggering a full config rebuild.
 
 export default function Home() {
   return (

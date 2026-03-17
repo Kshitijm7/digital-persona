@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { type SceneConfig, type FeatureToggles } from "@/hooks/SceneConfigContext";
 import { ToggleSwitch, Section } from "./ui-components";
@@ -22,6 +22,8 @@ export function FeaturesSection({
           headMovement: "Neck and eyes follow the mouse cursor.",
           googleSearch: "Enable native Google Search grounding via the Live API.",
           proactiveAudio: "Allow spontaneous AI responses based on vision (Proactivity).",
+          saccades: "Rapid, realistic eye jumps between fixation points.",
+          microExpressions: "Subtle, random upper-face facial twitches.",
         };
         return (
           <ToggleSwitch

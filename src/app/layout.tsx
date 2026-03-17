@@ -2,18 +2,13 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
-import { patchOrbitControlsPassiveListeners } from "@/lib/patchOrbitControls";
-
-if (typeof window !== "undefined") {
-  patchOrbitControlsPassiveListeners();
-}
+import { AppBootstrap } from "@/components/AppBootstrap";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Digital Persona",
-  description:
-    "A real-time 3D Digital Persona powered by Gemini Live API",
+  description: "A real-time 3D Digital Persona powered by Gemini Live API",
   icons: {
     icon: "/logo.svg",
   },
@@ -36,8 +31,19 @@ export default function RootLayout({
         className={`${inter.className} bg-background text-foreground antialiased overflow-hidden`}
         suppressHydrationWarning
       >
-        <Providers>{children}</Providers>
-        
+        <Providers>
+          {/*
+           * AppBootstrap is a Client Component that runs one-time side effects
+           * that must execute in the browser:
+           *   - OrbitControls passive listener patch (needs window/DOM)
+           *   - useEmotionStore.startAutoDecay (needs setInterval)
+           * Both were previously at module level in layout.tsx (server context)
+           * or unwired entirely. Moving them here gives them a stable mount
+           * point that survives page navigations within the app shell.
+           */}
+          <AppBootstrap />
+          {children}
+        </Providers>
       </body>
     </html>
   );

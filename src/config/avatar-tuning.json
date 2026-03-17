@@ -2,13 +2,15 @@
   "_comment": "Avatar tuning configuration. Controls anatomy, mesh processing, eye/head behaviour, and viseme strength. Changes take effect after a page reload.",
 
   "ocularTuning": {
-    "_comment": "Controls eye and blink behaviour.",
+    "_comment": "Controls eye and blink behaviour. saccadeIntervalMinMs/MaxMs tune how often eyes jump between fixation points.",
     "saccadeStrength": 0.4,
     "blinkIntervalMs": 3000,
     "blinkDurationMs": 100,
     "eyelidOpenOffset": 0.06,
     "lookAtIK": true,
-    "browSpeechSync": false
+    "browSpeechSync": false,
+    "saccadeIntervalMinMs": 800,
+    "saccadeIntervalMaxMs": 3200
   },
 
   "headDynamics": {
