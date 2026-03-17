@@ -36,7 +36,7 @@ import { TextShimmer } from "@/components/ui/text-shimmer";
 // Hooks
 import { useAnimationStore } from "@/store/useAnimationStore";
 import { useAnimationRegistry } from "@/hooks/useAnimationRegistry";
-import { findBestAnimationMatch } from "@/lib/animationMatcher";
+import { findAnimationSequence } from "@/lib/animationMatcher";
 import { useSessionManager } from "@/hooks/useSessionManager";
 import { useSessionTimer } from "@/hooks/useSessionTimer";
 import { useChatMessages } from "@/hooks/useChatMessages";
@@ -367,9 +367,6 @@ function HomePage() {
       const emotionState = useEmotionStore.getState();
       const recentMessages = useAnimationStore
         .getState()
-        // We only need context tokens, not the full store — read chat via Zustand
-        // if available; otherwise fall back to empty array.
-        // (chatMessagesRef removed: Zustand getState() is the idiomatic pattern)
         .registry
         ? []
         : [];
@@ -397,7 +394,12 @@ function HomePage() {
       }
 
       const animState = useAnimationStore.getState();
-      const resolved = findBestAnimationMatch(
+
+      // Build a stacked sequence using the fuzzy matcher.
+      // - Generic intents ("dance") → random same-type picks for variety
+      // - Specific intents ("hip hop dance") → top-N fuzzy-ranked peers
+      // - Non-stackable types (gesture, etc.) → single animation
+      const sequence = findAnimationSequence(
         baseAnimation,
         animState.registry,
         {
@@ -406,24 +408,34 @@ function HomePage() {
           allowCategoryFallback: !isSpeaking,
           contextTexts,
           sentimentScore: emotionState.currentScore,
+          count: 4,
         }
       );
 
       log.debug(
-        { requested: baseAnimation, resolved },
-        "Resolved animation gesture."
+        { requested: baseAnimation, sequence },
+        "Resolved animation sequence."
       );
 
-      if (resolved !== "idle") {
-        animState.playSequence([{ name: resolved, timeScale: intensity }]);
+      const validSequence = sequence.filter((name) => name !== "idle");
+
+      if (validSequence.length > 0) {
+        animState.playSequence(
+          validSequence.map((name) => ({ name, timeScale: intensity }))
+        );
       } else {
         log.info(
-          { baseAnimation, resolved, minScore, isSpeaking },
-          "Skipped trigger_animation: animation did not meet relevance threshold."
+          { baseAnimation, minScore, isSpeaking },
+          "Skipped trigger_animation: no animations met relevance threshold."
         );
       }
 
-      return { acknowledged: true, base_animation: baseAnimation, intensity };
+      return {
+        acknowledged: true,
+        base_animation: baseAnimation,
+        intensity,
+        sequenceLength: validSequence.length,
+      };
     });
 
     // ── set_expression ──────────────────────────────────────────────────────

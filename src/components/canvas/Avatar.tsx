@@ -149,29 +149,41 @@ export function Avatar({
   const headSkinMaterial = useSkinMaterial(materials.Wolf3D_Skin, skinPreset);
   const bodySkinMaterial = useSkinMaterial(materials.Wolf3D_Body, skinPreset);
 
-  // Combine animations and bind them to the groupRef
-  // Apply Mixamo FBX normalization best practice from Visage
+  // Combine avatar's own clips with the dynamically loaded activeClip.
+  // activeClip now has a unique name like "dance__<uuid>" so each queued
+  // instance gets its own AnimationAction in the mixer, enabling proper
+  // crossfades even when the same animation is queued consecutively.
+  // normaliseFbxAnimations is now done at load time in useDynamicAnimations,
+  // so we only normalise the avatar's built-in clips here.
   const normalizedAnimations = React.useMemo(() => {
-    const allAnimations = [
-      ...(avatarAnimations || []),
-      ...(activeClip ? [activeClip] : []),
-    ];
-    return normaliseFbxAnimations(allAnimations);
+    const baseClips = normaliseFbxAnimations([...(avatarAnimations || [])]);
+    return activeClip ? [...baseClips, activeClip] : baseClips;
   }, [avatarAnimations, activeClip]);
 
   const { actions } = useAnimations(normalizedAnimations, groupRef);
 
   const previousActionRef = useRef<THREE.AnimationAction | null>(null);
 
+  // The activeClip.name is the unique key (e.g. "dance__<uuid>") that maps to
+  // a distinct AnimationAction in the `actions` dictionary. We use it as the
+  // primary dependency so that even repeated same-name animations trigger a
+  // new effect run and get a proper crossfade.
+  const activeClipName = activeClip?.name ?? null;
+
   useEffect(() => {
-    const actionName = currentAnimationName && actions[currentAnimationName]
-      ? currentAnimationName
-      : undefined;
+    // Resolve which action key to play:
+    // 1. If we have a unique activeClip name AND it exists in actions, use it.
+    // 2. Otherwise fall back to currentAnimationName (for built-in avatar anims).
+    const actionName = (activeClipName && actions[activeClipName])
+      ? activeClipName
+      : (currentAnimationName && actions[currentAnimationName])
+        ? currentAnimationName
+        : undefined;
 
     if (!actionName || !actions[actionName]) return;
 
     const currentAction = actions[actionName];
-    const isIdleAction = actionName === "idle";
+    const isIdleAction = currentAnimationName === "idle";
 
     // Retrieve custom scaling from Gemini logic
     const activeData = activeQueueItems.find(item => item.name === currentAnimationName);
@@ -181,15 +193,18 @@ export function Avatar({
     if (isIdleAction) {
       currentAction.setLoop(THREE.LoopRepeat, Infinity);
     } else {
-      // Stop non-idle actions from snapping back to frame 0 at completion.
+      // Play once — the queue timer in useDynamicAnimations will advance
+      // to the next animation or back to idle when the clip finishes.
       currentAction.setLoop(THREE.LoopOnce, 1);
     }
 
     currentAction.reset().play();
     log.debug({ animation: actionName, speed }, "Playing Avatar animation");
 
-    // If there is an active animation currently playing, cross-fade to the new one!
-    // The `true` flag enables time-warping so mismatched length loops don't warp scale.
+    // Crossfade from the previous action. Because each queued clip has a
+    // unique name, previousActionRef.current will always differ from
+    // currentAction, so we always get a smooth crossfade — even for the
+    // same animation played back-to-back.
     if (previousActionRef.current && previousActionRef.current !== currentAction) {
       log.debug({ from: previousActionRef.current.getClip().name, to: actionName }, "Crossfading Avatar animation");
       currentAction.crossFadeFrom(previousActionRef.current, 0.5, true);
@@ -204,7 +219,7 @@ export function Avatar({
        // We intentionally DO NOT fadeOut here anymore, because the incoming 
        // `crossFadeFrom` handles the weight dialing down automatically!
     };
-  }, [currentAnimationName, actions, activeQueueItems]);
+  }, [activeClipName, currentAnimationName, actions, activeQueueItems]);
 
   const idleEngine = React.useMemo(() => new IdleExpressionEngine(), []);
   const gazeEngine = React.useMemo(() => new GazeEngine(), []);
@@ -271,7 +286,7 @@ export function Avatar({
     const isSpeaking = level > 0.05;
 
     // Keep body idle subtle while speaking so visemes remain the visual focus.
-    const activeBodyAction = actions[currentAnimationName];
+    const activeBodyAction = activeClipName ? actions[activeClipName] : actions[currentAnimationName];
     if (currentAnimationName === "idle" && activeBodyAction) {
       const targetWeight = isSpeaking ? 0.2 : 1;
       const targetScale = isSpeaking ? 0.25 : 1;

@@ -495,3 +495,106 @@ export function findBestAnimationMatch(
 
   return bestMatchKey;
 }
+
+// ─── Sequence builder for stacking ────────────────────────────────────────────
+
+export interface SequenceOptions extends AnimationMatcherOptions {
+  /** How many animations to include in the sequence (default 4) */
+  count?: number;
+}
+
+/**
+ * Build a multi-animation sequence for stacking playback.
+ *
+ * - If the intent resolves to a specific animation via fuzzy match, collect
+ *   the top-N scored animations of the same type/category.
+ * - If the intent is generic (e.g. plain "dance"), pick random animations
+ *   from that category for variety.
+ *
+ * Returns an array of registry keys. The first element is always the best
+ * fuzzy match; subsequent elements are scored peers or random category picks.
+ */
+export function findAnimationSequence(
+  intent: string,
+  registry: AnimationRegistry,
+  options?: SequenceOptions
+): string[] {
+  const count = options?.count ?? 4;
+  const keys = Object.keys(registry);
+  if (!keys.length) return ["idle"];
+
+  // Step 1: find the best match using existing fuzzy logic
+  const best = findBestAnimationMatch(intent, registry, options);
+  if (best === "idle") return ["idle"];
+
+  const bestMeta = registry[best];
+  const bestType = bestMeta?.type?.toLowerCase();
+
+  // No type info → can't build a sequence, return single
+  if (!bestType) return [best];
+
+  // Only stack animations of these types — gestures and idle should play once.
+  const STACKABLE_TYPES = new Set(["dance", "expression"]);
+  if (!STACKABLE_TYPES.has(bestType)) return [best];
+
+  // Step 2: gather all animations of the same type
+  const sameType = keys.filter(
+    (k) => k !== best && registry[k]?.type?.toLowerCase() === bestType
+  );
+
+  if (sameType.length === 0) return [best];
+
+  // Step 3: determine if the intent is "generic" (just "dance") or specific
+  // ("hip hop dance", "salsa", etc.). Generic = the normalised intent is a
+  // single token that matches a category name directly.
+  const cleanTokens = normalizeText(intent);
+  const isGenericCategoryIntent =
+    cleanTokens.length <= 1 &&
+    cleanTokens.some(
+      (t) =>
+        t === bestType ||
+        isHybridMatch(t, bestType) ||
+        (INTENT_ALIASES[bestType] ?? []).some((alias) => isHybridMatch(t, alias))
+    );
+
+  let sequence: string[];
+
+  if (isGenericCategoryIntent) {
+    // Generic intent (e.g. plain "dance") → random shuffle for variety
+    const shuffled = [...sameType].sort(() => Math.random() - 0.5);
+    sequence = [best, ...shuffled.slice(0, count - 1)];
+    log.debug(
+      `[SequenceBuilder] Generic '${intent}' → ${sequence.length} random '${bestType}' animations.`
+    );
+  } else {
+    // Specific intent (e.g. "hip hop dance") → rank by fuzzy score
+    const minScore = options?.minScore ?? 0;
+    const sentimentScore = options?.sentimentScore ?? 0;
+    const intentTokens = expandTokens([
+      ...normalizeText(intent),
+      ...(options?.contextTexts ?? []).flatMap((t) => tokenizeWithAliases(t ?? "")),
+    ]);
+    const intentVector = buildWeightedVector(intentTokens, true);
+
+    const scored = sameType
+      .map((key) => {
+        const anim = registry[key];
+        const tokenCache = getOrCreateAnimationTokens(registry, key, anim);
+        const animVector = getOrCreateAnimationVector(registry, key, tokenCache);
+        const score = calculateSimilarity(
+          intentTokens, intentVector, tokenCache, animVector, anim, sentimentScore
+        );
+        return { key, score };
+      })
+      .filter((s) => s.score > minScore * 0.5) // looser threshold for sequence peers
+      .sort((a, b) => b.score - a.score);
+
+    const topPeers = scored.slice(0, count - 1).map((s) => s.key);
+    sequence = [best, ...topPeers];
+    log.debug(
+      `[SequenceBuilder] Specific '${intent}' → ${sequence.length} fuzzy-ranked '${bestType}' animations.`
+    );
+  }
+
+  return sequence;
+}

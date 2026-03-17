@@ -74,7 +74,7 @@ export const useAnimationStore = create<AnimationState>((set) => ({
 
   // Fix AN1, AN2, AN3
   playSequence: (sequenceParams, options = {}) => {
-    const { maxQueueDepth = 3, interrupt = false } = options;
+    const { maxQueueDepth = 10, interrupt = false } = options;
 
     set((state) => {
       // Interrupt mode: clear the existing queue first
