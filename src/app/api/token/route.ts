@@ -50,8 +50,8 @@ export async function POST() {
 
   try {
     // Generate a secure short-lived token restricted to the Live API
-    // 30 minutes maximum session length
-    const expireTime = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    // 1 hours maximum session length
+    const expireTime = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     // Connect within 60 seconds, and only allow 1 use of this token 
     const newSessionExpireTime = new Date(Date.now() + 60 * 1000).toISOString();
     

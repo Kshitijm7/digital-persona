@@ -631,7 +631,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: "Aoede" },
+              prebuiltVoiceConfig: { voiceName: "Puck" },
             },
           },
           systemInstruction: {
@@ -661,6 +661,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
           // Return a text transcription of the model's audio output.
           // The receiving side (serverContent.outputTranscription) is already wired.
           outputAudioTranscription: {},
+          inputAudioTranscription: {}, // Keep on for debugging user intent
           realtimeInputConfig: { automaticActivityDetection: {} },
           // Apply contextWindowCompression unless minimal (same as pre-refactor logic)
           ...(!isMinimal ? { contextWindowCompression: { slidingWindow: {} } } : {}),

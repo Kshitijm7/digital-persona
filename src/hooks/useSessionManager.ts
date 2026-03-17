@@ -117,6 +117,7 @@ export function useSessionManager() {
       };
     });
   }, [registerTool]);
+  const lastForwardedChunkAtRef = useRef(0);
 
   // ── Mic chunk forwarding (Fix #13) ────────────────────────────────────────
   // `sendAudioChunk` is now stable (no deps) so `forwardMicChunk` will not
@@ -142,6 +143,14 @@ export function useSessionManager() {
             },
             "Suppressed microphone chunk below ambient floor."
           );
+        }
+        
+        // HEARTBEAT: Prevent 10s idle disconnect by sending a chunk every 3s
+        if (now - lastForwardedChunkAtRef.current > 3000) {
+          micForwardedChunksRef.current += 1;
+          lastForwardedChunkAtRef.current = now;
+          log.debug("Sent silent heartbeat chunk to keep WebSocket alive.");
+          sendAudioChunk(chunk);
         }
         return;
       }
@@ -171,10 +180,22 @@ export function useSessionManager() {
             "Suppressed microphone chunk to prevent assistant self-interruption."
           );
         }
+        
+        // HEARTBEAT: Prevent 10s idle disconnect during long assistant speech
+        if (now - lastForwardedChunkAtRef.current > 3000) {
+          micForwardedChunksRef.current += 1;
+          lastForwardedChunkAtRef.current = now;
+          log.debug("Sent silent heartbeat chunk to keep WebSocket alive during echo block.");
+          // Send true silence instead of the echo-y chunk to be safe
+          const zeroBytes = new Uint8Array((atob(chunk).length));
+          const zeroB64 = btoa(String.fromCharCode.apply(null, Array.from(zeroBytes)));
+          sendAudioChunk(zeroB64);
+        }
         return;
       }
 
       micForwardedChunksRef.current += 1;
+      lastForwardedChunkAtRef.current = now;
       if (
         micForwardedChunksRef.current === 1 ||
         micForwardedChunksRef.current % 120 === 0
