@@ -21,7 +21,7 @@ import { useAvatarRuntimeStore } from "@/store/useAvatarRuntimeStore";
 
 const log = createLogger("useGeminiLive");
 
-const TOOL_HANDLER_TIMEOUT_MS = 4000;
+const TOOL_HANDLER_TIMEOUT_MS = 8000;
 const DUPLICATE_AUDIO_WINDOW_MS = 500;
 const AUDIO_SIGNATURE_TTL_MS = 5000;
 const TEXT_DEDUP_WINDOW_MS = 1200;
@@ -323,6 +323,34 @@ export function useGeminiLive(): UseGeminiLiveReturn {
       apiKey: token,
       httpOptions: { apiVersion: "v1alpha" },
     });
+
+    // ── Register built-in Hybrid Search Handler (Commented for Cost Savings) ──
+    /*
+    // Usecase for future:
+    // This hybrid handler triggers a background generateContent call for Google Search.
+    // It is more stable if the Live API struggles with native googleSearch routing,
+    // but consumes 2x credits (Live Session tokens + Background REST tokens).
+    // Re-enable this and uncomment `WEB_SEARCH_TOOL` in constants.ts if the 
+    // native search starts freezing the avatar again.
+    toolRegistryRef.current.set("perform_web_search", async (args: Record<string, unknown>) => {
+      const query = args.query as string;
+      log.info({ query }, "Executing hybrid web search in background...");
+      
+      if (!clientRef.current) return { result: "Search unavailable, client offline." };
+      
+      try {
+        const result = await clientRef.current.models.generateContent({
+          model: "gemini-2.5-flash", 
+          contents: [{ role: 'user', parts: [{ text: query }] }],
+          config: { tools: [{ googleSearch: {} }] }
+        });
+        return { search_results: result.text || "No results found." };
+      } catch (e) {
+        log.error({ err: e }, "Hybrid search generateContent failed");
+        return { error: "Search failed." };
+      }
+    });
+    */
 
     // ── Message handler ──────────────────────────────────────────────────
     const handleMessage = (message: LiveServerMessage) => {
