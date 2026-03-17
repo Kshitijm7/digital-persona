@@ -59,8 +59,8 @@ import { SceneConfigProvider } from "@/hooks/SceneConfigContext";
 const log = createLogger("app/page");
 
 const BASE_ANIMATION_MATCH_THRESHOLD      = 0.15;
-const SPEAKING_ANIMATION_MATCH_THRESHOLD  = 0.2;
-const ASSISTANT_SPEAKING_LEVEL_THRESHOLD  = 0.06;
+const SPEAKING_ANIMATION_MATCH_THRESHOLD  = 0.25;
+const ASSISTANT_SPEAKING_LEVEL_THRESHOLD  = 0.1;
 const EXPRESSION_AUTO_RESET_MS            = 4_000;
 const END_CALL_FALLBACK_MS                = 10_000;
 const TRANSCRIPT_DEDUP_WINDOW_MS          = 2_500;
