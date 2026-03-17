@@ -59,6 +59,8 @@ export interface UseGeminiLiveReturn {
   disconnect: () => void;
   sendVideoFrame: (base64: string) => void;
   sendAudioChunk: (base64: string) => void;
+  /** Signal Gemini that the audio stream has paused (mic muted/stopped). Flushes VAD buffer. */
+  sendAudioStreamEnd: () => void;
   sendText: (text: string) => void;
   registerTool: (name: string, handler: ToolHandler) => void;
   onAudioData: React.RefObject<((b64: string) => void) | null>;
@@ -97,8 +99,8 @@ export function useGeminiLive(): UseGeminiLiveReturn {
   const forwardedAudioChunkCountRef = useRef(0);
   const droppedAudioChunkCountRef = useRef(0);
   const lastTextPayloadRef = useRef<{ text: string; sentAt: number } | null>(null);
-  // Fix #7: profile resets to "safe" on each fresh connect, not persisted across sessions.
-  const compatibilityProfileRef = useRef<LiveCompatibilityProfile>("safe");
+  // Profile starts at 'full' and degrades only on 1008 close codes.
+  const compatibilityProfileRef = useRef<LiveCompatibilityProfile>("full");
   // Tracks whether the last disconnect was a retryable server error.
   const lastCloseCodeRef = useRef<number | null>(null);
   // Fix M1: resolver called by onopen/onerror to unblock connect()'s caller
@@ -264,14 +266,6 @@ export function useGeminiLive(): UseGeminiLiveReturn {
 
     const connectionId = ++connectionCounterRef.current;
     activeConnectionIdRef.current = connectionId;
-
-    // Fix #7: reset compatibility profile for each fresh connect attempt
-    // (downgrade state is preserved only across 1008-retry loops within the
-    // same session lifecycle; use a separate flag if you need cross-session memory)
-    if (compatibilityProfileRef.current !== "safe") {
-      // Only reset if the previous session exited cleanly (not a 1008 retry)
-      // Leave as-is when downgradeCompatibilityProfile was just called
-    }
 
     statusRef.current = "connecting";
     setStatus("connecting");
@@ -539,12 +533,17 @@ export function useGeminiLive(): UseGeminiLiveReturn {
               }
 
               try {
-                sessionRef.current!.sendToolResponse({
+                const toolResponsePayload = {
                   functionResponses: [
                     { id: callId, name: callName, response: result },
                   ],
-                  scheduling: "SILENT",
-                } as unknown as Parameters<Session["sendToolResponse"]>[0]);
+                  // 'SILENT' scheduling is only safe in 'full' profile;
+                  // omit it in 'safe'/'minimal' to avoid 1008 disconnects.
+                  ...(compatibilityProfileRef.current === "full"
+                    ? { scheduling: "SILENT" }
+                    : {}),
+                } as unknown as Parameters<Session["sendToolResponse"]>[0];
+                sessionRef.current!.sendToolResponse(toolResponsePayload);
 
                 log.debug(
                   {
@@ -628,8 +627,15 @@ export function useGeminiLive(): UseGeminiLiveReturn {
                 },
               }
             : {}),
+          // Adapt response style and tone to the user's emotional delivery.
+          // Requires v1alpha (already set via httpOptions) — docs: enableAffectiveDialog.
+          enableAffectiveDialog: true,
+          // Return a text transcription of the model's audio output.
+          // The receiving side (serverContent.outputTranscription) is already wired.
+          outputAudioTranscription: {},
           realtimeInputConfig: { automaticActivityDetection: {} },
-          ...(isFull ? { contextWindowCompression: { slidingWindow: {} } } : {}),
+          // Apply contextWindowCompression unless minimal (same as pre-refactor logic)
+          ...(!isMinimal ? { contextWindowCompression: { slidingWindow: {} } } : {}),
           ...(sessionHandleRef.current
             ? { sessionResumption: { handle: sessionHandleRef.current } }
             : {}),
@@ -788,6 +794,25 @@ export function useGeminiLive(): UseGeminiLiveReturn {
     }
   }, []);
 
+  /**
+   * Signal Gemini that the audio stream has paused (mic muted or stopped).
+   * The API flushes its internal VAD buffer so the model can respond promptly.
+   * Per docs: "send audioStreamEnd when the audio stream is paused for more than a second."
+   */
+  const sendAudioStreamEnd = useCallback(() => {
+    if (statusRef.current !== "connected" || !sessionRef.current) return;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (sessionRef.current as any).sendRealtimeInput({ audioStreamEnd: true });
+      log.debug(
+        { connectionId: activeConnectionIdRef.current },
+        "Sent audioStreamEnd to flush VAD buffer."
+      );
+    } catch (e) {
+      log.warn({ err: e }, "Failed to send audioStreamEnd.");
+    }
+  }, []);
+
   const sendText = useCallback((text: string) => {
     if (statusRef.current !== "connected" || !sessionRef.current) return;
 
@@ -840,6 +865,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
     disconnect,
     sendVideoFrame,
     sendAudioChunk,
+    sendAudioStreamEnd,
     sendText,
     registerTool,
     onAudioData,

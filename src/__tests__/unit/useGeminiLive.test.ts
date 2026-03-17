@@ -130,6 +130,9 @@ describe('useGeminiLive Hook', () => {
         const callArgs = __mockConnect.mock.calls[0][0];
         expect(callArgs.model).toBe('gemini-2.5-flash-native-audio-preview-12-2025');
         expect(callArgs.config.responseModalities).toEqual(['AUDIO']);
+        expect(callArgs.config.enableAffectiveDialog).toBe(true);
+        expect(callArgs.config.outputAudioTranscription).toBeDefined();
+        expect(callArgs.config.contextWindowCompression).toBeDefined();
         // VAD config should be present
         expect(callArgs.config.realtimeInputConfig).toBeDefined();
         expect(callArgs.config.realtimeInputConfig.automaticActivityDetection).toBeDefined();
@@ -218,6 +221,26 @@ describe('useGeminiLive Hook', () => {
           data: testAudio,
           mimeType: 'audio/pcm;rate=16000',
         },
+      });
+    });
+
+    it('should send audio stream end signal', async () => {
+      const { result } = renderGeminiHook();
+      
+      act(() => {
+        result.current.connect();
+      });
+
+      await vi.waitFor(() => {
+        expect(result.current.status).toBe('connected');
+      });
+      
+      act(() => {
+        result.current.sendAudioStreamEnd();
+      });
+
+      expect(__mockSession.sendRealtimeInput).toHaveBeenCalledWith({
+        audioStreamEnd: true,
       });
     });
   });

@@ -17,10 +17,10 @@ The Digital Persona (PDI) is a Persistent Digital Instance designed for immersiv
 ![System Capabilities Banner](/assets/image2.png)
 
 ## Core Intelligence & Audio
-- **Affective Dialog**: The system listens to your *voice*—not just your words. It detects frustration, joy, or hesitation and automatically adjusts its own spoken tone, pitch, and pace to empathize with you.
-- **Proactive VAD**: Advanced Voice Activity Detection filters out room noise, ensuring the AI only triggers when you are intentionally speaking to it.
+- **Affective Dialog**: By utilizing the `v1alpha` Live API parameters, the system listens to your *voice*—not just your words. It detects frustration, joy, or hesitation and automatically adjusts its own spoken tone, pitch, and pace to empathize with you.
+- **Proactive & Precise VAD**: Advanced Voice Activity Detection filters out room noise, ensuring the AI only triggers when you are intentionally speaking to it. Precise `audioStreamEnd` signaling ensures the model accurately understands when you have finished speaking or muted your microphone, preventing conversational lag.
 - **Native Audio Processing**: Unlike traditional bots that use slow TTS/STT steps, the Gemini 2.5 Flash model processes raw audio directly for near-instant (under 500ms) responses. Learn more in the [Gemini Live API](./gemini-live-api.md) section.
-- **Bi-Lingual Fluidity**: Seamlessly switch between English and Hindi/Haryanvi. The AI detects your language shift and responds in kind.
+- **Bi-Lingual Fluidity**: Seamlessly switch between English and Hindi/Haryanvi. The API's native multi-lingual support detects your language shift and responds in kind without requiring manual configuration changes.
 
 ## Visual Grounding
 - **Environmental Awareness**: The persona "sees" your room via the webcam. It can identify objects, notice if you move, or comment on your surroundings.
@@ -44,7 +44,7 @@ The Digital Persona understands natural language and can execute system actions 
 ### UI Controls
 - **Glassmorphic Control Bar**: Hover or tap the floating island at the bottom to toggle Microphone, Camera, Chat, and Session status.
 - **Interactive Feed**: Click the "Flip" icon in the center of the control bar to manually swap camera lenses.
-- **Live Captions**: The side panel provides real-time text transcriptions, useful for technical discussions or when audio is muted.
+- **Live Dual-Captions**: The side panel provides real-time, API-generated text transcriptions of both your input and the model's output (`outputAudioTranscription`), invaluable for accessibility or noisy environments.
 - **Debug Mode**: Use the "Debug" toggle to view underlying scene graphs, bone structures, and performance metrics. See the [Technical Architecture](./architecture.md) for a deep dive into the 3D pipeline.
 
 ---

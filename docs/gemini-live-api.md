@@ -38,9 +38,9 @@ Simultaneously, visual context is captured. If you are showing a document to you
 
 Because the model processes native raw audio instead of converting speech to text first, it hears the acoustic nuances of your voice. 
 
-By enabling **Affective Dialog**, the Live API detects frustration, joy, hesitation, or confusion in your tone. The model automatically adjusts its own spoken tone, pitch, and pace to match or de-escalate your emotional state, making the 3D avatar incredibly empathetic.
+By enabling **Affective Dialog** (`enableAffectiveDialog: true` in the API configuration), the Live API detects frustration, joy, hesitation, or confusion in your tone. The model automatically adjusts its own spoken tone, pitch, and pace to match or de-escalate your emotional state, making the 3D avatar incredibly empathetic. This requires the `v1alpha` API endpoints, which we utilize heavily.
 
-Furthermore, we utilize Gemini's advanced Voice Activity Detection (VAD) and **Proactive Audio**. Instead of responding to any background noise, it distinguishes between the primary speaker and ambient chatter. It can gracefully handle filler words (like "umm" or "uhh") by back-channeling (saying "mhmm") instead of treating them as interruptions, allowing it to "co-listen" to an environment and interject only when valuable.
+Furthermore, we utilize Gemini's advanced Voice Activity Detection (VAD) and **Proactive Audio**. Instead of responding to any background noise, it distinguishes between the primary speaker and ambient chatter. It can gracefully handle filler words (like "umm" or "uhh") by back-channeling (saying "mhmm") instead of treating them as interruptions, allowing it to "co-listen" to an environment and interject only when valuable. When you deliberately mute your microphone, the system instantly fires an `audioStreamEnd` signal to the API. This forces Gemini to flush its VAD buffer immediately, ensuring the model never gets "stuck" listening to empty silence and guaranteeing sharp conversational boundaries.
 
 ## 4. The Puppeteer: Tool Calling Orchestration
 

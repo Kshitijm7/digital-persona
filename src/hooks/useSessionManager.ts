@@ -46,6 +46,7 @@ export function useSessionManager() {
     disconnect,
     sendVideoFrame,
     sendAudioChunk,
+    sendAudioStreamEnd,
     sendText,
     onToolCall,
     onTranscript,
@@ -278,6 +279,7 @@ export function useSessionManager() {
         "Clean WebSocket close — not triggering auto-reconnect."
       );
       // Still need to clean up initialized state
+      sendAudioStreamEnd();
       stopMic();
       stopWebcam();
       setTimeout(() => setIsInitialized(false), 0);
@@ -302,6 +304,7 @@ export function useSessionManager() {
         { status: geminiStatus },
         "Gemini session dropped; max reconnect attempts reached — stopping media."
       );
+      sendAudioStreamEnd();
       stopMic();
       stopWebcam();
       setTimeout(() => setIsInitialized(false), 0);
@@ -317,6 +320,7 @@ export function useSessionManager() {
       "Gemini session dropped; attempting automatic reconnect."
     );
 
+    sendAudioStreamEnd();
     stopMic();
 
     reconnectTimerRef.current = setTimeout(() => {
@@ -345,6 +349,7 @@ export function useSessionManager() {
     stopMic,
     stopWebcam,
     connect,
+    sendAudioStreamEnd,
     startMic,
     lastCloseCode,
   ]);
@@ -413,13 +418,21 @@ export function useSessionManager() {
       "Stopping session."
     );
 
+    sendAudioStreamEnd();
     disconnect();
     stopPlayback();
     stopMic();
     stopWebcam();
     resetMicCounters();
     setIsInitialized(false);
-  }, [disconnect, stopPlayback, stopMic, stopWebcam, resetMicCounters]);
+  }, [
+    disconnect,
+    stopPlayback,
+    stopMic,
+    stopWebcam,
+    resetMicCounters,
+    sendAudioStreamEnd,
+  ]);
 
   // ── Toggle (Fix #14) ───────────────────────────────────────────────────────
   // Only allow stopping when the session is fully connected or in error state.
@@ -459,12 +472,13 @@ export function useSessionManager() {
   const toggleMic = useCallback(() => {
     if (isMicActive) {
       log.info("Muting microphone.");
+      sendAudioStreamEnd();
       stopMic();
     } else {
       log.info("Unmuting microphone.");
       startMic((...args) => forwardMicChunkRef.current(...args));
     }
-  }, [isMicActive, stopMic, startMic]);
+  }, [isMicActive, stopMic, startMic, sendAudioStreamEnd]);
 
   const toggleCamera = useCallback(() => {
     if (isCameraActive) {

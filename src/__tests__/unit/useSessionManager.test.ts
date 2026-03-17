@@ -6,25 +6,31 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useSessionManager } from '@/hooks/useSessionManager';
+import { useAudioProcessor } from '@/hooks/useAudioProcessor';
+
+const mockUseGeminiLiveReturn = {
+  status: 'disconnected',
+  connect: vi.fn(),
+  disconnect: vi.fn(),
+  sendVideoFrame: vi.fn(),
+  sendAudioChunk: vi.fn(),
+  sendAudioStreamEnd: vi.fn(),
+  sendText: vi.fn(),
+  registerTool: vi.fn(),
+  onAudioData: { current: null },
+  onToolCall: { current: null },
+  onTranscript: { current: null },
+  onUserTranscript: { current: null },
+  onInterrupted: { current: null },
+  onTurnComplete: { current: null },
+  onToolCallCancellation: { current: null },
+  lastSessionHandle: { current: null },
+  errorMessage: null as string | null,
+};
 
 // Mock the dependent hooks
 vi.mock('@/hooks/useGeminiLive', () => ({
-  useGeminiLive: vi.fn(() => ({
-    status: 'disconnected',
-    connect: vi.fn(),
-    disconnect: vi.fn(),
-    sendVideoFrame: vi.fn(),
-    sendAudioChunk: vi.fn(),
-    sendText: vi.fn(),
-    registerTool: vi.fn(),
-    onAudioData: { current: null },
-    onToolCall: { current: null },
-    onTranscript: { current: null },
-    onInterrupted: { current: null },
-    onToolCallCancellation: { current: null },
-    lastSessionHandle: { current: null },
-    errorMessage: null,
-  })),
+  useGeminiLive: vi.fn(() => mockUseGeminiLiveReturn),
 }));
 
 vi.mock('@/hooks/useAudioProcessor', () => ({
@@ -55,6 +61,15 @@ vi.mock('@/hooks/useWebcam', () => ({
 describe('useSessionManager Hook', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    
+    // Reset our mock return values so tests don't bleed state
+    Object.values(mockUseGeminiLiveReturn).forEach((val) => {
+      if (typeof val === 'function' && 'mockClear' in val) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (val as any).mockClear();
+      }
+    });
+
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ token: "mock-ephemeral-token" })
@@ -119,6 +134,29 @@ describe('useSessionManager Hook', () => {
       });
 
       expect(result.current.toggleMic).toBeDefined();
+    });
+
+    it('should send audio stream end signal when muting mic', () => {
+      // Override the isMicActive value in the mock temporarily
+      // @ts-expect-error Mocked function
+      useAudioProcessor.mockReturnValueOnce({
+        isMicActive: true,
+        audioLevelRef: { current: 0 },
+        startMic: vi.fn(),
+        stopMic: vi.fn(),
+        playAudioChunk: vi.fn(),
+        stopPlayback: vi.fn(),
+        ensureStreamer: vi.fn(() => ({ context: { state: 'running', resume: vi.fn() } })),
+        markAssistantTurnComplete: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useSessionManager());
+
+      act(() => {
+        result.current.toggleMic();
+      });
+
+      expect(mockUseGeminiLiveReturn.sendAudioStreamEnd).toHaveBeenCalled();
     });
   });
 
