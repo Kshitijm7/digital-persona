@@ -18,6 +18,12 @@ Digital Persona is envisioned as a compassionate first point of contact. This em
 
 Picture walking into an international hotel and being greeted by a warm, responsive digital concierge. This avatar is capable of communicating seamlessly in multiple languages, making every guest feel instantly welcomed. It can read a booking confirmation via the webcam, handle check-ins, and allow for natural interruptions (**seamless barge-in**) while providing specific details about local restaurants or city tours.
 
+## Engaging Retail and Sales
+
+![Salesman Use Case](public/assets/usecase_salesman.png)
+
+Transform the shopping experience into a personalized journey. Digital Persona can act as an expert sales assistant, identifying products through the camera, explaining technical specifications, and suggesting complementary items based on customer preference. Whether in a high-end boutique or a busy electronics store, the avatar provides consistent, high-quality engagement that bridges the gap between digital convenience and physical presence.
+
 This technology has the potential to transform experiences across many industries.
 
 [Discover how we built the brain of this system →](/gemini-live-api)
