@@ -1,9 +1,22 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type ReactNode,
+} from "react";
 import initialConfig from "@/config/scene.json";
 import avatarTuningConfig from "@/config/avatar-tuning.json";
-import { DEFAULT_LIPSYNC_TUNING, type LipSyncTuning, useLipSyncStore } from "@/store/useLipSyncStore";
+import {
+  DEFAULT_LIPSYNC_TUNING,
+  type LipSyncTuning,
+  useLipSyncStore,
+} from "@/store/useLipSyncStore";
 import {
   DEFAULT_AI_STYLE_CONTROL,
   DEFAULT_ANATOMICAL_POST_PROCESSING,
@@ -33,7 +46,7 @@ import {
   removeClientAvatar as removeClientAvatarFromStorage,
 } from "@/lib/avatars";
 
-/* ─── Types ────────────────────────────────────────────────────────────────── */
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export type Vector3D = { x: number; y: number; z: number };
 
@@ -99,7 +112,7 @@ interface SceneConfigContextValue {
   removeClientAvatar: (id: string) => void;
 }
 
-/* ─── Defaults ─────────────────────────────────────────────────────────────── */
+// ─── Defaults ─────────────────────────────────────────────────────────────────
 
 const DEFAULT_FEATURES: FeatureToggles = {
   lipSync: true,
@@ -112,80 +125,106 @@ const DEFAULT_FEATURES: FeatureToggles = {
   proactiveAudio: true,
 };
 
-const SceneConfigCtx = createContext<SceneConfigContextValue | null>(null);
-
-/* ─── Provider ─────────────────────────────────────────────────────────────── */
-
-export function SceneConfigProvider({ children }: { children: ReactNode }) {
-  const setLipSyncTuning = useLipSyncStore((state) => state.updateTuning);
-  // avatar-tuning.json provides configurable defaults; scene.json takes precedence over it;
-  // TypeScript DEFAULT_* constants are the last-resort fallback.
+// ─── Fix SC1: compute initial config ONCE outside the component ───────────────
+// This runs at module load time, not on every render.
+function buildInitialConfig(): SceneConfig {
   const cfg = avatarTuningConfig as Record<string, unknown>;
   const sceneCfg = initialConfig as Record<string, unknown>;
-  const sanitizedInitialControls = sanitizeEffectiveControls({
+
+  const sanitized = sanitizeEffectiveControls({
     emotionControl: {
       ...DEFAULT_EMOTION_CONTROL,
-      ...(cfg.emotionControl as Partial<EmotionControl> || {}),
-      ...(sceneCfg.emotionControl as Partial<EmotionControl> || {}),
+      ...((cfg.emotionControl as Partial<EmotionControl>) ?? {}),
+      ...((sceneCfg.emotionControl as Partial<EmotionControl>) ?? {}),
     },
     ocularTuning: {
       ...DEFAULT_OCULAR_TUNING,
-      ...(cfg.ocularTuning as Partial<OcularTuning> || {}),
-      ...(sceneCfg.ocularTuning as Partial<OcularTuning> || {}),
+      ...((cfg.ocularTuning as Partial<OcularTuning>) ?? {}),
+      ...((sceneCfg.ocularTuning as Partial<OcularTuning>) ?? {}),
     },
     meshPostProcessing: {
       ...DEFAULT_MESH_POST_PROCESSING,
-      ...(cfg.meshPostProcessing as Partial<MeshPostProcessing> || {}),
-      ...(sceneCfg.meshPostProcessing as Partial<MeshPostProcessing> || {}),
+      ...((cfg.meshPostProcessing as Partial<MeshPostProcessing>) ?? {}),
+      ...((sceneCfg.meshPostProcessing as Partial<MeshPostProcessing>) ?? {}),
     },
     headDynamics: {
       ...DEFAULT_HEAD_DYNAMICS,
-      ...(cfg.headDynamics as Partial<HeadDynamics> || {}),
-      ...(sceneCfg.headDynamics as Partial<HeadDynamics> || {}),
+      ...((cfg.headDynamics as Partial<HeadDynamics>) ?? {}),
+      ...((sceneCfg.headDynamics as Partial<HeadDynamics>) ?? {}),
     },
     anatomicalPostProcessing: {
       ...DEFAULT_ANATOMICAL_POST_PROCESSING,
-      ...(cfg.anatomicalPostProcessing as Partial<AnatomicalPostProcessing> || {}),
-      ...(sceneCfg.anatomicalPostProcessing as Partial<AnatomicalPostProcessing> || {}),
+      ...((cfg.anatomicalPostProcessing as Partial<AnatomicalPostProcessing>) ?? {}),
+      ...((sceneCfg.anatomicalPostProcessing as Partial<AnatomicalPostProcessing>) ?? {}),
     },
     visemeOverrides: {
       ...DEFAULT_VISEME_OVERRIDES,
-      ...(cfg.visemeOverrides as Partial<VisemeOverrides> || {}),
-      ...(sceneCfg.visemeOverrides as Partial<VisemeOverrides> || {}),
+      ...((cfg.visemeOverrides as Partial<VisemeOverrides>) ?? {}),
+      ...((sceneCfg.visemeOverrides as Partial<VisemeOverrides>) ?? {}),
     },
     aiStyleControl: {
       ...DEFAULT_AI_STYLE_CONTROL,
-      ...(cfg.aiStyleControl as Partial<AIStyleControl> || {}),
-      ...(sceneCfg.aiStyleControl as Partial<AIStyleControl> || {}),
+      ...((cfg.aiStyleControl as Partial<AIStyleControl>) ?? {}),
+      ...((sceneCfg.aiStyleControl as Partial<AIStyleControl>) ?? {}),
     },
     meshConfig: {
       ...DEFAULT_MESH_CONFIG,
-      ...(sceneCfg.meshConfig as Partial<MeshConfig> || {}),
+      ...((sceneCfg.meshConfig as Partial<MeshConfig>) ?? {}),
     },
   });
 
-  // Ensure default features exist if loading from older JSON without them
-  const initial: SceneConfig = {
-    ...initialConfig,
+  const baseConfig = initialConfig as unknown as Omit<
+    SceneConfig,
+    | "features"
+    | "lipSyncTuning"
+    | "emotionControl"
+    | "ocularTuning"
+    | "meshPostProcessing"
+    | "headDynamics"
+    | "anatomicalPostProcessing"
+    | "visemeOverrides"
+    | "aiStyleControl"
+    | "meshConfig"
+  >;
+
+  return {
+    ...baseConfig,
     features: {
       ...DEFAULT_FEATURES,
-      ...((initialConfig as Record<string, unknown>).features as Partial<FeatureToggles> || {}),
+      ...((sceneCfg.features as Partial<FeatureToggles>) ?? {}),
     },
     lipSyncTuning: {
       ...DEFAULT_LIPSYNC_TUNING,
-      ...((initialConfig as Record<string, unknown>).lipSyncTuning as Partial<LipSyncTuning> || {}),
+      ...((sceneCfg.lipSyncTuning as Partial<LipSyncTuning>) ?? {}),
     },
-    emotionControl: sanitizedInitialControls.emotionControl,
-    ocularTuning: sanitizedInitialControls.ocularTuning,
-    meshPostProcessing: sanitizedInitialControls.meshPostProcessing,
-    headDynamics: sanitizedInitialControls.headDynamics,
-    anatomicalPostProcessing: sanitizedInitialControls.anatomicalPostProcessing,
-    visemeOverrides: sanitizedInitialControls.visemeOverrides,
-    aiStyleControl: sanitizedInitialControls.aiStyleControl,
-    meshConfig: sanitizedInitialControls.meshConfig,
+    ...sanitized,
   } as SceneConfig;
+}
 
-  const [config, _setConfig] = useState<SceneConfig>(initial);
+// Fix SC4: load client avatars with try/catch for Safari private mode
+function safeLoadClientAvatars(): AvatarEntry[] {
+  try {
+    return loadClientAvatars();
+  } catch (err) {
+    // localStorage unavailable (Safari private, quota exceeded, etc.)
+    console.warn("[SceneConfig] Could not load client avatars:", err);
+    return [];
+  }
+}
+
+const INITIAL_CONFIG = buildInitialConfig();
+
+const SceneConfigCtx = createContext<SceneConfigContextValue | null>(null);
+
+// ─── Provider ──────────────────────────────────────────────────────────────────
+
+export function SceneConfigProvider({ children }: { children: ReactNode }) {
+  const setLipSyncTuning = useLipSyncStore((s) => s.updateTuning);
+
+  // Fix SC1: use the module-level constant as initial state
+  const [config, _setConfig] = useState<SceneConfig>(INITIAL_CONFIG);
+
+  // ── Config actions ──────────────────────────────────────────────────────────
 
   const updateConfig = useCallback((patch: Partial<SceneConfig>) => {
     const sanitizedControlPatch = sanitizeControlPatch({
@@ -202,13 +241,19 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
     _setConfig((prev) => ({
       ...prev,
       ...patch,
+      // Deep-merge structural fields so partial patches don't wipe siblings
       camera: patch.camera ? { ...prev.camera, ...patch.camera } : prev.camera,
       avatar: patch.avatar ? { ...prev.avatar, ...patch.avatar } : prev.avatar,
-      lighting: patch.lighting ? { ...prev.lighting, ...patch.lighting } : prev.lighting,
-      features: patch.features ? { ...prev.features, ...patch.features } : prev.features,
+      lighting: patch.lighting
+        ? { ...prev.lighting, ...patch.lighting }
+        : prev.lighting,
+      features: patch.features
+        ? { ...prev.features, ...patch.features }
+        : prev.features,
       lipSyncTuning: patch.lipSyncTuning
         ? { ...prev.lipSyncTuning, ...patch.lipSyncTuning }
         : prev.lipSyncTuning,
+      // Sanitized control fields
       emotionControl: sanitizedControlPatch.emotionControl
         ? { ...prev.emotionControl, ...sanitizedControlPatch.emotionControl }
         : prev.emotionControl,
@@ -216,16 +261,25 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
         ? { ...prev.ocularTuning, ...sanitizedControlPatch.ocularTuning }
         : prev.ocularTuning,
       meshPostProcessing: sanitizedControlPatch.meshPostProcessing
-        ? { ...prev.meshPostProcessing, ...sanitizedControlPatch.meshPostProcessing }
+        ? {
+            ...prev.meshPostProcessing,
+            ...sanitizedControlPatch.meshPostProcessing,
+          }
         : prev.meshPostProcessing,
       headDynamics: sanitizedControlPatch.headDynamics
         ? { ...prev.headDynamics, ...sanitizedControlPatch.headDynamics }
         : prev.headDynamics,
       anatomicalPostProcessing: sanitizedControlPatch.anatomicalPostProcessing
-        ? { ...prev.anatomicalPostProcessing, ...sanitizedControlPatch.anatomicalPostProcessing }
+        ? {
+            ...prev.anatomicalPostProcessing,
+            ...sanitizedControlPatch.anatomicalPostProcessing,
+          }
         : prev.anatomicalPostProcessing,
       visemeOverrides: sanitizedControlPatch.visemeOverrides
-        ? { ...prev.visemeOverrides, ...sanitizedControlPatch.visemeOverrides }
+        ? {
+            ...prev.visemeOverrides,
+            ...sanitizedControlPatch.visemeOverrides,
+          }
         : prev.visemeOverrides,
       aiStyleControl: sanitizedControlPatch.aiStyleControl
         ? { ...prev.aiStyleControl, ...sanitizedControlPatch.aiStyleControl }
@@ -247,63 +301,105 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  // Load base avatar registry from public/avatars/index.json
-  const [baseAvatarRegistry, setBaseAvatarRegistry] = useState<AvatarEntry[]>(DEFAULT_AVATARS);
+  // ── Avatar registry ─────────────────────────────────────────────────────────
+
+  const [baseAvatarRegistry, setBaseAvatarRegistry] =
+    useState<AvatarEntry[]>(DEFAULT_AVATARS);
+
+  // Fix SC3: error handling for avatar registry fetch
   useEffect(() => {
-    fetchAvatarRegistry().then(setBaseAvatarRegistry);
+    fetchAvatarRegistry()
+      .then(setBaseAvatarRegistry)
+      .catch((err) => {
+        console.warn(
+          "[SceneConfig] Failed to fetch avatar registry; using defaults.",
+          err
+        );
+        // Keep DEFAULT_AVATARS — already set as initial state
+      });
   }, []);
 
-  // Load client-imported avatars from localStorage
-  const [clientAvatarRegistry, setClientAvatarRegistry] = useState<AvatarEntry[]>(
-    () => loadClientAvatars(),
-  );
+  // Fix SC4: safe localStorage read
+  const [clientAvatarRegistry, setClientAvatarRegistry] = useState<
+    AvatarEntry[]
+  >(() => safeLoadClientAvatars());
 
   const avatarRegistry = useMemo(() => {
     const byId = new Map<string, AvatarEntry>();
-    for (const avatar of baseAvatarRegistry) {
-      byId.set(avatar.id, avatar);
-    }
-    for (const avatar of clientAvatarRegistry) {
+    for (const avatar of baseAvatarRegistry) byId.set(avatar.id, avatar);
+    for (const avatar of clientAvatarRegistry)
       byId.set(avatar.id, { ...avatar, isCustom: true });
-    }
     return Array.from(byId.values());
   }, [baseAvatarRegistry, clientAvatarRegistry]);
 
   const addClientAvatar = useCallback((entry: AvatarEntry) => {
-    const saved = upsertClientAvatar({ ...entry, isCustom: true });
-    setClientAvatarRegistry(saved);
+    try {
+      const saved = upsertClientAvatar({ ...entry, isCustom: true });
+      setClientAvatarRegistry(saved);
+    } catch (err) {
+      console.warn("[SceneConfig] Failed to persist client avatar:", err);
+    }
   }, []);
 
   const removeClientAvatar = useCallback((id: string) => {
-    const saved = removeClientAvatarFromStorage(id);
-    setClientAvatarRegistry(saved);
+    try {
+      const saved = removeClientAvatarFromStorage(id);
+      setClientAvatarRegistry(saved);
+    } catch (err) {
+      console.warn("[SceneConfig] Failed to remove client avatar:", err);
+    }
   }, []);
 
+  // ── LipSync tuning sync (Fix SC5) ───────────────────────────────────────────
+  // Use a ref to track the last synced value so we only call setLipSyncTuning
+  // when lipSyncTuning actually changes identity, not on every config render.
+  const lastLipSyncTuningRef = useRef(config.lipSyncTuning);
   useEffect(() => {
-    setLipSyncTuning(config.lipSyncTuning);
+    if (config.lipSyncTuning !== lastLipSyncTuningRef.current) {
+      lastLipSyncTuningRef.current = config.lipSyncTuning;
+      setLipSyncTuning(config.lipSyncTuning);
+    }
   }, [config.lipSyncTuning, setLipSyncTuning]);
 
+  // ── Fix SC2: memoize context value so consumers don't re-render on every
+  // unrelated state change (e.g. avatarRegistry loading).
+  // This is the root fix for `connect` recreating on every render.
+  const contextValue = useMemo<SceneConfigContextValue>(
+    () => ({
+      config,
+      updateConfig,
+      setConfig,
+      toggleFeature,
+      avatarRegistry,
+      addClientAvatar,
+      removeClientAvatar,
+    }),
+    [
+      config,
+      updateConfig,
+      setConfig,
+      toggleFeature,
+      avatarRegistry,
+      addClientAvatar,
+      removeClientAvatar,
+    ]
+  );
+
   return (
-    <SceneConfigCtx.Provider
-      value={{
-        config,
-        updateConfig,
-        setConfig,
-        toggleFeature,
-        avatarRegistry,
-        addClientAvatar,
-        removeClientAvatar,
-      }}
-    >
+    <SceneConfigCtx.Provider value={contextValue}>
       {children}
     </SceneConfigCtx.Provider>
   );
 }
 
-/* ─── Hook ─────────────────────────────────────────────────────────────────── */
+// ─── Hook ──────────────────────────────────────────────────────────────────────
 
 export function useSceneConfig() {
   const ctx = useContext(SceneConfigCtx);
-  if (!ctx) throw new Error("useSceneConfig must be used within <SceneConfigProvider>");
+  if (!ctx) {
+    throw new Error(
+      "useSceneConfig must be used within <SceneConfigProvider>"
+    );
+  }
   return ctx;
 }

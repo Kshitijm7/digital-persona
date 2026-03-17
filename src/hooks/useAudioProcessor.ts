@@ -8,309 +8,391 @@ import { DEFAULT_LIPSYNC_TUNING, useLipSyncStore } from "@/store/useLipSyncStore
 import { createLogger } from "@/lib/logging/logger";
 
 const log = createLogger("useAudioProcessor");
+const BASE64_CHUNK_SIZE = 0x8000;
 
-/**
- * Manages microphone audio capture, Gemini audio playback, and real-time audio levels.
- *
- * @remarks
- * - Capture: Records at 16kHz 16-bit PCM mono, outputs base64 chunks.
- * - Playback: Uses `AudioStreamer` for time-scheduled, gapless 24kHz PCM playback.
- * - Stop: `stopPlayback()` immediately halts output and clears the queue
- *   (called on Gemini `interrupted` signal).
- * - Audio Level: Exposed as a `useRef` to avoid 60fps re-renders.
- *   Components that need it (e.g. Avatar, AudioWaveform) should read
- *   `audioLevelRef.current` inside their own animation loops (useFrame / rAF).
- */
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += BASE64_CHUNK_SIZE) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + BASE64_CHUNK_SIZE));
+  }
+  return btoa(binary);
+}
+
+// ─── Hook ──────────────────────────────────────────────────────────────────────
+
 export function useAudioProcessor() {
   const [isMicActive, setIsMicActive] = useState(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
 
-  /**
-   * Audio level as a ref — NOT state — to prevent 60fps re-renders.
-   * Read this inside `useFrame` / `requestAnimationFrame`.
-   */
+  // ── Level refs ──────────────────────────────────────────────────────────────
   const audioLevelRef = useRef(0);
   const inputAudioLevelRef = useRef(0);
   const outputAudioLevelRef = useRef(0);
   const isAssistantSpeakingRef = useRef(false);
   const lastOutputSignalAtRef = useRef(0);
-  const recentChunkSignaturesRef = useRef<Map<string, number>>(new Map());
-  const micChunkCountRef = useRef(0);
-  const queuedPlaybackChunkCountRef = useRef(0);
-  const droppedPlaybackChunkCountRef = useRef(0);
 
-  // Mic capture refs
+  // ── Mic pipeline refs ───────────────────────────────────────────────────────
   const streamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number>(0);
+  const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const processorSilentGainRef = useRef<GainNode | null>(null);
-  const workletNodeRef = useRef<AudioWorkletNode | null>(null);
+  const micChunkCountRef = useRef(0);
 
-  // Playback via AudioStreamer
+  // Fix A2: track whether startMic is in progress to prevent double-starts
+  const micStartingRef = useRef(false);
+
+  // ── Playback pipeline refs ──────────────────────────────────────────────────
   const playbackCtxRef = useRef<AudioContext | null>(null);
   const audioStreamerRef = useRef<AudioStreamer | null>(null);
   const wawaRef = useRef<Lipsync | null>(null);
-  // rAF handle for playback-level animation loop
   const playbackAnimFrameRef = useRef<number>(0);
-  const onAudioScheduledRef = useRef<((startMs: number, durationMs: number) => void) | null>(null);
+  // Fix A6: single rAF chain guard
+  const playbackLoopActiveRef = useRef(false);
+
+  const queuedPlaybackChunkCountRef = useRef(0);
+  const droppedPlaybackChunkCountRef = useRef(0);
+
+  // Fix A8: signature sweep handled off-hot-path
+  const recentChunkSignaturesRef = useRef<Map<string, number>>(new Map());
+  const signatureSweepTimerRef = useRef<ReturnType<typeof setInterval> | null>(
+    null
+  );
+
+  const onAudioScheduledRef = useRef<
+    ((startMs: number, durationMs: number) => void) | null
+  >(null);
   const onPlaybackCompleteRef = useRef<(() => void) | null>(null);
 
+  // ── Level sync ──────────────────────────────────────────────────────────────
   const syncCombinedLevel = useCallback(() => {
     audioLevelRef.current = Math.max(
       inputAudioLevelRef.current,
-      outputAudioLevelRef.current,
+      outputAudioLevelRef.current
     );
   }, []);
 
-  // ── Mic capture ──────────────────────────────────────────────────────────
+  // ── Signature sweep (Fix A8) ────────────────────────────────────────────────
+  const startSignatureSweep = useCallback(() => {
+    if (signatureSweepTimerRef.current) return;
+    signatureSweepTimerRef.current = setInterval(() => {
+      const now = performance.now();
+      for (const [sig, ts] of recentChunkSignaturesRef.current) {
+        if (now - ts > 10_000) recentChunkSignaturesRef.current.delete(sig);
+      }
+    }, 2_000);
+  }, []);
+
+  const stopSignatureSweep = useCallback(() => {
+    if (signatureSweepTimerRef.current) {
+      clearInterval(signatureSweepTimerRef.current);
+      signatureSweepTimerRef.current = null;
+    }
+  }, []);
+
+  // ── startMic (Fix A1, A2, A3, A9, A10) ─────────────────────────────────────
+  // Returns a Promise<boolean> so callers can await and detect failure.
   const startMic = useCallback(
-    (onChunk: (base64: string) => void) => {
-      (async () => {
-        setPermissionError(null);
-        try {
-          // Explicitly check permissions on browsers that support it
-          if (navigator.permissions && navigator.permissions.query) {
-            try {
-              const perm = await navigator.permissions.query({ name: "microphone" as PermissionName });
-              if (perm.state === "denied") {
-                throw new Error("Microphone access is explicitly denied in browser settings.");
-              }
-            } catch (e) {
-              // Ignore if browser doesn't support 'microphone' permission query (e.g. Firefox)
-              log.debug({ err: e }, "Microphone permission query unsupported; continuing.");
+    async (onChunk: (base64: string) => void): Promise<boolean> => {
+      // Fix A2: prevent concurrent startMic calls
+      if (isMicActive || micStartingRef.current) {
+        log.warn("startMic called while already active or starting; ignoring.");
+        return false;
+      }
+      micStartingRef.current = true;
+      setPermissionError(null);
+
+      try {
+        // Pre-flight permission check where supported
+        if (navigator.permissions?.query) {
+          try {
+            const perm = await navigator.permissions.query({
+              name: "microphone" as PermissionName,
+            });
+            if (perm.state === "denied") {
+              throw new Error(
+                "Microphone access is explicitly denied in browser settings."
+              );
             }
+          } catch (e) {
+            log.debug(
+              { err: e },
+              "Microphone permission query unsupported; continuing."
+            );
           }
+        }
 
-          const stream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              sampleRate: AUDIO_CONFIG.input_hz,
-              channelCount: 1,
-              // Enable browser-side AGC and noise processing.
-              // This is CRITICAL for speakerphone setups to prevent the speakers
-              // from feeding back into the microphone and causing Gemini to interrupt itself.
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true,
-            },
-          });
-          streamRef.current = stream;
+        const mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            sampleRate: AUDIO_CONFIG.input_hz,
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+        streamRef.current = mediaStream;
 
-          const ctx = new AudioContext({ sampleRate: AUDIO_CONFIG.input_hz });
-          audioCtxRef.current = ctx;
-          
-          if (ctx.state === "suspended") {
-            await ctx.resume();
-            log.info("[AudioProcessor] Input AudioContext resumed.");
-          }
+        const ctx = new AudioContext({ sampleRate: AUDIO_CONFIG.input_hz });
+        audioCtxRef.current = ctx;
+        if (ctx.state === "suspended") {
+          await ctx.resume();
+          log.info("[AudioProcessor] Input AudioContext resumed.");
+        }
 
-          const source = ctx.createMediaStreamSource(stream);
+        const source = ctx.createMediaStreamSource(mediaStream);
 
-          // Analyser for audio level (used for lip-sync during mic input)
-          const analyser = ctx.createAnalyser();
-          analyser.fftSize = 256;
-          source.connect(analyser);
-          analyserRef.current = analyser;
+        // Analyser for input level
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        analyserRef.current = analyser;
 
-          // ── Prefer AudioWorklet, fallback to ScriptProcessorNode ──────
-          let workletLoaded = false;
-          if (typeof AudioWorkletNode !== "undefined") {
-            try {
-              await ctx.audioWorklet.addModule("/pcm-capture-worklet.js");
-              const workletNode = new AudioWorkletNode(ctx, "pcm-capture-processor");
-              source.connect(workletNode);
-              // ✅ Fix: Do NOT connect workletNode to ctx.destination.
-              // Routing mic → destination would play the raw mic audio back
-              // through the speakers, creating a feedback/echo loop.
-              workletNode.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
-                // e.data is an ArrayBuffer of Int16 PCM data
-                const bytes = new Uint8Array(e.data);
-                let binary = "";
-                for (let i = 0; i < bytes.length; i++) {
-                  binary += String.fromCharCode(bytes[i]);
-                }
-                micChunkCountRef.current += 1;
-                if (micChunkCountRef.current % 120 === 0) {
-                  log.debug(
-                    { chunksCaptured: micChunkCountRef.current, capturePath: "AudioWorklet" },
-                    "Captured microphone chunks.",
-                  );
-                }
-                onChunk(btoa(binary));
-              };
-              workletNodeRef.current = workletNode;
-              workletLoaded = true;
-              log.info("[AudioProcessor] Using AudioWorklet for PCM capture.");
-            } catch (workletErr) {
-              log.warn({ err: workletErr }, "AudioWorklet failed, falling back to ScriptProcessor");
-            }
-          }
+        // Capture path: AudioWorklet preferred, ScriptProcessor fallback
+        let workletLoaded = false;
+        if (typeof AudioWorkletNode !== "undefined") {
+          try {
+            await ctx.audioWorklet.addModule("/pcm-capture-worklet.js");
+            const workletNode = new AudioWorkletNode(
+              ctx,
+              "pcm-capture-processor"
+            );
+            source.connect(workletNode);
 
-          if (!workletLoaded) {
-            // Fallback: deprecated ScriptProcessorNode (still widely supported)
-            const processor = ctx.createScriptProcessor(4096, 1, 1);
-            source.connect(processor);
-            // Keep ScriptProcessor active without audible loopback.
-            // Direct processor -> destination causes users to hear their own mic.
-            const silentGain = ctx.createGain();
-            silentGain.gain.value = 0;
-            processor.connect(silentGain);
-            silentGain.connect(ctx.destination);
-            processorRef.current = processor;
-            processorSilentGainRef.current = silentGain;
-
-            processor.onaudioprocess = (e) => {
-              const float32 = e.inputBuffer.getChannelData(0);
-              // Float32 → Int16
-              const int16 = new Int16Array(float32.length);
-              for (let i = 0; i < float32.length; i++) {
-                const s = Math.max(-1, Math.min(1, float32[i]));
-                int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-              }
-              // Int16 → base64
-              const bytes = new Uint8Array(int16.buffer);
-              let binary = "";
-              for (let i = 0; i < bytes.length; i++) {
-                binary += String.fromCharCode(bytes[i]);
-              }
+            workletNode.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
+              const bytes = new Uint8Array(e.data);
               micChunkCountRef.current += 1;
               if (micChunkCountRef.current % 120 === 0) {
                 log.debug(
-                  { chunksCaptured: micChunkCountRef.current, capturePath: "ScriptProcessorNode" },
-                  "Captured microphone chunks.",
+                  {
+                    chunksCaptured: micChunkCountRef.current,
+                    capturePath: "AudioWorklet",
+                  },
+                  "Captured microphone chunks."
                 );
               }
-              onChunk(btoa(binary));
+              onChunk(bytesToBase64(bytes));
             };
+
+            workletNodeRef.current = workletNode;
+            workletLoaded = true;
+            log.info("[AudioProcessor] Using AudioWorklet for PCM capture.");
+          } catch (workletErr) {
             log.warn(
-              "[AudioProcessor] Using ScriptProcessorNode fallback for PCM capture with muted monitor path.",
+              { err: workletErr },
+              "AudioWorklet failed; falling back to ScriptProcessorNode."
             );
           }
-
-          // rAF loop for audio level → ref (not state)
-          const updateLevel = () => {
-            if (!analyserRef.current) return;
-            const data = new Uint8Array(analyserRef.current.frequencyBinCount);
-            analyserRef.current.getByteFrequencyData(data);
-            const avg = data.reduce((sum, v) => sum + v, 0) / data.length;
-            inputAudioLevelRef.current = avg / 255;
-            syncCombinedLevel();
-            animFrameRef.current = requestAnimationFrame(updateLevel);
-          };
-          updateLevel();
-
-          setIsMicActive(true);
-        } catch (err) {
-          log.error({ err }, "Failed to acquire user media or start AudioContext");
-          let errorMsg = "Could not access microphone.";
-          if (err instanceof DOMException) {
-            if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
-              errorMsg = "No microphone found. Please plug one in.";
-            } else if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-              errorMsg = "Microphone access was denied. Please allow it in settings.";
-            } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
-              errorMsg = "Microphone is already in use by another application.";
-            }
-          } else if (err instanceof Error) {
-            errorMsg = err.message;
-          }
-          setPermissionError(errorMsg);
         }
-      })();
+
+        if (!workletLoaded) {
+          const processor = ctx.createScriptProcessor(4096, 1, 1);
+          source.connect(processor);
+          const silentGain = ctx.createGain();
+          silentGain.gain.value = 0;
+          processor.connect(silentGain);
+          silentGain.connect(ctx.destination);
+          processorRef.current = processor;
+          processorSilentGainRef.current = silentGain;
+
+          processor.onaudioprocess = (e) => {
+            const float32 = e.inputBuffer.getChannelData(0);
+            const int16 = new Int16Array(float32.length);
+            for (let i = 0; i < float32.length; i++) {
+              const s = Math.max(-1, Math.min(1, float32[i]));
+              int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+            }
+            const bytes = new Uint8Array(int16.buffer);
+            micChunkCountRef.current += 1;
+            if (micChunkCountRef.current % 120 === 0) {
+              log.debug(
+                {
+                  chunksCaptured: micChunkCountRef.current,
+                  capturePath: "ScriptProcessorNode",
+                },
+                "Captured microphone chunks."
+              );
+            }
+            onChunk(bytesToBase64(bytes));
+          };
+          log.warn(
+            "[AudioProcessor] Using ScriptProcessorNode fallback for PCM capture."
+          );
+        }
+
+        // Input level rAF loop — Fix A9: start AFTER ctx is confirmed live
+        const updateLevel = () => {
+          // Guard: stop updating if context was closed
+          if (!analyserRef.current || !audioCtxRef.current) return;
+          const data = new Uint8Array(analyserRef.current.frequencyBinCount);
+          analyserRef.current.getByteFrequencyData(data);
+          const avg = data.reduce((s, v) => s + v, 0) / data.length;
+          inputAudioLevelRef.current = avg / 255;
+          syncCombinedLevel();
+          animFrameRef.current = requestAnimationFrame(updateLevel);
+        };
+        animFrameRef.current = requestAnimationFrame(updateLevel);
+
+        setIsMicActive(true);
+        micStartingRef.current = false;
+        return true;
+      } catch (err) {
+        micStartingRef.current = false;
+        log.error(
+          { err },
+          "Failed to acquire user media or start AudioContext."
+        );
+        let errorMsg = "Could not access microphone.";
+        if (err instanceof DOMException) {
+          if (
+            err.name === "NotFoundError" ||
+            err.name === "DevicesNotFoundError"
+          ) {
+            errorMsg = "No microphone found. Please plug one in.";
+          } else if (
+            err.name === "NotAllowedError" ||
+            err.name === "PermissionDeniedError"
+          ) {
+            errorMsg =
+              "Microphone access was denied. Please allow it in settings.";
+          } else if (
+            err.name === "NotReadableError" ||
+            err.name === "TrackStartError"
+          ) {
+            errorMsg =
+              "Microphone is already in use by another application.";
+          }
+        } else if (err instanceof Error) {
+          errorMsg = err.message;
+        }
+        setPermissionError(errorMsg);
+        return false;
+      }
     },
-    [syncCombinedLevel],
+    // Fix A2: isMicActive in deps so the guard is always current
+    [isMicActive, syncCombinedLevel]
   );
 
+  // ── stopMic (Fix A3, A9, A10) ───────────────────────────────────────────────
   const stopMic = useCallback(() => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    audioCtxRef.current?.close();
+    // Fix A9: cancel rAF BEFORE zeroing refs so the loop can't write after stop
     cancelAnimationFrame(animFrameRef.current);
-    // Clean up AudioWorklet node if it was used
+    animFrameRef.current = 0;
+
+    // Fix A10: null the worklet message handler before disconnecting
     if (workletNodeRef.current) {
+      workletNodeRef.current.port.onmessage = null;
       workletNodeRef.current.disconnect();
       workletNodeRef.current = null;
+    }
+    if (processorRef.current) {
+      processorRef.current.onaudioprocess = null;
+      processorRef.current.disconnect();
+      processorRef.current = null;
     }
     if (processorSilentGainRef.current) {
       processorSilentGainRef.current.disconnect();
       processorSilentGainRef.current = null;
     }
+
+    // Stop media tracks
+    streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
-    audioCtxRef.current = null;
+
+    // Fix A3: close() is async — we void it but null the ref immediately so
+    // no further operations can target the closing context
+    if (audioCtxRef.current) {
+      void audioCtxRef.current.close().catch(() => {});
+      audioCtxRef.current = null;
+    }
     analyserRef.current = null;
-    processorRef.current = null;
-    setIsMicActive(false);
+
+    // Zero levels after rAF is cancelled
     inputAudioLevelRef.current = 0;
     syncCombinedLevel();
-    log.info({ totalMicChunksCaptured: micChunkCountRef.current }, "Stopped audio processor and released microphone");
+
+    const total = micChunkCountRef.current;
     micChunkCountRef.current = 0;
+    micStartingRef.current = false;
+
+    setIsMicActive(false);
+    log.info(
+      { totalMicChunksCaptured: total },
+      "Stopped audio processor and released microphone."
+    );
   }, [syncCombinedLevel]);
 
-  // ── Playback via AudioStreamer ────────────────────────────────────────────
-
-  /**
-   * Get or create the AudioStreamer instance (single shared AudioContext).
-   */
+  // ── getStreamer / ensureStreamer (Fix A4, A7) ────────────────────────────────
   const getStreamer = useCallback((): AudioStreamer => {
-    const tuning = useLipSyncStore.getState().tuning ?? DEFAULT_LIPSYNC_TUNING;
+    const tuning =
+      useLipSyncStore.getState().tuning ?? DEFAULT_LIPSYNC_TUNING;
+
+    if (!playbackCtxRef.current) {
+      playbackCtxRef.current = new AudioContext({
+        sampleRate: AUDIO_CONFIG.output_hz,
+      });
+      log.info("Initialized AudioContext (Playback)");
+    }
+
     if (!audioStreamerRef.current) {
-      if (!playbackCtxRef.current) {
-        playbackCtxRef.current = new AudioContext({
-          sampleRate: AUDIO_CONFIG.output_hz,
-        });
-        log.info("Initialized AudioContext (Playback)");
-      }
       const streamer = new AudioStreamer(
         playbackCtxRef.current,
-        AUDIO_CONFIG.output_hz,
+        AUDIO_CONFIG.output_hz
       );
       streamer.analyserNode.smoothingTimeConstant = tuning.analyserSmoothing;
       streamer.analyserNode.minDecibels = -100;
       streamer.analyserNode.maxDecibels = -30;
       audioStreamerRef.current = streamer;
+
+      // Fix A7: onComplete reads onPlaybackCompleteRef.current at CALL TIME
+      // not at streamer creation time — the ref is always current
       streamer.onComplete = () => {
         cancelAnimationFrame(playbackAnimFrameRef.current);
+        playbackAnimFrameRef.current = 0;
+        playbackLoopActiveRef.current = false;
         outputAudioLevelRef.current = 0;
         isAssistantSpeakingRef.current = false;
         lastOutputSignalAtRef.current = 0;
         syncCombinedLevel();
         log.debug("Assistant playback turn completed.");
+        // Read the ref at call time — always gets the latest handler
         onPlaybackCompleteRef.current?.();
       };
 
-      // Ensure Lipsync is correctly instantiated and mapped to AudioStreamer
+      // Wawa lipsync setup
       const wawa = new Lipsync({
         fftSize: streamer.analyserNode.fftSize,
-        historySize: 2, // Reduced from 6 to minimize latency (2*10ms = 20ms lag)
+        historySize: 2,
       });
-      
-      // Patch private properties to safely integrate without relying on HTMLAudioElement
-      // @ts-expect-error - patching private context to match AudioStreamer
-      wawa.audioContext = streamer.context;
-      // @ts-expect-error - use the streamer's own analyser that's already in the audio chain
-      wawa.analyser = streamer.analyserNode;
-      // @ts-expect-error - update the dataArray to identically match the analyser
-      wawa.dataArray = new Uint8Array(streamer.analyserNode.frequencyBinCount);
-      // @ts-expect-error - override sampleRate for wawa
-      wawa.sampleRate = streamer.context.sampleRate;
-      // @ts-expect-error - recompute binWidth
-      wawa.binWidth = wawa.sampleRate / streamer.analyserNode.fftSize;
-      // @ts-expect-error - configurable persistence to reduce viseme lag on rapid speech transitions
-      wawa.maxVisemeDuration = tuning.visemePersistenceMs;
-      // @ts-expect-error - expose streamer for mode detection
-      wawa.audioStreamerRef = audioStreamerRef;
-
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const wawaConfig = wawa as any;
+      wawaConfig.audioContext = streamer.context;
+      wawaConfig.analyser = streamer.analyserNode;
+      wawaConfig.dataArray = new Uint8Array(
+        streamer.analyserNode.frequencyBinCount
+      );
+      wawaConfig.sampleRate = streamer.context.sampleRate;
+      wawaConfig.binWidth =
+        streamer.context.sampleRate / streamer.analyserNode.fftSize;
+      wawaConfig.maxVisemeDuration = tuning.visemePersistenceMs;
+      if ("audioStreamerRef" in wawaConfig) {
+        wawaConfig.audioStreamerRef = audioStreamerRef;
+      }
       wawaRef.current = wawa;
       useLipSyncStore.getState().setWawaLipsync(wawa);
-
-      // Reset internal gain to prevent stale levels
-      outputAudioLevelRef.current = 0;
     }
+
     const streamer = audioStreamerRef.current;
-    streamer.analyserNode.smoothingTimeConstant = tuning.analyserSmoothing;
+    const tuningNow =
+      useLipSyncStore.getState().tuning ?? DEFAULT_LIPSYNC_TUNING;
+    streamer.analyserNode.smoothingTimeConstant = tuningNow.analyserSmoothing;
     if (wawaRef.current) {
-      // @ts-expect-error - runtime tuning for persistence
-      wawaRef.current.maxVisemeDuration = tuning.visemePersistenceMs;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (wawaRef.current as any).maxVisemeDuration = tuningNow.visemePersistenceMs;
     }
     streamer.onAudioScheduled = (start: number, duration: number) => {
       onAudioScheduledRef.current?.(start, duration);
@@ -318,16 +400,16 @@ export function useAudioProcessor() {
     return streamer;
   }, [syncCombinedLevel]);
 
-  /**
-   * Continuous rAF loop that keeps audioLevelRef updated from the streamer
-   * during playback. Runs at 60fps so Avatar lip-sync is always smooth.
-   * Only active while playback is on-going; cancelled by stopPlayback().
-   */
+  // ── Playback level loop (Fix A6) ────────────────────────────────────────────
+  // Single-flight guard ensures only one rAF chain is ever active.
   const startPlaybackLevelLoop = useCallback(() => {
+    if (playbackLoopActiveRef.current) return;
+    playbackLoopActiveRef.current = true;
+
     const tick = () => {
+      if (!playbackLoopActiveRef.current) return;
       if (audioStreamerRef.current) {
         const vol = audioStreamerRef.current.getVolume();
-        // Map streamer RMS (0-1 float) → output level (0-1) with a boost.
         outputAudioLevelRef.current = Math.min(1, vol * 4);
         if (outputAudioLevelRef.current > 0.01) {
           lastOutputSignalAtRef.current = performance.now();
@@ -335,99 +417,107 @@ export function useAudioProcessor() {
         isAssistantSpeakingRef.current =
           performance.now() - lastOutputSignalAtRef.current < 180;
         syncCombinedLevel();
-        
-        // Output trace when the volume changes significantly, throttle with frame count
-        if (vol > 0.01 && Math.random() < 0.03) {
-           log.trace({ rms: vol }, "AudioStreamer volumetric output");
-        }
       }
       playbackAnimFrameRef.current = requestAnimationFrame(tick);
     };
-    cancelAnimationFrame(playbackAnimFrameRef.current);
     playbackAnimFrameRef.current = requestAnimationFrame(tick);
   }, [syncCombinedLevel]);
 
   const stopPlaybackLevelLoop = useCallback(() => {
+    playbackLoopActiveRef.current = false;
     cancelAnimationFrame(playbackAnimFrameRef.current);
+    playbackAnimFrameRef.current = 0;
     outputAudioLevelRef.current = 0;
     isAssistantSpeakingRef.current = false;
     lastOutputSignalAtRef.current = 0;
     syncCombinedLevel();
   }, [syncCombinedLevel]);
 
-  /**
-   * Queue a base64-encoded PCM16 audio chunk for time-scheduled playback.
-   * Converts base64 → Uint8Array → hands off to AudioStreamer.
-   *
-   * Best practice: resume the AudioContext before scheduling audio.
-   * Browsers (especially mobile) suspend the context until a user gesture;
-   * attempting to schedule without resuming causes silent playback.
-   */
-  const playAudioChunk = useCallback((base64: string) => {
-    (async () => {
-      try {
-        const now = performance.now();
-        const signature = `${base64.length}:${base64.slice(0, 48)}:${base64.slice(Math.max(0, Math.floor(base64.length / 2) - 24), Math.floor(base64.length / 2) + 24)}:${base64.slice(-48)}`;
-        const SIGNATURE_TTL_MS = 10000;
-
-        recentChunkSignaturesRef.current.set(signature, now);
-        for (const [seenSignature, seenTime] of recentChunkSignaturesRef.current) {
-          if (now - seenTime > SIGNATURE_TTL_MS) {
-            recentChunkSignaturesRef.current.delete(seenSignature);
+  // ── playAudioChunk (Fix A5, A8) ─────────────────────────────────────────────
+  const playAudioChunk = useCallback(
+    (base64: string) => {
+      // Fix A5: capture streamer reference synchronously before any await
+      // so stopPlayback can't replace it between the async boundary
+      const streamer = audioStreamerRef.current;
+      if (!streamer) {
+        // Streamer not yet initialised — get it now (synchronous path)
+        void (async () => {
+          try {
+            const s = getStreamer();
+            const ctx = playbackCtxRef.current!;
+            if (ctx.state === "suspended") await ctx.resume();
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++)
+              bytes[i] = binary.charCodeAt(i);
+            s.addPCM16(bytes);
+            queuedPlaybackChunkCountRef.current += 1;
+            isAssistantSpeakingRef.current = true;
+            lastOutputSignalAtRef.current = performance.now();
+            startSignatureSweep();
+            startPlaybackLevelLoop();
+          } catch (err) {
+            log.error({ err }, "Failed to queue assistant audio chunk.");
           }
-        }
-
-        const streamer = getStreamer();
-        const ctx = playbackCtxRef.current!;
-
-        // ✅ Fix: Resume suspended AudioContext (browser autoplay policy).
-        if (ctx.state === "suspended") {
-          await ctx.resume();
-          log.info("[AudioProcessor] AudioContext resumed from suspended state.");
-        }
-
-        // base64 → Uint8Array (PCM16 bytes)
-        const binary = atob(base64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-          bytes[i] = binary.charCodeAt(i);
-        }
-
-        // Feed to AudioStreamer for gapless scheduling.
-        streamer.addPCM16(bytes);
-        queuedPlaybackChunkCountRef.current += 1;
-        if (
-          queuedPlaybackChunkCountRef.current === 1 ||
-          queuedPlaybackChunkCountRef.current % 30 === 0
-        ) {
-          log.debug(
-            {
-              queuedChunks: queuedPlaybackChunkCountRef.current,
-              droppedDuplicates: droppedPlaybackChunkCountRef.current,
-              pcmBytes: bytes.length,
-            },
-            "Queued assistant audio chunk for playback.",
-          );
-        }
-        isAssistantSpeakingRef.current = true;
-        lastOutputSignalAtRef.current = performance.now();
-
-        // ✅ Fix: Instead of computing per-chunk bulk RMS (which freezes
-        // lip-sync between packets), start a continuous rAF loop that
-        // samples the streamer volume at 60fps.
-        startPlaybackLevelLoop();
-      } catch (error) {
-        log.error({ err: error }, "Failed to queue assistant audio chunk");
+        })();
+        return;
       }
-    })();
-  }, [getStreamer, startPlaybackLevelLoop]);
 
-  /**
-   * Immediately stop all audio playback and clear the queue.
-   * Called when the Gemini server sends an `interrupted` signal.
-   *
-   * @see Official docs: "stop and empty the current playback queue"
-   */
+      void (async () => {
+        try {
+          const ctx = playbackCtxRef.current;
+          if (!ctx) return;
+
+          if (ctx.state === "suspended") {
+            await ctx.resume();
+            log.info(
+              "[AudioProcessor] Playback AudioContext resumed from suspended."
+            );
+          }
+
+          // Fix A5: verify the streamer hasn't been replaced while we awaited
+          if (audioStreamerRef.current !== streamer) {
+            log.debug(
+              "Streamer replaced during async resume; dropping stale chunk."
+            );
+            return;
+          }
+
+          const binary = atob(base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++)
+            bytes[i] = binary.charCodeAt(i);
+
+          streamer.addPCM16(bytes);
+          queuedPlaybackChunkCountRef.current += 1;
+
+          if (
+            queuedPlaybackChunkCountRef.current === 1 ||
+            queuedPlaybackChunkCountRef.current % 30 === 0
+          ) {
+            log.debug(
+              {
+                queuedChunks: queuedPlaybackChunkCountRef.current,
+                droppedDuplicates: droppedPlaybackChunkCountRef.current,
+                pcmBytes: bytes.length,
+              },
+              "Queued assistant audio chunk for playback."
+            );
+          }
+
+          isAssistantSpeakingRef.current = true;
+          lastOutputSignalAtRef.current = performance.now();
+          startSignatureSweep();
+          startPlaybackLevelLoop();
+        } catch (err) {
+          log.error({ err }, "Failed to queue assistant audio chunk.");
+        }
+      })();
+    },
+    [getStreamer, startPlaybackLevelLoop, startSignatureSweep]
+  );
+
+  // ── stopPlayback ────────────────────────────────────────────────────────────
   const stopPlayback = useCallback(() => {
     if (audioStreamerRef.current) {
       audioStreamerRef.current.stop();
@@ -437,7 +527,7 @@ export function useAudioProcessor() {
         queuedChunks: queuedPlaybackChunkCountRef.current,
         droppedDuplicates: droppedPlaybackChunkCountRef.current,
       },
-      "Stopped assistant playback and cleared queue.",
+      "Stopped assistant playback and cleared queue."
     );
     queuedPlaybackChunkCountRef.current = 0;
     droppedPlaybackChunkCountRef.current = 0;
@@ -445,29 +535,39 @@ export function useAudioProcessor() {
     stopPlaybackLevelLoop();
   }, [stopPlaybackLevelLoop]);
 
-  /**
-   * Mark the current assistant turn as complete. This allows AudioStreamer
-   * to stop polling for additional chunks when the Live API emits turnComplete.
-   */
+  // ── markAssistantTurnComplete ───────────────────────────────────────────────
   const markAssistantTurnComplete = useCallback(() => {
-    if (!audioStreamerRef.current) return;
+    if (!audioStreamerRef.current) {
+      // No streamer means no audio was ever queued — fire complete immediately
+      log.debug(
+        "Marked assistant turn complete (no active streamer — firing immediately)."
+      );
+      onPlaybackCompleteRef.current?.();
+      return;
+    }
     audioStreamerRef.current.complete();
     log.debug("Marked assistant turn complete.");
   }, []);
 
+  // ── Unmount cleanup ─────────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       stopPlayback();
       stopMic();
+      stopSignatureSweep();
       cancelAnimationFrame(playbackAnimFrameRef.current);
+      playbackLoopActiveRef.current = false;
       if (playbackCtxRef.current) {
-        void playbackCtxRef.current.close();
+        void playbackCtxRef.current.close().catch(() => {});
         playbackCtxRef.current = null;
       }
       audioStreamerRef.current = null;
-      log.info("AudioProcessor unmounted and audio contexts were cleaned up.");
+      log.info("AudioProcessor unmounted; all audio contexts released.");
     };
-  }, [stopMic, stopPlayback]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Intentionally empty: we only want mount/unmount semantics.
+  // stopPlayback, stopMic, stopSignatureSweep are stable (no changing deps).
 
   return {
     isMicActive,

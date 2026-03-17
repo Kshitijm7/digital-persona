@@ -123,6 +123,8 @@ export function Avatar({
 
   const currentAnimationName = useAnimationStore((state) => state.currentAnimation);
   const activeQueueItems = useAnimationStore((state) => state.animationQueue);
+  const wawaLipsync = useLipSyncStore((state) => state.wawaLipsync);
+  const lipSyncTuning = useLipSyncStore((state) => state.tuning);
   const { activeClip } = useDynamicAnimations();
 
   const clone = React.useMemo(() => SkeletonUtils.clone(scene), [scene]);
@@ -208,13 +210,24 @@ export function Avatar({
   const gazeEngine = React.useMemo(() => new GazeEngine(), []);
   const lipsyncEngine = React.useMemo(() => new LipSyncEngine(), []);
   const emotionEngine = React.useMemo(() => new EmotionEngine(), []);
+  const coarticulationWindowMs = React.useMemo(() => {
+    const coarticulationFrames = Math.max(1, aiStyleControl.coarticulationWindowSize || 1);
+    return Math.max(8, Math.min(180, coarticulationFrames * (1000 / 60)));
+  }, [aiStyleControl.coarticulationWindowSize]);
+  const runtimeLipSyncTuning = React.useMemo(
+    () => ({
+      ...lipSyncTuning,
+      anticipationWindowMs: coarticulationWindowMs,
+    }),
+    [lipSyncTuning, coarticulationWindowMs],
+  );
   
   // Verify morph targets once
   const hasLoggedMorphs = useRef(false);
   useEffect(() => {
     const head = nodes.Wolf3D_Head as THREE.SkinnedMesh;
     if (head?.morphTargetDictionary && !hasLoggedMorphs.current) {
-      console.log("[Avatar] Mesh Morph Targets:", Object.keys(head.morphTargetDictionary));
+      log.debug({ morphTargets: Object.keys(head.morphTargetDictionary) }, "[Avatar] Mesh Morph Targets");
       hasLoggedMorphs.current = true;
     }
   }, [nodes.Wolf3D_Head]);
@@ -272,19 +285,12 @@ export function Avatar({
 
     // Drive jaw/mouth morph targets for lip-sync using LipSyncEngine
     if (featureToggles.lipSync) {
-      const { wawaLipsync, tuning } = useLipSyncStore.getState();
-      const coarticulationFrames = Math.max(1, aiStyleControl.coarticulationWindowSize || 1);
-      const coarticulationWindowMs = Math.max(8, Math.min(180, coarticulationFrames * (1000 / 60)));
-      const runtimeTuning = {
-        ...tuning,
-        anticipationWindowMs: coarticulationWindowMs,
-      };
       lipsyncEngine.updateFromAudioLevel(
         lipSyncLevel,
         delta,
         nodes,
         wawaLipsync,
-        runtimeTuning,
+        runtimeLipSyncTuning,
         {
           visemeOverrides,
           meshPostProcessing,

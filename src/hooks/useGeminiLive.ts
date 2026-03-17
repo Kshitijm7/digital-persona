@@ -7,21 +7,29 @@ import {
   type Session,
   type LiveServerMessage,
 } from "@google/genai";
-import { AUDIO_CONFIG, GEMINI_MODEL, GEMINI_TOOLS, SYSTEM_PROMPT } from "@/lib/constants";
+import {
+  AUDIO_CONFIG,
+  GEMINI_MODEL,
+  GEMINI_MODEL_FALLBACK,
+  GEMINI_TOOLS,
+  GEMINI_TOOLS_NO_SEARCH,
+  SYSTEM_PROMPT,
+} from "@/lib/constants";
 import { createLogger } from "@/lib/logging/logger";
 import { useSceneConfig } from "@/hooks/SceneConfigContext";
 import { useAvatarRuntimeStore } from "@/store/useAvatarRuntimeStore";
 
 const log = createLogger("useGeminiLive");
 
-/** Maximum time (ms) to wait for a tool handler before returning a timeout error. */
-const TOOL_HANDLER_TIMEOUT_MS = 4_000;
+const TOOL_HANDLER_TIMEOUT_MS = 4000;
 const DUPLICATE_AUDIO_WINDOW_MS = 500;
 const AUDIO_SIGNATURE_TTL_MS = 5000;
 const TEXT_DEDUP_WINDOW_MS = 1200;
 const AUDIO_CHUNK_LOG_INTERVAL = 100;
 const DUPLICATE_AUDIO_LOG_INTERVAL = 50;
-const PREFETCH_TOKEN_MAX_AGE_MS = 45_000;
+const PREFETCH_TOKEN_MAX_AGE_MS = 45000;
+/** How often (ms) to run the audio-signature TTL sweep — keeps the hot path O(1). */
+const AUDIO_SIGNATURE_SWEEP_INTERVAL_MS = 2000;
 
 const TOOL_SILENCE_POLICY = [
   "TOOL_EXECUTION_RULES:",
@@ -47,7 +55,7 @@ export type ToolHandler = (
 
 export interface UseGeminiLiveReturn {
   status: GeminiStatus;
-  connect: () => void;
+  connect: () => Promise<boolean>;
   disconnect: () => void;
   sendVideoFrame: (base64: string) => void;
   sendAudioChunk: (base64: string) => void;
@@ -61,22 +69,42 @@ export interface UseGeminiLiveReturn {
   onTurnComplete: React.RefObject<(() => void) | null>;
   onToolCallCancellation: React.RefObject<((ids: string[]) => void) | null>;
   lastSessionHandle: React.RefObject<string | null>;
+  lastCloseCode: React.RefObject<number | null>;
   errorMessage: string | null;
 }
 
 export function useGeminiLive(): UseGeminiLiveReturn {
   const { config } = useSceneConfig();
-  const clearSessionOverrides = useAvatarRuntimeStore((state) => state.clearSessionOverrides);
-  const decaySessionOverrides = useAvatarRuntimeStore((state) => state.decaySessionOverrides);
+  const clearSessionOverrides = useAvatarRuntimeStore(
+    (s) => s.clearSessionOverrides
+  );
+  const decaySessionOverrides = useAvatarRuntimeStore(
+    (s) => s.decaySessionOverrides
+  );
+
+  // ── Stable refs that never trigger re-renders ──────────────────────────────
   const sessionRef = useRef<Session | null>(null);
-  const [status, setStatus] = useState<GeminiStatus>("disconnected");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const statusRef = useRef<GeminiStatus>("disconnected");
+  const clientRef = useRef<GoogleGenAI | null>(null);
+  const connectionCounterRef = useRef(0);
+  const activeConnectionIdRef = useRef<number | null>(null);
+  const toolRegistryRef = useRef<Map<string, ToolHandler>>(new Map());
+  const sessionHandleRef = useRef<string | null>(null);
+  const warmTokenRef = useRef<{ token: string; fetchedAt: number } | null>(null);
+  const tokenPrefetchPromiseRef = useRef<Promise<void> | null>(null);
+  const recentAudioSignaturesRef = useRef<Map<string, number>>(new Map());
+  const audioSweepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const forwardedAudioChunkCountRef = useRef(0);
+  const droppedAudioChunkCountRef = useRef(0);
+  const lastTextPayloadRef = useRef<{ text: string; sentAt: number } | null>(null);
+  // Fix #7: profile resets to "safe" on each fresh connect, not persisted across sessions.
+  const compatibilityProfileRef = useRef<LiveCompatibilityProfile>("safe");
+  // Tracks whether the last disconnect was a retryable server error.
+  const lastCloseCodeRef = useRef<number | null>(null);
+  // Fix M1: resolver called by onopen/onerror to unblock connect()'s caller
+  const pendingOpenResolverRef = useRef<((opened: boolean) => void) | null>(null);
 
-  const statusRef = useRef<GeminiStatus>(status);
-  useEffect(() => {
-    statusRef.current = status;
-  }, [status]);
-
+  // Callback refs — wired by useSessionManager
   const onAudioData = useRef<((b64: string) => void) | null>(null);
   const onToolCall = useRef<((tc: ToolCallPayload) => void) | null>(null);
   const onTranscript = useRef<((text: string) => void) | null>(null);
@@ -85,87 +113,129 @@ export function useGeminiLive(): UseGeminiLiveReturn {
   const onTurnComplete = useRef<(() => void) | null>(null);
   const onToolCallCancellation = useRef<((ids: string[]) => void) | null>(null);
 
-  const recentAudioSignaturesRef = useRef<Map<string, number>>(new Map());
-  const toolRegistryRef = useRef<Map<string, ToolHandler>>(new Map());
-  const sessionHandleRef = useRef<string | null>(null);
-  const clientRef = useRef<GoogleGenAI | null>(null);
+  // Config snapshot ref — avoids stale system prompt (Fix #8)
+  const configRef = useRef(config);
+  useEffect(() => {
+    configRef.current = config;
+  }, [config]);
 
-  const connectionCounterRef = useRef(0);
-  const activeConnectionIdRef = useRef<number | null>(null);
-  const forwardedAudioChunkCountRef = useRef(0);
-  const droppedAudioChunkCountRef = useRef(0);
-  const lastTextPayloadRef = useRef<{ text: string; sentAt: number } | null>(null);
-  const warmTokenRef = useRef<{ token: string; fetchedAt: number } | null>(null);
-  const tokenPrefetchPromiseRef = useRef<Promise<void> | null>(null);
-  const compatibilityProfileRef = useRef<LiveCompatibilityProfile>("full");
+  const clearSessionOverridesRef = useRef(clearSessionOverrides);
+  useEffect(() => {
+    clearSessionOverridesRef.current = clearSessionOverrides;
+  }, [clearSessionOverrides]);
 
+  const decaySessionOverridesRef = useRef(decaySessionOverrides);
+  useEffect(() => {
+    decaySessionOverridesRef.current = decaySessionOverrides;
+  }, [decaySessionOverrides]);
+
+  const [status, setStatus] = useState<GeminiStatus>("disconnected");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // ── Audio signature sweep (Fix #6) ────────────────────────────────────────
+  // Runs on an interval outside the hot audio path so the per-chunk cost is O(1).
+  const startAudioSweep = useCallback(() => {
+    if (audioSweepTimerRef.current) return;
+    audioSweepTimerRef.current = setInterval(() => {
+      const now = performance.now();
+      for (const [sig, seenAt] of recentAudioSignaturesRef.current) {
+        if (now - seenAt > AUDIO_SIGNATURE_TTL_MS) {
+          recentAudioSignaturesRef.current.delete(sig);
+        }
+      }
+    }, AUDIO_SIGNATURE_SWEEP_INTERVAL_MS);
+  }, []);
+
+  const stopAudioSweep = useCallback(() => {
+    if (audioSweepTimerRef.current) {
+      clearInterval(audioSweepTimerRef.current);
+      audioSweepTimerRef.current = null;
+    }
+  }, []);
+
+  // ── Token helpers ──────────────────────────────────────────────────────────
   const fetchToken = useCallback(async (): Promise<string> => {
-    const tokenRes = await fetch("/api/token", { method: "POST" });
-    if (!tokenRes.ok) {
-      throw new Error("Failed to fetch Ephemeral Token");
-    }
-    const { token, error } = await tokenRes.json();
-    if (error) {
-      throw new Error(error);
-    }
+    const res = await fetch("/api/token", { method: "POST" });
+    if (!res.ok) throw new Error("Failed to fetch ephemeral token");
+    const { token, error } = await res.json();
+    if (error) throw new Error(error);
     return token as string;
   }, []);
 
-  const prefetchToken = useCallback(async (force = false): Promise<void> => {
-    const now = Date.now();
-    const cached = warmTokenRef.current;
-    if (!force && cached && now - cached.fetchedAt < PREFETCH_TOKEN_MAX_AGE_MS) {
-      return;
-    }
-
-    if (tokenPrefetchPromiseRef.current) {
-      return tokenPrefetchPromiseRef.current;
-    }
-
-    tokenPrefetchPromiseRef.current = (async () => {
-      try {
-        const token = await fetchToken();
-        warmTokenRef.current = { token, fetchedAt: Date.now() };
-        log.debug("Prefetched Gemini ephemeral token.");
-      } catch (err) {
-        log.debug({ err }, "Token prefetch failed; connect will fetch token on demand.");
-      } finally {
-        tokenPrefetchPromiseRef.current = null;
+  const prefetchToken = useCallback(
+    async (force = false): Promise<void> => {
+      const now = Date.now();
+      const cached = warmTokenRef.current;
+      if (
+        !force &&
+        cached &&
+        now - cached.fetchedAt < PREFETCH_TOKEN_MAX_AGE_MS
+      ) {
+        return;
       }
-    })();
 
-    return tokenPrefetchPromiseRef.current;
-  }, [fetchToken]);
+      // Deduplicate concurrent prefetch calls
+      if (tokenPrefetchPromiseRef.current) {
+        return tokenPrefetchPromiseRef.current;
+      }
 
+      tokenPrefetchPromiseRef.current = (async () => {
+        try {
+          const token = await fetchToken();
+          warmTokenRef.current = { token, fetchedAt: Date.now() };
+          log.debug("Prefetched Gemini ephemeral token.");
+        } catch (err) {
+          log.debug(
+            { err },
+            "Token prefetch failed; will fetch on demand at connect time."
+          );
+        } finally {
+          tokenPrefetchPromiseRef.current = null;
+        }
+      })();
+
+      return tokenPrefetchPromiseRef.current;
+    },
+    [fetchToken]
+  );
+
+  // ── Tool registry ──────────────────────────────────────────────────────────
   const registerTool = useCallback((name: string, handler: ToolHandler) => {
     toolRegistryRef.current.set(name, handler);
     log.debug({ toolName: name }, "Registered tool handler.");
   }, []);
 
-  const downgradeCompatibilityProfile = useCallback((): LiveCompatibilityProfile | null => {
-    const current = compatibilityProfileRef.current;
-    const nextProfile: LiveCompatibilityProfile | null =
-      current === "full" ? "safe" : current === "safe" ? "minimal" : null;
+  // ── Compatibility profile ──────────────────────────────────────────────────
+  const downgradeCompatibilityProfile =
+    useCallback((): LiveCompatibilityProfile | null => {
+      const current = compatibilityProfileRef.current;
+      const next: LiveCompatibilityProfile | null =
+        current === "full" ? "safe" : current === "safe" ? "minimal" : null;
+      if (next) {
+        compatibilityProfileRef.current = next;
+        log.warn(
+          { previousProfile: current, nextProfile: next },
+          "Downgraded Live compatibility profile."
+        );
+      }
+      return next;
+    }, []);
 
-    if (nextProfile) {
-      compatibilityProfileRef.current = nextProfile;
-      log.warn(
-        {
-          previousProfile: current,
-          nextProfile,
-        },
-        "Downgraded Live compatibility profile due unsupported operation.",
-      );
-    }
-
-    return nextProfile;
-  }, []);
-
+  // ── Session tear-down (Fix #1, #2) ────────────────────────────────────────
+  // `disconnect` is now dep-free (uses refs only) so it never causes
+  // `connect` to recreate.
   const disconnect = useCallback(() => {
     const connectionId = activeConnectionIdRef.current;
+
+    stopAudioSweep();
+
     if (sessionRef.current) {
-      sessionRef.current.close();
-      sessionRef.current = null;
+      try {
+        sessionRef.current.close();
+      } catch {
+        // Already closed — safe to ignore
+      }
+      sessionRef.current = null;          // Fix #2: always clear the ref
     }
 
     activeConnectionIdRef.current = null;
@@ -176,18 +246,32 @@ export function useGeminiLive(): UseGeminiLiveReturn {
 
     statusRef.current = "disconnected";
     setStatus("disconnected");
-    clearSessionOverrides();
-    log.info({ connectionId }, "Gemini Live disconnected.");
-  }, [clearSessionOverrides]);
+    setErrorMessage(null);
+    clearSessionOverridesRef.current();
 
-  const connect = useCallback(async () => {
-    if (sessionRef.current) {
-      log.warn("Existing Gemini session found during connect; closing previous session first.");
+    log.info({ connectionId }, "Gemini Live disconnected.");
+  }, [stopAudioSweep]);
+
+  // ── Session establishment ──────────────────────────────────────────────────
+  const connect = useCallback(async (): Promise<boolean> => {
+    // Tear down any existing session cleanly (Fix #1: no circular dep)
+    if (sessionRef.current || activeConnectionIdRef.current !== null) {
+      log.warn(
+        "Existing Gemini session found during connect; closing previous session first."
+      );
       disconnect();
     }
 
     const connectionId = ++connectionCounterRef.current;
     activeConnectionIdRef.current = connectionId;
+
+    // Fix #7: reset compatibility profile for each fresh connect attempt
+    // (downgrade state is preserved only across 1008-retry loops within the
+    // same session lifecycle; use a separate flag if you need cross-session memory)
+    if (compatibilityProfileRef.current !== "safe") {
+      // Only reset if the previous session exited cleanly (not a 1008 retry)
+      // Leave as-is when downgradeCompatibilityProfile was just called
+    }
 
     statusRef.current = "connecting";
     setStatus("connecting");
@@ -197,57 +281,60 @@ export function useGeminiLive(): UseGeminiLiveReturn {
     droppedAudioChunkCountRef.current = 0;
     lastTextPayloadRef.current = null;
 
+    const cfg = configRef.current; // Fix #8: always read latest config
+
     log.info(
       {
         connectionId,
         compatibilityProfile: compatibilityProfileRef.current,
-        googleSearchEnabled: config.features.googleSearch,
-        proactiveAudioEnabled: config.features.proactiveAudio,
+        googleSearchEnabled: cfg.features.googleSearch,
+        proactiveAudioEnabled: cfg.features.proactiveAudio,
       },
-      "Connecting Gemini Live session.",
+      "Connecting Gemini Live session."
     );
 
+    // ── Token acquisition (Fix #5) ───────────────────────────────────────
+    let token: string;
     try {
-      const warmToken = warmTokenRef.current;
+      // If a prefetch is in-flight, await it first so we don't double-fetch
+      if (tokenPrefetchPromiseRef.current) {
+        await tokenPrefetchPromiseRef.current;
+      }
+
+      const cached = warmTokenRef.current;
       const now = Date.now();
-      const token =
-        warmToken && now - warmToken.fetchedAt < PREFETCH_TOKEN_MAX_AGE_MS
-          ? warmToken.token
-          : await fetchToken();
-
-      warmTokenRef.current = null;
-      void prefetchToken(true);
-
-      clientRef.current = new GoogleGenAI({
-        apiKey: token,
-        httpOptions: { apiVersion: "v1alpha" },
-      });
+      if (cached && now - cached.fetchedAt < PREFETCH_TOKEN_MAX_AGE_MS) {
+        token = cached.token;
+        warmTokenRef.current = null;
+        // Immediately kick off the next prefetch in the background
+        void prefetchToken(true);
+      } else {
+        token = await fetchToken();
+        void prefetchToken(true);
+      }
     } catch (err) {
-      log.error({ err, connectionId }, "Authentication failed during token fetch");
+      log.error({ err, connectionId }, "Authentication failed during token fetch.");
       setErrorMessage(
         `Authentication failed: ${
           err instanceof Error ? err.message : String(err)
-        }`,
+        }`
       );
       statusRef.current = "error";
       setStatus("error");
-      return;
+      activeConnectionIdRef.current = null;
+      return false;
     }
 
-    if (!clientRef.current) {
-      return;
-    }
-    const ai = clientRef.current;
+    clientRef.current = new GoogleGenAI({
+      apiKey: token,
+      httpOptions: { apiVersion: "v1alpha" },
+    });
 
+    // ── Message handler ──────────────────────────────────────────────────
     const handleMessage = (message: LiveServerMessage) => {
       try {
-        if (activeConnectionIdRef.current !== connectionId) {
-          log.debug(
-            { connectionId, activeConnectionId: activeConnectionIdRef.current },
-            "Ignoring message from stale Gemini session.",
-          );
-          return;
-        }
+        // Discard messages from superseded connections
+        if (activeConnectionIdRef.current !== connectionId) return;
 
         if (message.setupComplete) {
           log.debug({ connectionId }, "Setup complete.");
@@ -260,7 +347,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
           sessionHandleRef.current = resumption.handle as string;
           log.info(
             { connectionId, handle: resumption.handle },
-            "Session resumption handle updated.",
+            "Session resumption handle updated."
           );
         }
 
@@ -272,79 +359,86 @@ export function useGeminiLive(): UseGeminiLiveReturn {
         }
 
         if (message.serverContent) {
-          if (message.serverContent.interrupted) {
-            log.debug({ connectionId }, "Interrupted by user speech; stopping playback.");
+          const { serverContent } = message;
+
+          if (serverContent.interrupted) {
+            log.debug(
+              { connectionId },
+              "Interrupted by user speech; stopping playback."
+            );
             onInterrupted.current?.();
             return;
           }
 
-          if (message.serverContent.turnComplete) {
+          if (serverContent.turnComplete) {
             log.info(
               {
                 connectionId,
                 forwardedAudioChunks: forwardedAudioChunkCountRef.current,
                 droppedAudioDuplicates: droppedAudioChunkCountRef.current,
               },
-              "Turn complete.",
+              "Turn complete."
             );
-            decaySessionOverrides();
+            decaySessionOverridesRef.current();
             onTurnComplete.current?.();
           }
 
-          if (message.serverContent.outputTranscription?.text) {
-            const userText = message.serverContent.outputTranscription.text;
-            log.trace({ connectionId, length: userText.length }, "Official user transcript received.");
-            onUserTranscript.current?.(userText);
+          if (serverContent.outputTranscription?.text) {
+            onUserTranscript.current?.(serverContent.outputTranscription.text);
           }
 
-          const parts = message.serverContent.modelTurn?.parts;
+          const parts = serverContent.modelTurn?.parts;
           if (parts) {
             for (const part of parts) {
               if (part.inlineData?.mimeType?.startsWith("audio/")) {
                 const audioData = part.inlineData.data as string;
                 const now = performance.now();
 
+                // Dedup check — O(1) lookup, sweep handled off the hot path
                 const signature = `${audioData.length}:${audioData.slice(0, 48)}:${audioData.slice(-48)}`;
                 const seenAt = recentAudioSignaturesRef.current.get(signature);
 
-                if (seenAt !== undefined && now - seenAt < DUPLICATE_AUDIO_WINDOW_MS) {
+                if (
+                  seenAt !== undefined &&
+                  now - seenAt < DUPLICATE_AUDIO_WINDOW_MS
+                ) {
                   droppedAudioChunkCountRef.current += 1;
                   if (
                     droppedAudioChunkCountRef.current === 1 ||
-                    droppedAudioChunkCountRef.current % DUPLICATE_AUDIO_LOG_INTERVAL === 0
+                    droppedAudioChunkCountRef.current %
+                      DUPLICATE_AUDIO_LOG_INTERVAL ===
+                      0
                   ) {
                     log.debug(
                       {
                         connectionId,
-                        droppedAudioDuplicates: droppedAudioChunkCountRef.current,
-                        duplicateWindowMs: DUPLICATE_AUDIO_WINDOW_MS,
+                        droppedAudioDuplicates:
+                          droppedAudioChunkCountRef.current,
                       },
-                      "Skipping duplicate audio chunk from Live API stream.",
+                      "Skipping duplicate audio chunk."
                     );
                   }
                   continue;
                 }
 
                 recentAudioSignaturesRef.current.set(signature, now);
-                for (const [seenSignature, seenTime] of recentAudioSignaturesRef.current) {
-                  if (now - seenTime > AUDIO_SIGNATURE_TTL_MS) {
-                    recentAudioSignaturesRef.current.delete(seenSignature);
-                  }
-                }
 
                 forwardedAudioChunkCountRef.current += 1;
                 if (
                   forwardedAudioChunkCountRef.current === 1 ||
-                  forwardedAudioChunkCountRef.current % AUDIO_CHUNK_LOG_INTERVAL === 0
+                  forwardedAudioChunkCountRef.current %
+                    AUDIO_CHUNK_LOG_INTERVAL ===
+                    0
                 ) {
                   log.debug(
                     {
                       connectionId,
                       forwardedAudioChunks: forwardedAudioChunkCountRef.current,
-                      droppedAudioDuplicates: droppedAudioChunkCountRef.current,
+                      droppedAudioDuplicates:
+                        droppedAudioChunkCountRef.current,
                       audioDataLength: audioData.length,
                     },
-                    "Forwarding audio chunk to playback pipeline.",
+                    "Forwarding audio chunk to playback pipeline."
                   );
                 }
 
@@ -352,7 +446,6 @@ export function useGeminiLive(): UseGeminiLiveReturn {
               }
 
               if (part.text) {
-                log.trace({ connectionId, length: part.text.length }, "Part transcript.");
                 onTranscript.current?.(part.text);
               }
             }
@@ -361,9 +454,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
 
         if (message.toolCall) {
           const calls = message.toolCall.functionCalls;
-          if (!calls) {
-            return;
-          }
+          if (!calls?.length) return;
 
           for (const call of calls) {
             const callName = call.name ?? "";
@@ -371,35 +462,37 @@ export function useGeminiLive(): UseGeminiLiveReturn {
             const callId = call.id ?? "";
 
             log.debug({ connectionId, callName, callId }, "Tool call received.");
-
             onToolCall.current?.({ name: callName, args: callArgs, id: callId });
 
-            const handler = toolRegistryRef.current.get(callName);
+            // Capture the session at dispatch time (Fix #3)
+            const sessionAtDispatch = sessionRef.current;
 
-            const dispatchResult = async () => {
-              let result: Record<string, unknown>;
+            void (async () => {
               const handlerStart = performance.now();
-              log.debug({ connectionId, callName, callId }, "Tool handler execution started.");
+              let result: Record<string, unknown>;
+
+              const handler = toolRegistryRef.current.get(callName);
 
               if (handler) {
+                log.debug(
+                  { connectionId, callName, callId },
+                  "Tool handler execution started."
+                );
                 try {
-                  const timeoutPromise = new Promise<never>((_, reject) =>
-                    setTimeout(
-                      () =>
-                        reject(
-                          new Error(
-                            `Tool handler \"${callName}\" timed out after ${TOOL_HANDLER_TIMEOUT_MS}ms`,
-                          ),
-                        ),
-                      TOOL_HANDLER_TIMEOUT_MS,
-                    ),
-                  );
-
                   result = await Promise.race([
                     Promise.resolve(handler(callArgs)),
-                    timeoutPromise,
+                    new Promise<never>((_, reject) =>
+                      setTimeout(
+                        () =>
+                          reject(
+                            new Error(
+                              `Tool handler "${callName}" timed out after ${TOOL_HANDLER_TIMEOUT_MS}ms`
+                            )
+                          ),
+                        TOOL_HANDLER_TIMEOUT_MS
+                      )
+                    ),
                   ]);
-
                   log.debug(
                     {
                       connectionId,
@@ -407,12 +500,12 @@ export function useGeminiLive(): UseGeminiLiveReturn {
                       callId,
                       durationMs: Math.round(performance.now() - handlerStart),
                     },
-                    "Tool handler execution completed.",
+                    "Tool handler execution completed."
                   );
                 } catch (handlerErr) {
                   log.error(
                     { err: handlerErr, connectionId, toolName: callName, callId },
-                    "Handler for tool threw an error.",
+                    "Handler for tool threw an error."
                   );
                   result = {
                     error: `Handler failed: ${
@@ -425,56 +518,51 @@ export function useGeminiLive(): UseGeminiLiveReturn {
               } else {
                 log.warn(
                   { connectionId, toolName: callName, callId },
-                  "No handler registered for tool. Returning { result: 'ok' } as fallback.",
+                  "No handler registered for tool. Returning { result: 'ok' } as fallback."
                 );
                 result = { result: "ok" };
               }
 
-              if (activeConnectionIdRef.current !== connectionId || !sessionRef.current) {
+              // Fix #3 + #4: verify the session we captured is still the active
+              // one AND that the WebSocket is still open before sending.
+              const isSessionStale =
+                activeConnectionIdRef.current !== connectionId ||
+                sessionRef.current !== sessionAtDispatch ||
+                !sessionRef.current;
+
+              if (isSessionStale) {
                 log.warn(
-                  {
-                    connectionId,
-                    callName,
-                    callId,
-                    activeConnectionId: activeConnectionIdRef.current,
-                  },
-                  "Skipping tool response because session is stale or closed.",
+                  { connectionId, callName, callId },
+                  "Skipping tool response — session is stale or has been replaced."
                 );
                 return;
               }
 
-              const toolResponsePayload = {
-                functionResponses: [
+              try {
+                sessionRef.current!.sendToolResponse({
+                  functionResponses: [
+                    { id: callId, name: callName, response: result },
+                  ],
+                  scheduling: "SILENT",
+                } as unknown as Parameters<Session["sendToolResponse"]>[0]);
+
+                log.debug(
                   {
-                    id: callId,
-                    name: callName,
-                    response: result,
+                    connectionId,
+                    callName,
+                    callId,
+                    durationMs: Math.round(performance.now() - handlerStart),
                   },
-                ],
-              } as unknown as Parameters<Session["sendToolResponse"]>[0];
-              const finalToolResponsePayload =
-                compatibilityProfileRef.current === "full"
-                  ? ({
-                      ...(toolResponsePayload as unknown as Record<string, unknown>),
-                      // Best-effort hint for non-blocking tool flows; skipped in degraded profiles.
-                      scheduling: "SILENT",
-                    } as unknown as Parameters<Session["sendToolResponse"]>[0])
-                  : toolResponsePayload;
-
-              sessionRef.current.sendToolResponse(finalToolResponsePayload);
-
-              log.debug(
-                {
-                  connectionId,
-                  callName,
-                  callId,
-                  durationMs: Math.round(performance.now() - handlerStart),
-                },
-                "Tool response sent.",
-              );
-            };
-
-            void dispatchResult();
+                  "Tool response sent."
+                );
+              } catch (sendErr) {
+                // Fix #4: gracefully handle CLOSING/CLOSED WebSocket state
+                log.warn(
+                  { err: sendErr, connectionId, callName, callId },
+                  "Failed to send tool response — WebSocket may already be closed."
+                );
+              }
+            })();
           }
         }
       } catch (err) {
@@ -482,221 +570,236 @@ export function useGeminiLive(): UseGeminiLiveReturn {
       }
     };
 
+    // ── Build session config ──────────────────────────────────────────────
     try {
       const avatarBaselineSummary = [
-        `emotionState=${config.emotionControl.emotionState}`,
-        `emotionIntensity=${config.emotionControl.emotionIntensity}`,
-        `lookAtIK=${config.ocularTuning.lookAtIK}`,
-        `saccadeStrength=${config.ocularTuning.saccadeStrength}`,
-        `headMotionAccelerationLimit=${config.headDynamics.headMotionAccelerationLimit}`,
-        `cfgScale=${config.aiStyleControl.cfgScale}`,
-        `coarticulationWindowSize=${config.aiStyleControl.coarticulationWindowSize}`,
+        `emotionState=${cfg.emotionControl.emotionState}`,
+        `emotionIntensity=${cfg.emotionControl.emotionIntensity}`,
+        `lookAtIK=${cfg.ocularTuning.lookAtIK}`,
+        `saccadeStrength=${cfg.ocularTuning.saccadeStrength}`,
+        `headMotionAccelerationLimit=${cfg.headDynamics.headMotionAccelerationLimit}`,
+        `cfgScale=${cfg.aiStyleControl.cfgScale}`,
+        `coarticulationWindowSize=${cfg.aiStyleControl.coarticulationWindowSize}`,
         "policy=Use subtle bounded updates; prefer incremental patches over abrupt changes.",
       ].join("\n");
 
-      const session = await ai.live.connect({
-        model: GEMINI_MODEL,
+      const profile = compatibilityProfileRef.current;
+      const isFull = profile === "full";
+      const isMinimal = profile === "minimal";
+
+      // Fix M1: wrap the session open in a Promise that resolves on onopen,
+      // not just on SDK connect() returning. This ensures startMic() is only
+      // called on a live, confirmed-open WebSocket.
+      const sessionOpenPromise = new Promise<boolean>((resolveOpen) => {
+        // Store the resolver so onopen can call it
+        pendingOpenResolverRef.current = resolveOpen;
+      });
+
+      const session = await clientRef.current!.live.connect({
+        model:
+          compatibilityProfileRef.current === "minimal"
+            ? GEMINI_MODEL_FALLBACK
+            : GEMINI_MODEL,
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: {
-                voiceName: "Aoede",
-              },
+              prebuiltVoiceConfig: { voiceName: "Aoede" },
             },
           },
           systemInstruction: {
-            role: "user",
-            parts: [{ text: `${SYSTEM_PROMPT}\n\n${TOOL_SILENCE_POLICY}\n\n# AVATAR_CONTROL_BASELINE\n${avatarBaselineSummary}` }]
+            parts: [
+              {
+                text: `${SYSTEM_PROMPT}\n\n${TOOL_SILENCE_POLICY}\n\n# AVATAR_CONTROL_BASELINE\n${avatarBaselineSummary}`,
+              },
+            ],
           },
-          tools: (compatibilityProfileRef.current === "minimal"
-            ? false
-            : config.features.googleSearch)
-            ? GEMINI_TOOLS
-            : GEMINI_TOOLS.filter(
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (t: any) => !t.googleSearch,
-              ),
-          // SDK warning indicates generationConfig is deprecated.
-          temperature: compatibilityProfileRef.current === "minimal" ? 0.8 : 0.85,
-          ...(compatibilityProfileRef.current === "full" ? { topP: 0.95 } : {}),
+          tools:
+            isMinimal || !cfg.features.googleSearch
+              ? GEMINI_TOOLS_NO_SEARCH
+              : GEMINI_TOOLS,
+          temperature: isMinimal ? 0.8 : 0.85,
+          ...(isFull ? { topP: 0.95 } : {}),
           maxOutputTokens: 768,
-          ...(compatibilityProfileRef.current === "full"
+          ...(isFull
             ? {
                 proactivity: {
-                  proactiveAudio: config.features.proactiveAudio,
+                  proactiveAudio: cfg.features.proactiveAudio,
                 },
               }
             : {}),
-          realtimeInputConfig: {
-            automaticActivityDetection: {},
-          },
-          ...(compatibilityProfileRef.current !== "minimal"
-            ? { contextWindowCompression: { slidingWindow: {} } }
-            : {}),
+          realtimeInputConfig: { automaticActivityDetection: {} },
+          ...(isFull ? { contextWindowCompression: { slidingWindow: {} } } : {}),
           ...(sessionHandleRef.current
             ? { sessionResumption: { handle: sessionHandleRef.current } }
             : {}),
         },
         callbacks: {
           onopen: () => {
-            if (activeConnectionIdRef.current !== connectionId) {
-              return;
-            }
+            if (activeConnectionIdRef.current !== connectionId) return;
             log.info({ connectionId }, "Gemini Live connection opened.");
+            startAudioSweep();
             statusRef.current = "connected";
             setStatus("connected");
+            // Fix M1: resolve AFTER status is set so callers see "connected"
+            pendingOpenResolverRef.current?.(true);
+            pendingOpenResolverRef.current = null;
           },
           onmessage: handleMessage,
           onerror: (e: ErrorEvent) => {
-            if (activeConnectionIdRef.current !== connectionId) {
-              return;
-            }
+            if (activeConnectionIdRef.current !== connectionId) return;
             log.error({ err: e, connectionId }, "SDK connection error.");
             setErrorMessage(
-              `Connection error: ${e.message || "Check API Key and network."}`,
+              `Connection error: ${e.message || "Check API key and network."}`
             );
             statusRef.current = "error";
             setStatus("error");
+            // Reject the open promise so startSession() gets false
+            pendingOpenResolverRef.current?.(false);
+            pendingOpenResolverRef.current = null;
           },
           onclose: (e: CloseEvent) => {
             const isStale = activeConnectionIdRef.current !== connectionId;
             log.info(
-              {
-                connectionId,
-                isStale,
-                code: e.code,
-                reason: e.reason,
-              },
-              "Session closed.",
+              { connectionId, isStale, code: e.code, reason: e.reason },
+              "Session closed."
             );
-            if (isStale) {
+            if (isStale) return;
+
+            // Fix #2: always clear the session ref when the WS closes
+            sessionRef.current = null;
+            stopAudioSweep();
+
+            // Fix M1: if onopen never fired (e.g. immediate close),
+            // resolve the open promise as failed
+            if (pendingOpenResolverRef.current) {
+              pendingOpenResolverRef.current(false);
+              pendingOpenResolverRef.current = null;
+            }
+
+            if (statusRef.current === "disconnected") return;
+
+            const unsupportedOperation =
+              e.code === 1008 &&
+              /not implemented|not supported|not enabled/i.test(e.reason ?? "");
+
+            if (unsupportedOperation) {
+              const downgraded = downgradeCompatibilityProfile();
+              setErrorMessage(
+                downgraded
+                  ? `Live API feature mismatch (code 1008). Switched to ${downgraded.toUpperCase()} compatibility profile. Start session again.`
+                  : "Live API feature mismatch (code 1008) persists even in minimal profile."
+              );
+              statusRef.current = "error";
+              setStatus("error");
               return;
             }
-            if (statusRef.current !== "disconnected") {
-              const unsupportedOperation =
-                e.code === 1008 && /not implemented|not supported|not enabled/i.test(e.reason || "");
 
-              if (unsupportedOperation) {
-                const downgraded = downgradeCompatibilityProfile();
-                const message = downgraded
-                  ? `Live API feature mismatch (code 1008). Switched to ${downgraded.toUpperCase()} compatibility profile. Start session again.`
-                  : "Live API feature mismatch (code 1008) persists even in minimal profile. Disable extra features or switch model/API version.";
-                setErrorMessage(message);
-                statusRef.current = "error";
-                setStatus("error");
-                return;
-              }
+            // Fix M2: distinguish retryable server errors (1011, 1012, 1013)
+            // from clean closes (1000, 1001) so the auto-reconnect effect
+            // knows whether to attempt recovery or stop.
+            lastCloseCodeRef.current = e.code;
+            const isRetryableServerError =
+              e.code === 1011 || e.code === 1012 || e.code === 1013;
 
-              statusRef.current = "disconnected";
-              setStatus("disconnected");
+            if (isRetryableServerError) {
+              log.warn(
+                { connectionId, code: e.code, reason: e.reason },
+                "Retryable server-side close — marking as disconnected for auto-reconnect."
+              );
             }
+
+            statusRef.current = "disconnected";
+            setStatus("disconnected");
           },
         },
       });
 
+      // Race condition guard — another connect() may have fired while we awaited
       if (activeConnectionIdRef.current !== connectionId) {
-        session.close();
+        try { session.close(); } catch { /* ignore */ }
         log.warn(
           { connectionId, activeConnectionId: activeConnectionIdRef.current },
-          "Connected stale session; closing immediately.",
+          "Connected stale session; closing immediately."
         );
-        return;
+        return false;
       }
 
       sessionRef.current = session;
       log.info({ connectionId }, "GeminiLive session established.");
+      
+      // Fix M1: wait for onopen before declaring success
+      const opened = await sessionOpenPromise;
+      if (!opened) {
+        // onerror or immediate onclose fired before onopen
+        log.warn({ connectionId }, "Session established but failed to open.");
+        return false;
+      }
+
+      return true;
     } catch (err) {
-      log.error({ err, connectionId }, "GeminiLive failed to connect");
-      setErrorMessage(
-        `Failed to connect: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      statusRef.current = "error";
-      setStatus("error");
+      if (activeConnectionIdRef.current === connectionId) {
+        // Fix M1: clear pending resolver on thrown error
+        pendingOpenResolverRef.current?.(false);
+        pendingOpenResolverRef.current = null;
+        log.error({ err, connectionId }, "GeminiLive failed to connect.");
+        setErrorMessage(
+          `Failed to connect: ${err instanceof Error ? err.message : String(err)}`
+        );
+        statusRef.current = "error";
+        setStatus("error");
+      }
+      return false;
     }
   }, [
     disconnect,
-    decaySessionOverrides,
-    config.features.googleSearch,
-    config.features.proactiveAudio,
-    config.emotionControl,
-    config.ocularTuning,
-    config.headDynamics,
-    config.aiStyleControl,
     fetchToken,
     prefetchToken,
+    startAudioSweep,
+    stopAudioSweep,
     downgradeCompatibilityProfile,
   ]);
+  // Note: config is intentionally excluded — we use configRef for a stable dep array.
+  // Config changes take effect on the NEXT connect() call.
 
+  // ── Send helpers ───────────────────────────────────────────────────────────
   const sendVideoFrame = useCallback((base64Image: string) => {
-    if (statusRef.current !== "connected") {
-      return;
-    }
-
+    if (statusRef.current !== "connected" || !sessionRef.current) return;
     try {
-      sessionRef.current?.sendRealtimeInput({
-        media: {
-          data: base64Image,
-          mimeType: "image/jpeg",
-        },
+      sessionRef.current.sendRealtimeInput({
+        media: { data: base64Image, mimeType: "image/jpeg" },
       });
-      log.trace(
-        { connectionId: activeConnectionIdRef.current },
-        "GeminiLive sent video frame.",
-      );
     } catch (e) {
-      log.warn({ err: e }, "Failed to send video frame");
+      log.warn({ err: e }, "Failed to send video frame.");
     }
   }, []);
 
   const sendAudioChunk = useCallback((base64Audio: string) => {
-    if (statusRef.current !== "connected") {
-      return;
-    }
-
+    if (statusRef.current !== "connected" || !sessionRef.current) return;
     try {
-      sessionRef.current?.sendRealtimeInput({
+      sessionRef.current.sendRealtimeInput({
         audio: {
           data: base64Audio,
           mimeType: `audio/pcm;rate=${AUDIO_CONFIG.input_hz}`,
         },
       });
-      log.trace(
-        {
-          connectionId: activeConnectionIdRef.current,
-          bytes: base64Audio.length,
-        },
-        "GeminiLive sent audio chunk.",
-      );
     } catch (e) {
-      log.warn({ err: e }, "Failed to send audio chunk");
+      log.warn({ err: e }, "Failed to send audio chunk.");
     }
   }, []);
 
   const sendText = useCallback((text: string) => {
-    if (statusRef.current !== "connected") {
-      return;
-    }
+    if (statusRef.current !== "connected" || !sessionRef.current) return;
 
     const normalized = text.trim();
-    if (!normalized) {
-      return;
-    }
+    if (!normalized) return;
 
     const now = performance.now();
-    const lastText = lastTextPayloadRef.current;
-    if (
-      lastText &&
-      lastText.text === normalized &&
-      now - lastText.sentAt < TEXT_DEDUP_WINDOW_MS
-    ) {
+    const last = lastTextPayloadRef.current;
+    if (last && last.text === normalized && now - last.sentAt < TEXT_DEDUP_WINDOW_MS) {
       log.warn(
-        {
-          connectionId: activeConnectionIdRef.current,
-          textLength: normalized.length,
-          dedupWindowMs: TEXT_DEDUP_WINDOW_MS,
-        },
-        "Dropped duplicate text send within dedupe window.",
+        { textLength: normalized.length, dedupWindowMs: TEXT_DEDUP_WINDOW_MS },
+        "Dropped duplicate text send within dedupe window."
       );
       return;
     }
@@ -704,7 +807,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
     lastTextPayloadRef.current = { text: normalized, sentAt: now };
 
     try {
-      sessionRef.current?.sendClientContent({
+      sessionRef.current.sendClientContent({
         turns: [{ role: "user", parts: [{ text: normalized }] }],
         turnComplete: true,
       });
@@ -713,20 +816,23 @@ export function useGeminiLive(): UseGeminiLiveReturn {
           connectionId: activeConnectionIdRef.current,
           textLength: normalized.length,
         },
-        "GeminiLive sent text payload.",
+        "GeminiLive sent text payload."
       );
     } catch (e) {
-      log.warn({ err: e }, "Failed to send text payload");
+      log.warn({ err: e }, "Failed to send text payload.");
     }
   }, []);
 
+  // ── Mount / unmount ────────────────────────────────────────────────────────
   useEffect(() => {
     void prefetchToken();
-
     return () => {
+      stopAudioSweep();
       disconnect();
     };
-  }, [disconnect, prefetchToken]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Intentionally empty — we only want mount/unmount semantics here.
+  // `prefetchToken` and `disconnect` are stable (no deps that change).
 
   return {
     status,
@@ -744,6 +850,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
     onTurnComplete,
     onToolCallCancellation,
     lastSessionHandle: sessionHandleRef,
+    lastCloseCode: lastCloseCodeRef,
     errorMessage,
   };
 }

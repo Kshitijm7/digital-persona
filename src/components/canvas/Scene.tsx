@@ -16,6 +16,10 @@ import { mergeAvatarControls } from "@/lib/avatar-control.types";
 import { SceneLoader } from "./SceneLoader";
 import { SmartCameraControls } from "./SmartCameraControls";
 import { useEmotionStore } from "@/store/useEmotionStore";
+import { WebGLContextGuard } from "./WebGLContextGuard";
+import { createLogger } from "@/lib/logging/logger";
+
+const log = createLogger("Scene");
 
 const DebugCameraPanel = lazy(() => import("./DebugCameraPanel"));
 
@@ -135,6 +139,16 @@ export function SceneInner({
       resize={{ scroll: true, debounce: { scroll: 50, resize: 0 } }}
       style={{ background: "transparent" }}
     >
+      <WebGLContextGuard
+        onContextLost={() => {
+          // Pause any animation loops, stop sending frames
+          log.warn("Scene: WebGL context lost — pausing.");
+        }}
+        onContextRestored={() => {
+          log.info("Scene: WebGL context restored — resuming.");
+        }}
+      />
+
       {/* Base ambient fill */}
       <ambientLight intensity={0.3} />
 

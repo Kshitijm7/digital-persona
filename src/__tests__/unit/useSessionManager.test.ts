@@ -35,6 +35,10 @@ vi.mock('@/hooks/useAudioProcessor', () => ({
     stopMic: vi.fn(),
     playAudioChunk: vi.fn(),
     stopPlayback: vi.fn(),
+    ensureStreamer: vi.fn(() => ({ context: { state: 'running', resume: vi.fn() } })),
+    markAssistantTurnComplete: vi.fn(),
+    inputAudioLevelRef: { current: 0 },
+    isAssistantSpeakingRef: { current: false },
   })),
 }));
 

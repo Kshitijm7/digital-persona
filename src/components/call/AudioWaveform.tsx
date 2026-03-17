@@ -32,18 +32,32 @@ export const AudioWaveform = React.memo(function AudioWaveform({
     if (!isActive) return;
 
     let raf: number;
-    const animate = () => {
+    const TARGET_FPS_ACTIVE = 60;
+    const TARGET_FPS_IDLE = 15;
+    const MS_PER_FRAME_ACTIVE = 1000 / TARGET_FPS_ACTIVE;
+    const MS_PER_FRAME_IDLE = 1000 / TARGET_FPS_IDLE;
+    
+    let lastFrameTime = 0;
+
+    const animate = (timestamp: number) => {
       const level = audioLevelRef.current ?? 0;
-      barsRef.current.forEach((bar, i) => {
-        if (!bar) return;
-        // Each bar gets a slightly randomized height
-        const offset = Math.sin(Date.now() * 0.005 + i * 0.8) * 0.3;
-        const h = Math.max(0.15, Math.min(1, level + offset * level));
-        bar.style.height = `${h * 100}%`;
-      });
+      const isIdle = level < 0.01;
+      const targetInterval = isIdle ? MS_PER_FRAME_IDLE : MS_PER_FRAME_ACTIVE;
+
+      if (timestamp - lastFrameTime >= targetInterval) {
+        lastFrameTime = timestamp;
+        
+        barsRef.current.forEach((bar, i) => {
+          if (!bar) return;
+          // Each bar gets a slightly randomized height
+          const offset = Math.sin(Date.now() * 0.005 + i * 0.8) * 0.3;
+          const h = Math.max(0.15, Math.min(1, level + offset * level));
+          bar.style.height = `${h * 100}%`;
+        });
+      }
       raf = requestAnimationFrame(animate);
     };
-    animate();
+    raf = requestAnimationFrame(animate);
 
     return () => cancelAnimationFrame(raf);
   }, [isActive, audioLevelRef]);

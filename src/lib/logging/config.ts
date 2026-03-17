@@ -4,7 +4,7 @@ const disableLogsInProduction =
   process.env.DISABLE_LOGS_IN_PROD === "true";
 
 const defaultProdLevel = disableLogsInProduction ? "silent" : "warn";
-const defaultDevLevel = "debug";
+const defaultDevLevel = "info";
 
 const resolvedServerLevel = isProduction
   ? process.env.LOG_LEVEL_PROD || process.env.LOG_LEVEL || defaultProdLevel

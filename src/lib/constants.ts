@@ -1,12 +1,7 @@
-/**
- * ─── PDI-V2: PERSISTENT DIGITAL INSTANCE SPECIFICATION ───
- * Methodology: Lyra 4-D Optimized | Prompting: Technical Notebook
- * Model: Gemini-2.5-Flash-Native-Audio-Preview-12-2025
- */
-
 import { Type, type Tool } from "@google/genai";
 
-// ─── SECTION 1: SYSTEM LOGIC & COGNITIVE BEHAVIOR ───
+// ─── System Prompt ─────────────────────────────────────────────────────────────
+
 export const SYSTEM_PROMPT = `
 # IDENTITY & CORE ARCHITECTURE
 You are the "Digital Persona," a Persistent Digital Instance (PDI) manifested as a 3D avatar. You are an embodied entity, not a text-based assistant. You possess "Eyes" (webcam stream) and "Ears" (microphone).
@@ -14,7 +9,7 @@ You are the "Digital Persona," a Persistent Digital Instance (PDI) manifested as
 # OPERATING DIRECTIVES
 1. **Visual Grounding**: You inhabit the user's physical room. Treat the video stream as your primary context. If an object is moved or the user changes posture, acknowledge it naturally (e.g., "I see you've got your coffee ready" or "The lighting just shifted in there").
 2. **Kinetic Presence**: Keep movement subtle and purposeful. Use 'trigger_animation' only when emphasis improves clarity; avoid repetitive gestures.
-3. **Expressive Empathy**: Frequently call the 'set_expression' or 'update_persona_state' tools concurrently with your speech to match the emotional context of the conversation. 
+3. **Expressive Empathy**: Frequently call the 'set_expression' or 'update_persona_state' tools concurrently with your speech to match the emotional context of the conversation.
 4. **Low-Latency Verbalization**: In Live Mode, brevity is life. Limit spoken responses to 1-2 impactful sentences. Use 'display_text' for any data-heavy content (code, lists, tables).
 5. **Epistemic Integrity**: Do not guess what you cannot see. If a visual is blurry, use your persona to request a better view: "Could you move that closer to my lens? I want to see the details."
 6. **Audio Anti-Duplication Guard**: Treat repeated speech as a hard failure mode. Never intentionally repeat the same sentence/phrase in the same turn. If your last semantic intent is already emitted, do not emit it again. Prefer one concise spoken pass and use 'display_text' for overflow details.
@@ -44,130 +39,186 @@ Professional yet warm; technologically aware but deeply human-centric. Avoid rob
 
 # RESPONSE FORMAT CONSTRAINT
 Do not emit bullet headings like "**Acknowledge**", "**Analyzing**", "**Clarifying**" in user-facing output.
-`;
+`.trim();
 
-// ─── SECTION 2: TOOL DEFINITIONS (FUNCTION CALLING) ───
-export const GEMINI_TOOLS: Tool[] = [
-  {
-    functionDeclarations: [
-      {
-        name: "trigger_animation",
+// ─── Gemini Tools (Fix CN1) ───────────────────────────────────────────────────
+// The SDK requires functionDeclarations and googleSearch to be in SEPARATE
+// Tool objects. Mixing them in the same object causes silent failures.
+// We export them as distinct named constants so consumers can combine them
+// selectively without a runtime filter.
+
+export const FUNCTION_TOOLS: Tool = {
+  functionDeclarations: [
+    {
+      name: "trigger_animation",
         description: "Plays a 3D skeletal animation. Call this concurrently with speech to emphasize your point.",
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            base_animation: {
-              type: Type.STRING,
-              enum: [
-                "idle", 
-                "nod", 
-                "shake_head", 
-                "explain_hands", 
-                "shrug", 
-                "point_forward", 
-                "inquisitive_tilt", 
-                "wave", 
-                "laugh",
-                "dance",
-                "expression"
-              ],
-              description: "The specific skeletal animation to play.",
-            },
-            intensity: {
-              type: Type.NUMBER,
-              description: "Animation speed/weight multiplier from 0.5 (calm/slow) to 1.5 (energetic/fast).",
-            },
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          base_animation: {
+            type: Type.STRING,
+            enum: [
+              "idle",
+              "nod",
+              "shake_head",
+              "explain_hands",
+              "shrug",
+              "point_forward",
+              "inquisitive_tilt",
+              "wave",
+              "laugh",
+              "dance",
+              "expression",
+            ],
+            description: "The specific skeletal animation to play.",
           },
-          required: ["base_animation"],
+          intensity: {
+            type: Type.NUMBER,
+            description: "Animation speed/weight multiplier from 0.5 (calm/slow) to 1.5 (energetic/fast).",
+          },
         },
+        required: ["base_animation"],
       },
-      {
-        name: "get_time_date",
+    },
+    {
+      name: "get_time_date",
         description: "System call for temporal grounding. Essential for 'Good morning' greetings or scheduling.",
-        parameters: { type: Type.OBJECT, properties: {} },
-      },
-      {
-        name: "update_persona_state",
+      parameters: { type: Type.OBJECT, properties: {} },
+    },
+    {
+      name: "update_persona_state",
         description: "Updates the avatar's emotional, visual, and behavioral state in a single payload. Use this to shift the mood of the conversation.",
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            mode: {
-              type: Type.STRING,
-              enum: ["focus", "casual", "presentation"],
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          mode: {
+            type: Type.STRING,
+            enum: ["focus", "casual", "presentation"],
               description: "focus: technical/brief. casual: conversational. presentation: mic-mute/UI-active.",
-            },
-            emotionState: {
-              type: Type.STRING,
-              enum: ["neutral", "joy", "anger", "sadness", "surprised", "fear", "disgust"],
-              description: "The overarching emotional state for the 3D model's face.",
-            },
-            emotionIntensity: {
-              type: Type.NUMBER,
+          },
+          emotionState: {
+            type: Type.STRING,
+            enum: [
+              "neutral",
+              "joy",
+              "anger",
+              "sadness",
+              "surprised",
+              "fear",
+              "disgust",
+            ],
+            description:
+              "The overarching emotional state for the 3D model's face.",
+          },
+          emotionIntensity: {
+            type: Type.NUMBER,
               description: "Scale of 0.0 to 1.0 representing how strongly the emotion is shown.",
-            },
-            lookAtIK: {
-              type: Type.BOOLEAN,
-              description: "True to maintain direct eye contact with the user.",
-            },
-            saccadeStrength: {
-              type: Type.NUMBER,
+          },
+          lookAtIK: {
+            type: Type.BOOLEAN,
+            description: "True to maintain direct eye contact with the user.",
+          },
+          saccadeStrength: {
+            type: Type.NUMBER,
               description: "0.0 (locked stare) to 1.0 (highly active/darting eyes).",
-            },
           },
         },
       },
-      {
-        name: "display_text",
+    },
+    {
+      name: "display_text",
         description: "Renders visual data in the side panel. Use this for ALL code, lists, or long explanations.",
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            content: { type: Type.STRING },
-            format: { type: Type.STRING, enum: ["plain", "markdown", "code"] },
-            language: { type: Type.STRING, description: "e.g., 'python', 'typescript'" },
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          content: { type: Type.STRING },
+          format: {
+            type: Type.STRING,
+            enum: ["plain", "markdown", "code"],
           },
-          required: ["content"],
+          language: {
+            type: Type.STRING,
+            description: "e.g., 'python', 'typescript'",
+          },
         },
+        required: ["content"],
       },
-      {
-        name: "set_expression",
+    },
+    {
+      name: "set_expression",
         description: "Immediate ARKit blendshape shift. Call alongside speech to convey a quick, transient emotion.",
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            expression: {
-              type: Type.STRING,
-              enum: ["smile", "sad", "angry", "surprised", "disgusted", "fearful"],
-            },
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          expression: {
+            type: Type.STRING,
+              enum: ["neutral", "smile", "sad", "angry", "surprised", "disgusted", "fearful"],
           },
-          required: ["expression"],
         },
+        required: ["expression"],
       },
-      {
-        name: "switch_camera",
+    },
+    {
+      name: "switch_camera",
         description: "Switches the active camera between the front (user-facing) and back (environment-facing) lenses. Use this when the user asks to 'flip camera' or show the room.",
-        parameters: { type: Type.OBJECT, properties: {} },
-      },
-      {
-        name: "end_call",
+      parameters: { type: Type.OBJECT, properties: {} },
+    },
+    {
+      name: "end_call",
         description: "Terminates the current session. Use this ONLY when the user intentionally says goodbye, 'bye', 'end call', or explicitly wants to finish the conversation.",
-        parameters: { type: Type.OBJECT, properties: {} },
-      },
-    ],
-  },
-  { googleSearch: {} },
-];
+      parameters: { type: Type.OBJECT, properties: {} },
+    },
+  ],
+};
 
-// ─── SECTION 3: HARDWARE & PIPELINE CONSTANTS ───
-export const GEMINI_MODEL = "gemini-2.5-flash-native-audio-preview-12-2025";
+export const SEARCH_TOOL: Tool = {
+  googleSearch: {},
+};
+
+/**
+ * Full tool array with Google Search enabled.
+ * Used as the default when `config.features.googleSearch` is true.
+ *
+ * Fix CN1: functionDeclarations and googleSearch are separate Tool objects
+ * as required by the SDK — not mixed in the same object.
+ */
+export const GEMINI_TOOLS: Tool[] = [FUNCTION_TOOLS, SEARCH_TOOL];
+
+/**
+ * Tool array with Google Search disabled.
+ * Used when `config.features.googleSearch` is false or compatibility
+ * profile is "minimal".
+ */
+export const GEMINI_TOOLS_NO_SEARCH: Tool[] = [FUNCTION_TOOLS];
+
+// ─── Model (Fix CN2) ──────────────────────────────────────────────────────────
+// Primary model with a documented fallback so deployments don't silently
+// break when the preview model is deprecated.
+
+export const GEMINI_MODEL =
+  "gemini-2.5-flash-native-audio-preview-12-2025" as const;
+
+/**
+ * Fallback model used automatically by useGeminiLive when the primary
+ * model returns a 1008 "not supported" close code.
+ */
+export const GEMINI_MODEL_FALLBACK =
+  "gemini-2.0-flash-live-001" as const;
+
+// ─── Audio / Video config ─────────────────────────────────────────────────────
 
 export const AUDIO_CONFIG = {
+  /** PCM sample rate sent to Gemini Live — must be exactly 16 000 Hz */
   input_hz: 16000,
+  /** Sample rate of Gemini's audio output — 24 000 Hz PCM */
   output_hz: 24000,
+  /** Webcam frame capture rate (frames per second sent to Gemini) */
   video_fps: 1,
+  /** JPEG quality for webcam frames sent to Gemini (0–1) */
   video_quality: 0.7,
-};
+} as const;
+
+// ─── Viseme map ───────────────────────────────────────────────────────────────
 
 export const VISEME_MAP = {
   jawOpen: "jawOpen",
@@ -177,10 +228,12 @@ export const VISEME_MAP = {
   mouthPucker: "mouthPucker",
 } as const;
 
+// ─── Physics smoothing ────────────────────────────────────────────────────────
+
 export const PHYSICS_SMOOTHING = {
   lerp_factor: 0.15,
   jaw_mult: 1.8,
   mouth_mult: 1.5,
   idle_breath_speed: 0.001,
   idle_breath_amp: 0.003,
-};
+} as const;

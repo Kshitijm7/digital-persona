@@ -113,6 +113,7 @@ export function SmartCameraControls({
       maxDistance={maxDistance}
       minPolarAngle={minPolarAngle}
       maxPolarAngle={maxPolarAngle}
+      domElement={undefined}
       {...rest}
     />
   );
