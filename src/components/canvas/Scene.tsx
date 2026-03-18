@@ -21,8 +21,6 @@ import { createLogger } from "@/lib/logging/logger";
 
 const log = createLogger("Scene");
 
-const DebugCameraPanel = lazy(() => import("./DebugCameraPanel"));
-
 /**
  * Resolve DPR range dynamically, matching Visage BaseCanvas behaviour.
  * Uses half the native DPR as a floor, capped at 1.5 max.
@@ -226,13 +224,6 @@ export function SceneInner({
         maxPolarAngle={maxPolarAngle}
         zoomTargetShift={zoomTargetShift}
       />
-
-      {/* Debug mode: live camera panel */}
-      {debug && (
-        <Suspense fallback={null}>
-          <DebugCameraPanel />
-        </Suspense>
-      )}
     </Canvas>
   );
 }

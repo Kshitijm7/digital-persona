@@ -148,21 +148,16 @@ export function normalizeAvatarUrl(input: string, meshConfig: MeshConfig = DEFAU
   }
 }
 
-/** Download a remote avatar and convert it to a local data URL for persistence. */
-export async function downloadAvatarAsDataUrl(input: string): Promise<{ sourceUrl: string; dataUrl: string }> {
+export async function downloadAvatarAsOrGetUrl(input: string): Promise<{ sourceUrl: string; file: string }> {
   const sourceUrl = normalizeAvatarUrl(input, DEFAULT_MESH_CONFIG);
-  const response = await fetch(sourceUrl);
-  if (!response.ok) {
-    throw new Error(`Failed to download avatar (${response.status}).`);
-  }
+  
+  // Browsers usually limit local storage to ~5MB per domain. 
+  // GLB models can be large, and base64 encoding inflates them by 33%.
+  // Therefore, we do NOT download them as full data URLs to localStorage anymore.
+  // Instead, we just pass the URL back directly and let IndexedDB or browser cache
+  // handle the asset fetching layer rather than stuffing base64 strings into localStorage.
 
-  const blob = await response.blob();
-  if (!blob.size) {
-    throw new Error("Avatar download returned an empty file.");
-  }
-
-  const dataUrl = await toDataUrl(blob);
-  return { sourceUrl, dataUrl };
+  return { sourceUrl, file: sourceUrl };
 }
 
 export function loadClientAvatars(): AvatarEntry[] {

@@ -117,6 +117,7 @@ interface SceneConfigContextValue {
   config: SceneConfig;
   updateConfig: (patch: Partial<SceneConfig>) => void;
   setConfig: (full: SceneConfig) => void;
+  resetConfig: () => void;
   toggleFeature: (key: keyof FeatureToggles) => void;
   avatarRegistry: AvatarEntry[];
   addClientAvatar: (entry: AvatarEntry) => void;
@@ -237,6 +238,84 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
 
   const [config, _setConfig] = useState<SceneConfig>(INITIAL_CONFIG);
 
+  // ── LocalStorage Sync ───────────────────────────────────────────────────────
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("user_scene_config");
+      if (stored) {
+        const parsed = JSON.parse(stored) as Partial<SceneConfig>;
+        
+        // Use the manual sanitize/merge logic directly to ensure initialization happens quickly
+        _setConfig((prev) => {
+          const sanitizedControlPatch = sanitizeControlPatch({
+            emotionControl: parsed.emotionControl,
+            ocularTuning: parsed.ocularTuning,
+            meshPostProcessing: parsed.meshPostProcessing,
+            headDynamics: parsed.headDynamics,
+            anatomicalPostProcessing: parsed.anatomicalPostProcessing,
+            visemeOverrides: parsed.visemeOverrides,
+            aiStyleControl: parsed.aiStyleControl,
+            meshConfig: parsed.meshConfig,
+          });
+
+          return {
+            ...prev,
+            ...parsed,
+            camera: parsed.camera ? { ...prev.camera, ...parsed.camera } : prev.camera,
+            avatar: parsed.avatar ? { ...prev.avatar, ...parsed.avatar } : prev.avatar,
+            lighting: parsed.lighting
+              ? { ...prev.lighting, ...parsed.lighting }
+              : prev.lighting,
+            features: parsed.features
+              ? { ...prev.features, ...parsed.features }
+              : prev.features,
+            lipSyncTuning: parsed.lipSyncTuning
+              ? { ...prev.lipSyncTuning, ...parsed.lipSyncTuning }
+              : prev.lipSyncTuning,
+            emotionControl: sanitizedControlPatch.emotionControl
+              ? { ...prev.emotionControl, ...sanitizedControlPatch.emotionControl }
+              : prev.emotionControl,
+            ocularTuning: sanitizedControlPatch.ocularTuning
+              ? { ...prev.ocularTuning, ...sanitizedControlPatch.ocularTuning }
+              : prev.ocularTuning,
+            meshPostProcessing: sanitizedControlPatch.meshPostProcessing
+              ? { ...prev.meshPostProcessing, ...sanitizedControlPatch.meshPostProcessing }
+              : prev.meshPostProcessing,
+            headDynamics: sanitizedControlPatch.headDynamics
+              ? { ...prev.headDynamics, ...sanitizedControlPatch.headDynamics }
+              : prev.headDynamics,
+            anatomicalPostProcessing: sanitizedControlPatch.anatomicalPostProcessing
+              ? { ...prev.anatomicalPostProcessing, ...sanitizedControlPatch.anatomicalPostProcessing }
+              : prev.anatomicalPostProcessing,
+            visemeOverrides: sanitizedControlPatch.visemeOverrides
+              ? { ...prev.visemeOverrides, ...sanitizedControlPatch.visemeOverrides }
+              : prev.visemeOverrides,
+            aiStyleControl: sanitizedControlPatch.aiStyleControl
+              ? { ...prev.aiStyleControl, ...sanitizedControlPatch.aiStyleControl }
+              : prev.aiStyleControl,
+            meshConfig: sanitizedControlPatch.meshConfig
+              ? { ...prev.meshConfig, ...sanitizedControlPatch.meshConfig }
+              : prev.meshConfig,
+          };
+        });
+      }
+    } catch(e) {
+      console.warn("Failed to load user_scene_config", e);
+    }
+    setIsLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    try {
+      localStorage.setItem("user_scene_config", JSON.stringify(config));
+    } catch(e) {
+      console.warn("Failed to save user_scene_config", e);
+    }
+  }, [config, isLoaded]);
+
   // ── Config actions ──────────────────────────────────────────────────────────
 
   const updateConfig = useCallback((patch: Partial<SceneConfig>) => {
@@ -303,6 +382,11 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
 
   const setConfig = useCallback((full: SceneConfig) => {
     _setConfig(full);
+  }, []);
+
+  const resetConfig = useCallback(() => {
+    localStorage.removeItem("user_scene_config");
+    _setConfig(INITIAL_CONFIG);
   }, []);
 
   const toggleFeature = useCallback((key: keyof FeatureToggles) => {
@@ -373,6 +457,7 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
       config,
       updateConfig,
       setConfig,
+      resetConfig,
       toggleFeature,
       avatarRegistry,
       addClientAvatar,
@@ -382,6 +467,7 @@ export function SceneConfigProvider({ children }: { children: ReactNode }) {
       config,
       updateConfig,
       setConfig,
+      resetConfig,
       toggleFeature,
       avatarRegistry,
       addClientAvatar,

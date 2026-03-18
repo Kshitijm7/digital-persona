@@ -82,14 +82,15 @@ export async function POST(req: Request) {
       meshConfig: { ...(e.meshConfig || {}), ...(sanitizedControls.meshConfig || {}) },
     };
     
-    // Write back to the config file
-    await fs.writeFile(
-      configPath,
-      JSON.stringify(mergedData, null, 2),
-      "utf-8"
-    );
+    // Removed saving back to the config file so that server defaults remain pristine.
+    // We now rely purely on localStorage in the client to persist user-level config overrides.
+    // await fs.writeFile(
+    //   configPath,
+    //   JSON.stringify(mergedData, null, 2),
+    //   "utf-8"
+    // );
 
-    return NextResponse.json({ success: true, data: mergedData });
+    return NextResponse.json({ success: true, data: mergedData, note: "Server file edit disabled per user request. Use localStorage logic." });
   } catch (error) {
     console.error("Failed to save camera settings:", error);
     return NextResponse.json(

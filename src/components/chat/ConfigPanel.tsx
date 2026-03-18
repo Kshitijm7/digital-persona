@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 
 import { useSceneConfig, type SceneConfig, type FeatureToggles, type LightConfig } from "@/hooks/SceneConfigContext";
-import { Copy, Save } from "lucide-react";
+import { Copy, Save, RotateCcw } from "lucide-react";
 import { useLipSyncStore, LIPSYNC_PRESETS, type LipSyncPresetKey } from "@/store/useLipSyncStore";
 
 import { CameraSection } from "./config/CameraSection";
@@ -15,33 +15,36 @@ import { LipSyncSection } from "./config/LipSyncSection";
 import { AvatarRealismSection } from "./config/AvatarRealismSection";
 
 export function ConfigPanel() {
-  const { config, setConfig, avatarRegistry } = useSceneConfig();
+  const { config, setConfig, resetConfig, avatarRegistry } = useSceneConfig();
   const lipSyncTuning = useLipSyncStore((state) => state.tuning);
   const updateLipSyncTuning = useLipSyncStore((state) => state.updateTuning);
   const setActivePresetStore = useLipSyncStore((state) => state.setActivePreset);
+  const resetLipSyncTuning = useLipSyncStore((state) => state.resetTuning);
   
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   // Local mutable draft state so edits are instant
   const [draft, setDraft] = useState<SceneConfig>(config);
 
-  // Apply draft to context (instant scene update) + persist to disk
+  // Apply draft to context (instant scene update) and localStorage
   const handleSet = useCallback(async () => {
     setConfig(draft);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
-
-    try {
-      await fetch("/api/scene", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(draft),
-      });
-    } catch (e) {
-      console.error("Failed to save config:", e);
-    }
   }, [draft, setConfig]);
+
+  const handleReset = useCallback(() => {
+    if (!confirm("Are you sure you want to reset all configurations to the server defaults?")) return;
+    setResetting(true);
+    resetConfig();
+    resetLipSyncTuning();
+    // Assuming context provides the INITIAL_CONFIG somehow... instead we can just reload the page or read the latest from context on next effect
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
+  }, [resetConfig, resetLipSyncTuning]);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(JSON.stringify(draft, null, 2)).then(() => {
@@ -175,6 +178,7 @@ export function ConfigPanel() {
             <Save className="w-3.5 h-3.5" />
             {saved ? "✅ Saved!" : "Save Config"}
           </button>
+
           <button
             onClick={handleCopy}
             className={cn(
@@ -185,13 +189,25 @@ export function ConfigPanel() {
             )}
           >
             <Copy className="w-3.5 h-3.5" />
-            {copied ? "✅ Copied!" : "Copy Config"}
+            {copied ? "✅ Copied!" : "Copy"}
+          </button>
+          <button
+            onClick={handleReset}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[11px] font-semibold transition-all duration-300",
+              resetting
+                ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                : "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 hover:text-red-300 active:scale-[0.98]"
+            )}
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            {resetting ? "Resetting..." : "Reset"}
           </button>
         </div>
         
         {/* Helper Hint */}
         <p className="text-[9.5px] text-muted-foreground/40 text-center mt-3 font-medium tracking-wide">
-          Changes apply instantly · Save to persist
+          Changes apply instantly · Save to persist locally
         </p>
       </div>
     </div>

@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useSceneConfig } from "@/hooks/SceneConfigContext";
-import { downloadAvatarAsDataUrl, type AvatarEntry } from "@/lib/avatars";
+import { downloadAvatarAsOrGetUrl, type AvatarEntry } from "@/lib/avatars";
 import {
   Dialog,
   DialogContent,
@@ -66,14 +66,14 @@ export function AvatarManager() {
     setIsImporting(true);
     setError(null);
     try {
-      const { sourceUrl, dataUrl } = await downloadAvatarAsDataUrl(avatarUrlInput);
+      const { sourceUrl, file } = await downloadAvatarAsOrGetUrl(avatarUrlInput);
       const id = `client-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
       const label = avatarLabelInput.trim() || `My Avatar ${clientAvatars.length + 1}`;
 
       const entry: AvatarEntry = {
         id,
         label,
-        file: dataUrl,
+        file: file,
         sourceUrl,
         isCustom: true,
       };

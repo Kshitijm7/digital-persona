@@ -6,6 +6,7 @@ import { OrbitControls as DreiOrbitControls } from "@react-three/drei";
 import { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 import { useResponsiveCamera } from "@/hooks/useResponsiveCamera";
+import { useCameraLiveStore } from "@/store/useCameraLiveStore";
 
 interface SmartCameraControlsProps {
   /** The un-zoomed camera target (usually the face/head level e.g., Y=1.55) */
@@ -65,42 +66,57 @@ export function SmartCameraControls({
     [target],
   );
 
+  const setLiveCamera = useCameraLiveStore((state) => state.setLiveCamera);
+  const frameCount = useRef(0);
+
   useFrame(() => {
     const controls = controlsRef.current;
     if (!controls) return;
 
+    // We do one manual update here so we don't have to duplicate the frame-syncing code
     if (enablePan) {
       if (shouldContinuouslyUpdate) {
         controls.update();
       }
-      return;
+    } else {
+      const distance = clamp(
+        controls.target.distanceTo(camera.position),
+        safeMinDistance,
+        safeMaxDistance,
+      );
+
+      // 1.0 when zoomed in (min distance), 0.0 when zoomed out (max distance)
+      const zoomFactor = (safeMaxDistance - distance) / distanceRange;
+      const desiredTargetY = baseTargetY - (zoomTargetShift ?? 0.6) * zoomFactor;
+
+      const targetChanged =
+        Math.abs(controls.target.x - target[0]) > 0.0001 ||
+        Math.abs(controls.target.y - desiredTargetY) > 0.0001 ||
+        Math.abs(controls.target.z - target[2]) > 0.0001;
+
+      if (targetChanged) {
+        controls.target.set(target[0], desiredTargetY, target[2]);
+        controls.update();
+      } else if (shouldContinuouslyUpdate) {
+        controls.update();
+      }
     }
 
-    const distance = clamp(
-      controls.target.distanceTo(camera.position),
-      safeMinDistance,
-      safeMaxDistance,
-    );
-
-    // 1.0 when zoomed in (min distance), 0.0 when zoomed out (max distance)
-    const zoomFactor = (safeMaxDistance - distance) / distanceRange;
-    const desiredTargetY = baseTargetY - (zoomTargetShift ?? 0.6) * zoomFactor;
-
-    const targetChanged =
-      Math.abs(controls.target.x - target[0]) > 0.0001 ||
-      Math.abs(controls.target.y - desiredTargetY) > 0.0001 ||
-      Math.abs(controls.target.z - target[2]) > 0.0001;
-
-    if (targetChanged) {
-      controls.target.set(target[0], desiredTargetY, target[2]);
-      controls.update();
-      return;
-    }
-
-    if (shouldContinuouslyUpdate) {
-      controls.update();
+    // Sync to live store occasionally so config panel can grab it
+    frameCount.current++;
+    if (frameCount.current % 10 === 0) {
+      const p = camera.position;
+      const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 45;
+      setLiveCamera({
+        px: p.x, py: p.y, pz: p.z,
+        tx: controls.target.x, ty: controls.target.y, tz: controls.target.z,
+        fov: fov
+      });
     }
   });
+
+  const handleStart = () => setLiveCamera({ isDragging: true });
+  const handleEnd = () => setLiveCamera({ isDragging: false });
 
   return (
     <DreiOrbitControls
@@ -114,6 +130,8 @@ export function SmartCameraControls({
       minPolarAngle={minPolarAngle}
       maxPolarAngle={maxPolarAngle}
       domElement={undefined}
+      onStart={handleStart}
+      onEnd={handleEnd}
       {...rest}
     />
   );
