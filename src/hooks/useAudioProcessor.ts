@@ -242,8 +242,8 @@ export function useAudioProcessor() {
         return true;
       } catch (err) {
         micStartingRef.current = false;
-        log.error(
-          { err },
+        log.warn(
+          { err: err instanceof Error ? { name: err.name, message: err.message } : String(err) },
           "Failed to acquire user media or start AudioContext."
         );
         let errorMsg = "Could not access microphone.";

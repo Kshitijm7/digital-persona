@@ -25,9 +25,6 @@ import { WebcamFeed } from "@/components/call/WebcamFeed";
 import { PersonaOverlay } from "@/components/call/PersonaOverlay";
 import { DebugToggle } from "@/components/call/DebugToggle";
 
-// Utilities
-import { useMediaQuery } from "usehooks-ts";
-
 // Chat Components
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { LiquidButton } from "@/components/ui/liquid-glass-button";
@@ -167,16 +164,65 @@ function HomePage() {
   useAnimationRegistry();
 
   // ── UI state ────────────────────────────────────────────────────────────────
-  const isMobile = useMediaQuery("(max-width: 950px)");
+  // Replace useMediaQuery with custom ResizeObserver and matchMedia logic
+  const [isChatOpen, setIsChatOpen] = useState(false); // Default starting state, will be set on mount
 
-  const [isChatOpen, setIsChatOpen] = useState(!isMobile);
+  // Reference to track previous state to detect "going from X to Y"
+  const prevIsNarrowRef = useRef<boolean | null>(null);
+  // Track if user manually closed it, so we don't auto-expand if they go wide
+  const userClosedManuallyRef = useRef<boolean>(false);
 
-  // Sync chat panel open state when viewport crosses the mobile breakpoint.
-  // useLayoutEffect prevents a one-frame flicker vs useEffect.
   useLayoutEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsChatOpen(!isMobile);
-  }, [isMobile]);
+    const handleLayoutChange = () => {
+      if (typeof window === "undefined") return;
+      
+      const width = document.documentElement.clientWidth;
+      const isPortrait = window.matchMedia("(orientation: portrait)").matches;
+      const isNarrow = width < 768 || isPortrait;
+
+      const prevIsNarrow = prevIsNarrowRef.current;
+      prevIsNarrowRef.current = isNarrow;
+
+      // Going narrow → always collapse
+      if (isNarrow && !prevIsNarrow) {
+         setIsChatOpen(false);
+      }
+      
+      // Going wide → auto-expand ONLY if user didn't manually close it
+      if (!isNarrow && prevIsNarrow === true && !userClosedManuallyRef.current) {
+         setIsChatOpen(true);
+      }
+
+      // Initial mount state setup
+      if (prevIsNarrow === null) {
+         setIsChatOpen(!isNarrow);
+      }
+    };
+
+    const resizeObserver = new ResizeObserver(() => {
+      handleLayoutChange();
+    });
+    
+    resizeObserver.observe(document.documentElement);
+    
+    const mql = window.matchMedia("(orientation: portrait)");
+    const orientationChangeHandler = () => handleLayoutChange();
+    mql.addEventListener("change", orientationChangeHandler);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        userClosedManuallyRef.current = true;
+        setIsChatOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      resizeObserver.disconnect();
+      mql.removeEventListener("change", orientationChangeHandler);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
 
   const [currentExpression, setCurrentExpression] = useState<string>("idle");
   const [personaMode, setPersonaMode] = useState<
@@ -633,13 +679,24 @@ function HomePage() {
   return (
     <VideoCallLayout
       isChatOpen={isChatOpen}
+      onOpenChat={() => {
+        userClosedManuallyRef.current = false;
+        setIsChatOpen(true);
+      }}
+      onCloseChat={() => {
+        userClosedManuallyRef.current = true;
+        setIsChatOpen(false);
+      }}
       chatPanel={
         <ChatPanel
           messages={chat.messages}
           onSendText={handleSendText}
           isConnected={isConnected}
           isTyping={chat.isTyping}
-          onCollapse={() => setIsChatOpen(false)}
+          onCollapse={() => {
+            userClosedManuallyRef.current = true;
+            setIsChatOpen(false);
+          }}
           selectedSkinId={selectedSkin?.id ?? null}
           onSkinChange={setSelectedSkin}
           debugMode={debugMode}
@@ -714,11 +771,9 @@ function HomePage() {
             isConnected={isConnected}
             isMicActive={isMicActive}
             isCameraActive={isCameraActive}
-            isChatOpen={isChatOpen}
             onToggleConnection={toggleSession}
             onToggleMic={toggleMic}
             onToggleCamera={toggleCamera}
-            onToggleChat={() => setIsChatOpen((prev) => !prev)}
             onSwitchCamera={switchCamera}
           />
         </div>

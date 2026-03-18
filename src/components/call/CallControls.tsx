@@ -11,7 +11,6 @@ import {
   VideoOff,
   PhoneOff,
   Phone,
-  MessageSquare,
   RefreshCw,
 } from "lucide-react";
 
@@ -19,11 +18,9 @@ interface CallControlsProps {
   isConnected: boolean;
   isMicActive: boolean;
   isCameraActive: boolean;
-  isChatOpen: boolean;
   onToggleConnection: () => void;
   onToggleMic: () => void;
   onToggleCamera: () => void;
-  onToggleChat: () => void;
   /** May be async — the button shows a pending state until it resolves. */
   onSwitchCamera: () => Promise<boolean> | void;
 }
@@ -32,11 +29,9 @@ export function CallControls({
   isConnected,
   isMicActive,
   isCameraActive,
-  isChatOpen,
   onToggleConnection,
   onToggleMic,
   onToggleCamera,
-  onToggleChat,
   onSwitchCamera,
 }: CallControlsProps) {
   // Fix #17: track in-flight camera switch so the button can't be tapped
@@ -58,19 +53,6 @@ export function CallControls({
     // from the footer — positioning is now entirely owned by the parent in
     // page.tsx so this component is layout-agnostic and reusable.
     <div className="flex items-center gap-1.5 rounded-full border border-white/6 bg-white/5 px-2.5 py-2 backdrop-blur-2xl shadow-2xl sm:gap-2 sm:px-4 sm:py-2.5">
-      {/* Chat toggle */}
-      <IconButton
-        icon={MessageSquare}
-        label={isChatOpen ? "Close chat" : "Open chat"}
-        active={isChatOpen}
-        variant={isChatOpen ? "primary" : "ghost"}
-        size="sm"
-        onClick={onToggleChat}
-        className="hover:bg-cyan-500/10 rounded-full"
-      />
-
-      <div className="mx-1 h-6 w-px bg-white/10" />
-
       {/* Microphone */}
       <IconButton
         icon={isMicActive ? Mic : MicOff}

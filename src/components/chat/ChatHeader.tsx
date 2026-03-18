@@ -61,8 +61,9 @@ export function ChatHeader({
           <button
             type="button"
             onClick={onCollapse}
+            aria-expanded={true}
+            aria-label="Close chat panel"
             className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
-            aria-label="Collapse chat panel"
           >
             <PanelRightClose className="h-4 w-4" />
           </button>
