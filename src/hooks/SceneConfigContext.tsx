@@ -236,85 +236,77 @@ const SceneConfigCtx = createContext<SceneConfigContextValue | null>(null);
 export function SceneConfigProvider({ children }: { children: ReactNode }) {
   const setLipSyncTuning = useLipSyncStore((s) => s.updateTuning);
 
-  const [config, _setConfig] = useState<SceneConfig>(INITIAL_CONFIG);
-
-  // ── LocalStorage Sync ───────────────────────────────────────────────────────
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  useEffect(() => {
+  const [config, _setConfig] = useState<SceneConfig>(() => {
+    if (typeof window === "undefined") return INITIAL_CONFIG;
     try {
       const stored = localStorage.getItem("user_scene_config");
       if (stored) {
         const parsed = JSON.parse(stored) as Partial<SceneConfig>;
-        
-        // Use the manual sanitize/merge logic directly to ensure initialization happens quickly
-        _setConfig((prev) => {
-          const sanitizedControlPatch = sanitizeControlPatch({
-            emotionControl: parsed.emotionControl,
-            ocularTuning: parsed.ocularTuning,
-            meshPostProcessing: parsed.meshPostProcessing,
-            headDynamics: parsed.headDynamics,
-            anatomicalPostProcessing: parsed.anatomicalPostProcessing,
-            visemeOverrides: parsed.visemeOverrides,
-            aiStyleControl: parsed.aiStyleControl,
-            meshConfig: parsed.meshConfig,
-          });
-
-          return {
-            ...prev,
-            ...parsed,
-            camera: parsed.camera ? { ...prev.camera, ...parsed.camera } : prev.camera,
-            avatar: parsed.avatar ? { ...prev.avatar, ...parsed.avatar } : prev.avatar,
-            lighting: parsed.lighting
-              ? { ...prev.lighting, ...parsed.lighting }
-              : prev.lighting,
-            features: parsed.features
-              ? { ...prev.features, ...parsed.features }
-              : prev.features,
-            lipSyncTuning: parsed.lipSyncTuning
-              ? { ...prev.lipSyncTuning, ...parsed.lipSyncTuning }
-              : prev.lipSyncTuning,
-            emotionControl: sanitizedControlPatch.emotionControl
-              ? { ...prev.emotionControl, ...sanitizedControlPatch.emotionControl }
-              : prev.emotionControl,
-            ocularTuning: sanitizedControlPatch.ocularTuning
-              ? { ...prev.ocularTuning, ...sanitizedControlPatch.ocularTuning }
-              : prev.ocularTuning,
-            meshPostProcessing: sanitizedControlPatch.meshPostProcessing
-              ? { ...prev.meshPostProcessing, ...sanitizedControlPatch.meshPostProcessing }
-              : prev.meshPostProcessing,
-            headDynamics: sanitizedControlPatch.headDynamics
-              ? { ...prev.headDynamics, ...sanitizedControlPatch.headDynamics }
-              : prev.headDynamics,
-            anatomicalPostProcessing: sanitizedControlPatch.anatomicalPostProcessing
-              ? { ...prev.anatomicalPostProcessing, ...sanitizedControlPatch.anatomicalPostProcessing }
-              : prev.anatomicalPostProcessing,
-            visemeOverrides: sanitizedControlPatch.visemeOverrides
-              ? { ...prev.visemeOverrides, ...sanitizedControlPatch.visemeOverrides }
-              : prev.visemeOverrides,
-            aiStyleControl: sanitizedControlPatch.aiStyleControl
-              ? { ...prev.aiStyleControl, ...sanitizedControlPatch.aiStyleControl }
-              : prev.aiStyleControl,
-            meshConfig: sanitizedControlPatch.meshConfig
-              ? { ...prev.meshConfig, ...sanitizedControlPatch.meshConfig }
-              : prev.meshConfig,
-          };
+        const sanitizedControlPatch = sanitizeControlPatch({
+          emotionControl: parsed.emotionControl,
+          ocularTuning: parsed.ocularTuning,
+          meshPostProcessing: parsed.meshPostProcessing,
+          headDynamics: parsed.headDynamics,
+          anatomicalPostProcessing: parsed.anatomicalPostProcessing,
+          visemeOverrides: parsed.visemeOverrides,
+          aiStyleControl: parsed.aiStyleControl,
+          meshConfig: parsed.meshConfig,
         });
+
+        return {
+          ...INITIAL_CONFIG,
+          ...parsed,
+          camera: parsed.camera ? { ...INITIAL_CONFIG.camera, ...parsed.camera } : INITIAL_CONFIG.camera,
+          avatar: parsed.avatar ? { ...INITIAL_CONFIG.avatar, ...parsed.avatar } : INITIAL_CONFIG.avatar,
+          lighting: parsed.lighting
+            ? { ...INITIAL_CONFIG.lighting, ...parsed.lighting }
+            : INITIAL_CONFIG.lighting,
+          features: parsed.features
+            ? { ...INITIAL_CONFIG.features, ...parsed.features }
+            : INITIAL_CONFIG.features,
+          lipSyncTuning: parsed.lipSyncTuning
+            ? { ...INITIAL_CONFIG.lipSyncTuning, ...parsed.lipSyncTuning }
+            : INITIAL_CONFIG.lipSyncTuning,
+          emotionControl: sanitizedControlPatch.emotionControl
+            ? { ...INITIAL_CONFIG.emotionControl, ...sanitizedControlPatch.emotionControl }
+            : INITIAL_CONFIG.emotionControl,
+          ocularTuning: sanitizedControlPatch.ocularTuning
+            ? { ...INITIAL_CONFIG.ocularTuning, ...sanitizedControlPatch.ocularTuning }
+            : INITIAL_CONFIG.ocularTuning,
+          meshPostProcessing: sanitizedControlPatch.meshPostProcessing
+            ? { ...INITIAL_CONFIG.meshPostProcessing, ...sanitizedControlPatch.meshPostProcessing }
+            : INITIAL_CONFIG.meshPostProcessing,
+          headDynamics: sanitizedControlPatch.headDynamics
+            ? { ...INITIAL_CONFIG.headDynamics, ...sanitizedControlPatch.headDynamics }
+            : INITIAL_CONFIG.headDynamics,
+          anatomicalPostProcessing: sanitizedControlPatch.anatomicalPostProcessing
+            ? { ...INITIAL_CONFIG.anatomicalPostProcessing, ...sanitizedControlPatch.anatomicalPostProcessing }
+            : INITIAL_CONFIG.anatomicalPostProcessing,
+          visemeOverrides: sanitizedControlPatch.visemeOverrides
+            ? { ...INITIAL_CONFIG.visemeOverrides, ...sanitizedControlPatch.visemeOverrides }
+            : INITIAL_CONFIG.visemeOverrides,
+          aiStyleControl: sanitizedControlPatch.aiStyleControl
+            ? { ...INITIAL_CONFIG.aiStyleControl, ...sanitizedControlPatch.aiStyleControl }
+            : INITIAL_CONFIG.aiStyleControl,
+          meshConfig: sanitizedControlPatch.meshConfig
+            ? { ...INITIAL_CONFIG.meshConfig, ...sanitizedControlPatch.meshConfig }
+            : INITIAL_CONFIG.meshConfig,
+        };
       }
-    } catch(e) {
+    } catch (e) {
       console.warn("Failed to load user_scene_config", e);
     }
-    setIsLoaded(true);
-  }, []);
+    return INITIAL_CONFIG;
+  });
 
+  // ── LocalStorage Sync ───────────────────────────────────────────────────────
   useEffect(() => {
-    if (!isLoaded) return;
     try {
       localStorage.setItem("user_scene_config", JSON.stringify(config));
-    } catch(e) {
+    } catch (e) {
       console.warn("Failed to save user_scene_config", e);
     }
-  }, [config, isLoaded]);
+  }, [config]);
 
   // ── Config actions ──────────────────────────────────────────────────────────
 

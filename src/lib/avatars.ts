@@ -87,19 +87,6 @@ function sanitiseAvatarEntry(value: unknown): AvatarEntry | null {
   };
 }
 
-function toDataUrl(blob: Blob): Promise<string> {
-  return blob.arrayBuffer().then((arrayBuffer) => {
-    const bytes = new Uint8Array(arrayBuffer);
-    const chunkSize = 0x8000;
-    let binary = "";
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      const chunk = bytes.subarray(i, i + chunkSize);
-      binary += String.fromCharCode(...chunk);
-    }
-    const mime = blob.type || "model/gltf-binary";
-    return `data:${mime};base64,${btoa(binary)}`;
-  });
-}
 
 /** Fetch the avatar registry from public/avatars/index.json */
 export async function fetchAvatarRegistry(): Promise<AvatarEntry[]> {

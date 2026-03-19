@@ -46,7 +46,7 @@ describe('Digital Persona System Health', () => {
       const { SYSTEM_PROMPT } = await import('@/lib/constants');
       
       expect(SYSTEM_PROMPT).toContain('Digital Persona');
-      expect(SYSTEM_PROMPT).toContain('Visual Grounding');
+      expect(SYSTEM_PROMPT).toContain('PRESENCE');
       expect(SYSTEM_PROMPT).toContain('trigger_animation');
     });
 

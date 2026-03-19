@@ -6,7 +6,7 @@ import {
   Environment,
   ContactShadows,
 } from "@react-three/drei";
-import React, { Suspense, lazy } from "react";
+import React, { Suspense } from "react";
 import { Avatar } from "./Avatar";
 import { SkinPreset } from "@/lib/skinConfig";
 import { getAvatarUrl } from "@/lib/avatars";
