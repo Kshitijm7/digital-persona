@@ -4,44 +4,46 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   GoogleGenAI,
   Modality,
+  MediaResolution,
   type Session,
   type LiveServerMessage,
 } from "@google/genai";
 import {
-  AUDIO_CONFIG,
   GEMINI_MODEL,
-  GEMINI_MODEL_FALLBACK,
   GEMINI_TOOLS,
   GEMINI_TOOLS_NO_SEARCH,
   SYSTEM_PROMPT,
 } from "@/lib/constants";
+import {
+  getSessionConfig,
+  getModeConfig,
+  degradeMode,
+  isRetryableCloseCode,
+  // shouldDegradeOnCloseCode is used in Wave 1 (1011 degradation logic)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  shouldDegradeOnCloseCode,
+  type GeminiSessionMode,
+} from "@/lib/gemini-session-config";
 import { createLogger } from "@/lib/logging/logger";
 import { useSceneConfig } from "@/hooks/SceneConfigContext";
 import { useAvatarRuntimeStore } from "@/store/useAvatarRuntimeStore";
 
 const log = createLogger("useGeminiLive");
 
-const TOOL_HANDLER_TIMEOUT_MS = 8000;
-const DUPLICATE_AUDIO_WINDOW_MS = 500;
-const AUDIO_SIGNATURE_TTL_MS = 5000;
-const TEXT_DEDUP_WINDOW_MS = 1200;
-const AUDIO_CHUNK_LOG_INTERVAL = 100;
-const DUPLICATE_AUDIO_LOG_INTERVAL = 50;
-const PREFETCH_TOKEN_MAX_AGE_MS = 45000;
+// ── Session config (driven by gemini-session.json) ────────────────────────────
+const SESSION_CFG = getSessionConfig();
+const TOOL_HANDLER_TIMEOUT_MS = SESSION_CFG.toolResponse.handlerTimeoutMs;
+const DUPLICATE_AUDIO_WINDOW_MS = SESSION_CFG.deduplication.audioDuplicateWindowMs;
+const AUDIO_SIGNATURE_TTL_MS = SESSION_CFG.deduplication.audioSignatureTtlMs;
+const TEXT_DEDUP_WINDOW_MS = SESSION_CFG.deduplication.textDedupWindowMs;
+const AUDIO_CHUNK_LOG_INTERVAL = SESSION_CFG.deduplication.audioChunkLogInterval;
+const DUPLICATE_AUDIO_LOG_INTERVAL = SESSION_CFG.deduplication.duplicateAudioLogInterval;
+const PREFETCH_TOKEN_MAX_AGE_MS = SESSION_CFG.stability.tokenPrefetchMaxAgeMs;
 /** How often (ms) to run the audio-signature TTL sweep — keeps the hot path O(1). */
-const AUDIO_SIGNATURE_SWEEP_INTERVAL_MS = 2000;
-
-const TOOL_SILENCE_POLICY = [
-  "TOOL_EXECUTION_RULES:",
-  "- Produce exactly one spoken answer per user turn.",
-  "- When a tool is required, call the tool immediately without speaking filler.",
-  "- Do not say placeholders like 'let me check' before or during tool execution.",
-  "- Speak only after tool results are available.",
-  "- If a sentence has already been spoken this turn, do not paraphrase/restart it.",
-].join("\n");
+const AUDIO_SIGNATURE_SWEEP_INTERVAL_MS = SESSION_CFG.deduplication.audioSignatureSweepIntervalMs;
 
 export type GeminiStatus = "disconnected" | "connecting" | "connected" | "error";
-type LiveCompatibilityProfile = "full" | "safe" | "minimal";
+type LiveCompatibilityProfile = GeminiSessionMode;
 
 export interface ToolCallPayload {
   name: string;
@@ -211,8 +213,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
   const downgradeCompatibilityProfile =
     useCallback((): LiveCompatibilityProfile | null => {
       const current = compatibilityProfileRef.current;
-      const next: LiveCompatibilityProfile | null =
-        current === "full" ? "safe" : current === "safe" ? "minimal" : null;
+      const next = degradeMode(current);
       if (next) {
         compatibilityProfileRef.current = next;
         log.warn(
@@ -565,9 +566,8 @@ export function useGeminiLive(): UseGeminiLiveReturn {
                   functionResponses: [
                     { id: callId, name: callName, response: result },
                   ],
-                  // 'SILENT' scheduling is only safe in 'full' profile;
-                  // omit it in 'safe'/'minimal' to avoid 1008 disconnects.
-                  ...(compatibilityProfileRef.current === "full"
+                  // Silent scheduling — controlled by gemini-session.json
+                  ...(SESSION_CFG.toolResponse.silentScheduling
                     ? { scheduling: "SILENT" }
                     : {}),
                 } as unknown as Parameters<Session["sendToolResponse"]>[0];
@@ -610,9 +610,6 @@ export function useGeminiLive(): UseGeminiLiveReturn {
         "policy=Use subtle bounded updates; prefer incremental patches over abrupt changes.",
       ].join("\n");
 
-      const profile = compatibilityProfileRef.current;
-      const isFull = profile === "full";
-      const isMinimal = profile === "minimal";
 
       // Fix M1: wrap the session open in a Promise that resolves on onopen,
       // not just on SDK connect() returning. This ensures startMic() is only
@@ -622,50 +619,74 @@ export function useGeminiLive(): UseGeminiLiveReturn {
         pendingOpenResolverRef.current = resolveOpen;
       });
 
+      // ── Build session config from gemini-session.json + UI overrides ──────
+      const currentMode = compatibilityProfileRef.current;
+      const modeCfg = getModeConfig(currentMode);
+
+      // UI-level overrides: SceneConfig.features takes precedence
+      const useGoogleSearch = cfg.features.googleSearch && modeCfg.features.googleSearch;
+      const useProactiveAudio = cfg.features.proactiveAudio && modeCfg.features.proactiveAudio;
+
       const session = await clientRef.current!.live.connect({
-        model:
-          compatibilityProfileRef.current === "minimal"
-            ? GEMINI_MODEL_FALLBACK
-            : GEMINI_MODEL,
+        model: GEMINI_MODEL,
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: "Puck" },
+              prebuiltVoiceConfig: { voiceName: modeCfg.audio.voiceName },
             },
           },
           systemInstruction: {
             parts: [
               {
-                text: `${SYSTEM_PROMPT}\n\n${TOOL_SILENCE_POLICY}\n\n# AVATAR_CONTROL_BASELINE\n${avatarBaselineSummary}`,
+                text: `${SYSTEM_PROMPT}\n\n# AVATAR_CONTROL_BASELINE\n${avatarBaselineSummary}`,
               },
             ],
           },
-          tools:
-            isMinimal || !cfg.features.googleSearch
-              ? GEMINI_TOOLS_NO_SEARCH
-              : GEMINI_TOOLS,
-          temperature: isMinimal ? 0.8 : 0.85,
-          ...(isFull ? { topP: 0.95 } : {}),
-          maxOutputTokens: 768,
-          ...(isFull
+          tools: useGoogleSearch
+            ? GEMINI_TOOLS
+            : GEMINI_TOOLS_NO_SEARCH,
+          temperature: modeCfg.generation.temperature,
+          ...(modeCfg.generation.topP != null ? { topP: modeCfg.generation.topP } : {}),
+          maxOutputTokens: modeCfg.generation.maxOutputTokens,
+          // Thinking budget — 0 disables thinking for latency-sensitive conversations
+          ...(modeCfg.thinking.thinkingBudget != null
+            ? { thinkingConfig: { thinkingBudget: modeCfg.thinking.thinkingBudget } }
+            : {}),
+          // Media resolution — low reduces server-side vision processing
+          ...(modeCfg.video.mediaResolution
+            ? { mediaResolution: modeCfg.video.mediaResolution as MediaResolution }
+            : {}),
+          // Proactive audio — only in full mode, gated by UI override
+          ...(useProactiveAudio
+            ? { proactivity: { proactiveAudio: true } }
+            : {}),
+          // Affective dialog — only when mode enables it (v1alpha)
+          ...(modeCfg.features.enableAffectiveDialog
+            ? { enableAffectiveDialog: true }
+            : {}),
+          // Output transcription — only when mode enables it
+          ...(modeCfg.features.outputAudioTranscription
+            ? { outputAudioTranscription: {} }
+            : {}),
+          // Input transcription — always on for user transcript
+          ...(modeCfg.features.inputAudioTranscription
+            ? { inputAudioTranscription: {} }
+            : {}),
+          realtimeInputConfig: { automaticActivityDetection: {} },
+          // Context window compression — configurable trigger threshold
+          ...(modeCfg.features.contextWindowCompression
             ? {
-                proactivity: {
-                  proactiveAudio: cfg.features.proactiveAudio,
+                contextWindowCompression: {
+                  slidingWindow: {},
+                  ...(modeCfg.contextWindow.triggerTokens
+                    ? { triggerTokens: String(modeCfg.contextWindow.triggerTokens) }
+                    : {}),
                 },
               }
             : {}),
-          // Adapt response style and tone to the user's emotional delivery.
-          // Requires v1alpha (already set via httpOptions) — docs: enableAffectiveDialog.
-          enableAffectiveDialog: true,
-          // Return a text transcription of the model's audio output.
-          // The receiving side (serverContent.outputTranscription) is already wired.
-          outputAudioTranscription: {},
-          inputAudioTranscription: {}, // Keep on for debugging user intent
-          realtimeInputConfig: { automaticActivityDetection: {} },
-          // Apply contextWindowCompression unless minimal (same as pre-refactor logic)
-          ...(!isMinimal ? { contextWindowCompression: { slidingWindow: {} } } : {}),
-          ...(sessionHandleRef.current
+          // Session resumption — reconnect with saved handle
+          ...(sessionHandleRef.current && modeCfg.features.sessionResumption
             ? { sessionResumption: { handle: sessionHandleRef.current } }
             : {}),
         },
@@ -734,8 +755,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
             // from clean closes (1000, 1001) so the auto-reconnect effect
             // knows whether to attempt recovery or stop.
             lastCloseCodeRef.current = e.code;
-            const isRetryableServerError =
-              e.code === 1011 || e.code === 1012 || e.code === 1013;
+            const isRetryableServerError = isRetryableCloseCode(e.code);
 
             if (isRetryableServerError) {
               log.warn(
@@ -815,7 +835,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
       sessionRef.current.sendRealtimeInput({
         audio: {
           data: base64Audio,
-          mimeType: `audio/pcm;rate=${AUDIO_CONFIG.input_hz}`,
+          mimeType: `audio/pcm;rate=${getModeConfig(compatibilityProfileRef.current).audio.inputSampleRate}`,
         },
       });
     } catch (e) {

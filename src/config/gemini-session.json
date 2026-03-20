@@ -1,0 +1,130 @@
+{
+  "_meta": {
+    "version": "2.0.0",
+    "description": "Gemini Live API session configuration. Adjust values here to tune latency, stability, and feature richness. UI-level overrides (features.googleSearch, features.proactiveAudio) take precedence over these defaults.",
+    "updated": "2026-03-21"
+  },
+
+  "model": {
+    "primary": "gemini-2.5-flash-native-audio-preview-12-2025",
+    "apiVersion": "v1alpha"
+  },
+
+  "modes": {
+    "full": {
+      "description": "Maximum feature richness — affective dialog, proactive audio, output transcription",
+      "generation": {
+        "temperature": 0.85,
+        "topP": 0.95,
+        "maxOutputTokens": 384
+      },
+      "features": {
+        "enableAffectiveDialog": true,
+        "proactiveAudio": true,
+        "inputAudioTranscription": true,
+        "outputAudioTranscription": true,
+        "googleSearch": true,
+        "contextWindowCompression": true,
+        "sessionResumption": true
+      },
+      "audio": {
+        "inputSampleRate": 16000,
+        "outputSampleRate": 24000,
+        "voiceName": "Puck"
+      },
+      "video": {
+        "fps": 1,
+        "quality": 0.7,
+        "mediaResolution": "MEDIA_RESOLUTION_LOW"
+      },
+      "thinking": {
+        "thinkingBudget": 0
+      },
+      "contextWindow": {
+        "triggerTokens": 40000,
+        "slidingWindow": true
+      },
+      "vad": {
+        "automaticActivityDetection": true,
+        "startOfSpeechSensitivity": "START_SENSITIVITY_HIGH",
+        "endOfSpeechSensitivity": "END_SENSITIVITY_HIGH"
+      }
+    },
+
+    "stable": {
+      "description": "Reduced feature set for stability — no affective dialog, no proactive audio, no output transcription",
+      "generation": {
+        "temperature": 0.8,
+        "maxOutputTokens": 384
+      },
+      "features": {
+        "enableAffectiveDialog": false,
+        "proactiveAudio": false,
+        "inputAudioTranscription": true,
+        "outputAudioTranscription": false,
+        "googleSearch": true,
+        "contextWindowCompression": true,
+        "sessionResumption": true
+      },
+      "audio": {
+        "inputSampleRate": 16000,
+        "outputSampleRate": 24000,
+        "voiceName": "Puck"
+      },
+      "video": {
+        "fps": 0.5,
+        "quality": 0.7,
+        "mediaResolution": "MEDIA_RESOLUTION_LOW"
+      },
+      "thinking": {
+        "thinkingBudget": 0
+      },
+      "contextWindow": {
+        "triggerTokens": 40000,
+        "slidingWindow": true
+      },
+      "vad": {
+        "automaticActivityDetection": true,
+        "startOfSpeechSensitivity": "START_SENSITIVITY_HIGH",
+        "endOfSpeechSensitivity": "END_SENSITIVITY_HIGH"
+      }
+    }
+  },
+
+  "stability": {
+    "maxRetriesBeforeDegrade": 1,
+    "maxRetriesInStableMode": 3,
+    "backoff": {
+      "initialMs": 800,
+      "multiplier": 2,
+      "maxMs": 8000,
+      "jitterMs": 400
+    },
+    "retryableCloseCodes": [1011, 1012, 1013],
+    "degradeOnCloseCodes": [1011, 1012, 1013],
+    "videoSessionRolloverSec": 105,
+    "tokenPrefetchMaxAgeMs": 45000
+  },
+
+  "toolResponse": {
+    "silentScheduling": false,
+    "handlerTimeoutMs": 8000
+  },
+
+  "deduplication": {
+    "audioDuplicateWindowMs": 500,
+    "audioSignatureTtlMs": 5000,
+    "audioSignatureSweepIntervalMs": 2000,
+    "textDedupWindowMs": 1200,
+    "audioChunkLogInterval": 100,
+    "duplicateAudioLogInterval": 50
+  },
+
+  "heartbeat": {
+    "enabled": false,
+    "intervalMs": 3000,
+    "useAudioStreamEnd": true,
+    "precomputeZeroChunk": true,
+    "zeroChunkBytes": 3200
+  }
+}
