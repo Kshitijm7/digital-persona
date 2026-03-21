@@ -56,6 +56,9 @@
       "animation": {
         "queueDepth": 5,
         "includeMultiAnimations": true
+      },
+      "heartbeat": {
+        "precomputeFallback": false
       }
     },
 
@@ -103,6 +106,9 @@
       "animation": {
         "queueDepth": 1,
         "includeMultiAnimations": false
+      },
+      "heartbeat": {
+        "precomputeFallback": false
       }
     }
   },
@@ -140,6 +146,7 @@
     "enabled": false,
     "intervalMs": 3000,
     "useAudioStreamEnd": true,
+    "audioStreamEndDelayMs": 1000,
     "precomputeZeroChunk": true,
     "zeroChunkBytes": 3200
   }

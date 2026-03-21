@@ -306,7 +306,7 @@ function HomePage() {
   const prevRawErrorRef = useRef<string | null>(null);
   useEffect(() => {
     if (rawError && rawError !== prevRawErrorRef.current) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setDismissedError(null);
     }
     prevRawErrorRef.current = rawError ?? null;

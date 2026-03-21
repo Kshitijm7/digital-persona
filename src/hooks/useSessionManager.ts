@@ -5,7 +5,12 @@ import { useGeminiLive } from "./useGeminiLive";
 import { useAudioProcessor } from "./useAudioProcessor";
 import { useWebcam } from "./useWebcam";
 import { createLogger } from "@/lib/logging/logger";
-import { getSessionConfig, computeBackoff } from "@/lib/gemini-session-config";
+import {
+  getSessionConfig,
+  getModeConfig,
+  computeBackoff,
+} from "@/lib/gemini-session-config";
+import type { GeminiSessionMode } from "@/lib/gemini-session-config";
 
 const log = createLogger("useSessionManager");
 
@@ -14,20 +19,26 @@ const ASSISTANT_ECHO_BLOCK_THRESHOLD = 0.22;
 const ASSISTANT_ECHO_RELEASE_THRESHOLD = 0.32;
 const ASSISTANT_HOLDOFF_MS = 500;
 const SESSION_CFG = getSessionConfig();
-const MAX_AUTO_RECONNECT_ATTEMPTS = SESSION_CFG.stability.maxRetriesInStableMode;
+const MAX_AUTO_RECONNECT_ATTEMPTS =
+  SESSION_CFG.stability.maxRetriesInStableMode;
 
-/**
- * Centralized session management hook.
- * Coordinates Gemini Live, audio, and webcam; wires built-in tool handlers.
- *
- * @remarks
- * **Built-in tool handlers registered here:**
- * - `get_time_date` — returns current ISO timestamp and locale string
- *
- * Application-level tools (e.g. `trigger_animation`, `update_persona_state`,
- * `display_text`) should be registered by the page via the returned
- * `registerTool` function BEFORE calling `toggleSession`.
- */
+// ── Precomputed zero-chunk fallback (Wave 2.2) ─────────────────────────────
+const BASE64_CHUNK_SIZE = 0x8000;
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += BASE64_CHUNK_SIZE) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + BASE64_CHUNK_SIZE));
+  }
+  return btoa(binary);
+}
+
+const ZERO_CHUNK_BYTES = new Uint8Array(SESSION_CFG.heartbeat.zeroChunkBytes);
+const ZERO_CHUNK_B64 = bytesToBase64(ZERO_CHUNK_BYTES);
+
+const AUDIO_STREAM_END_DELAY_MS = SESSION_CFG.heartbeat.audioStreamEndDelayMs;
+const HEARTBEAT_INTERVAL_MS = SESSION_CFG.heartbeat.intervalMs;
+
 export function useSessionManager() {
   const {
     onAudioData: onAudioDataRef,
@@ -85,7 +96,16 @@ export function useSessionManager() {
 
   // ── Session state ──────────────────────────────────────────────────────────
   const [isInitialized, setIsInitialized] = useState(false);
+  // FIX(SM4): Ref mirror of isInitialized for fresh reads in async callbacks.
+  // State gives us re-renders; the ref gives us a non-stale value inside
+  // setTimeout / async continuations that outlive the effect closure.
+  const isInitializedRef = useRef(false);
   const isConnected = geminiStatus === "connected";
+
+  // FIX(SM4): Keep ref in sync with state
+  useEffect(() => {
+    isInitializedRef.current = isInitialized;
+  }, [isInitialized]);
 
   // ── Mic accounting ─────────────────────────────────────────────────────────
   const micSuppressedChunksRef = useRef(0);
@@ -100,12 +120,12 @@ export function useSessionManager() {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTransitioningRef = useRef(false);
 
-  // Fix #10: keep a stable ref to forwardMicChunk so the reconnect timer
-  // always uses the current closure without needing to capture it.
   const forwardMicChunkRef = useRef<(chunk: string) => void>(() => {});
 
-  // Fix #11: use a ref-based lock instead of a boolean that React can reset.
   const dropHandledForConnectionRef = useRef<number | null>(null);
+
+  const audioStreamEndSentRef = useRef(false);
+  const suppressionStartRef = useRef(0);
 
   // ── Built-in tool: get_time_date ───────────────────────────────────────────
   useEffect(() => {
@@ -121,9 +141,7 @@ export function useSessionManager() {
   }, [registerTool]);
   const lastForwardedChunkAtRef = useRef(0);
 
-  // ── Mic chunk forwarding (Fix #13) ────────────────────────────────────────
-  // `sendAudioChunk` is now stable (no deps) so `forwardMicChunk` will not
-  // recreate on reconnect — the AudioWorklet does not restart.
+  // ── Mic chunk forwarding ──────────────────────────────────────────────────
   const forwardMicChunk = useCallback(
     (chunk: string) => {
       const inputLevel = inputAudioLevelRef.current ?? 0;
@@ -143,16 +161,34 @@ export function useSessionManager() {
               suppressedAmbientChunks: micSuppressedAmbientRef.current,
               forwardedChunks: micForwardedChunksRef.current,
             },
-            "Suppressed microphone chunk below ambient floor."
+            "Suppressed microphone chunk below ambient floor.",
           );
         }
-        
-        // HEARTBEAT: Prevent 10s idle disconnect by sending a chunk every 3s
-        if (now - lastForwardedChunkAtRef.current > 3000) {
-          micForwardedChunksRef.current += 1;
-          lastForwardedChunkAtRef.current = now;
-          log.debug("Sent silent heartbeat chunk to keep WebSocket alive.");
-          sendAudioChunk(chunk);
+
+        if (suppressionStartRef.current === 0) {
+          suppressionStartRef.current = now;
+        }
+
+        const silenceDuration = now - suppressionStartRef.current;
+        const activeMode = getCompatibilityProfile() as GeminiSessionMode;
+        const modeHeartbeat = getModeConfig(activeMode).heartbeat;
+
+        if (modeHeartbeat.precomputeFallback) {
+          if (now - lastForwardedChunkAtRef.current > HEARTBEAT_INTERVAL_MS) {
+            micForwardedChunksRef.current += 1;
+            lastForwardedChunkAtRef.current = now;
+            log.debug("Sent precomputed zero-chunk heartbeat (ambient).");
+            sendAudioChunk(ZERO_CHUNK_B64);
+          }
+        } else {
+          if (
+            silenceDuration > AUDIO_STREAM_END_DELAY_MS &&
+            !audioStreamEndSentRef.current
+          ) {
+            audioStreamEndSentRef.current = true;
+            log.debug("Sent audioStreamEnd after ambient silence.");
+            sendAudioStreamEnd();
+          }
         }
         return;
       }
@@ -179,22 +215,41 @@ export function useSessionManager() {
               inputLevel,
               inAssistantHoldoff,
             },
-            "Suppressed microphone chunk to prevent assistant self-interruption."
+            "Suppressed microphone chunk to prevent assistant self-interruption.",
           );
         }
-        
-        // HEARTBEAT: Prevent 10s idle disconnect during long assistant speech
-        if (now - lastForwardedChunkAtRef.current > 3000) {
-          micForwardedChunksRef.current += 1;
-          lastForwardedChunkAtRef.current = now;
-          log.debug("Sent silent heartbeat chunk to keep WebSocket alive during echo block.");
-          // Send true silence instead of the echo-y chunk to be safe
-          const zeroBytes = new Uint8Array((atob(chunk).length));
-          const zeroB64 = btoa(String.fromCharCode.apply(null, Array.from(zeroBytes)));
-          sendAudioChunk(zeroB64);
+
+        if (suppressionStartRef.current === 0) {
+          suppressionStartRef.current = now;
+        }
+
+        const silenceDuration = now - suppressionStartRef.current;
+        const activeMode = getCompatibilityProfile() as GeminiSessionMode;
+        const modeHeartbeat = getModeConfig(activeMode).heartbeat;
+
+        if (modeHeartbeat.precomputeFallback) {
+          if (now - lastForwardedChunkAtRef.current > HEARTBEAT_INTERVAL_MS) {
+            micForwardedChunksRef.current += 1;
+            lastForwardedChunkAtRef.current = now;
+            log.debug("Sent precomputed zero-chunk heartbeat (echo block).");
+            sendAudioChunk(ZERO_CHUNK_B64);
+          }
+        } else {
+          if (
+            silenceDuration > AUDIO_STREAM_END_DELAY_MS &&
+            !audioStreamEndSentRef.current
+          ) {
+            audioStreamEndSentRef.current = true;
+            log.debug("Sent audioStreamEnd during echo block.");
+            sendAudioStreamEnd();
+          }
         }
         return;
       }
+
+      // User is speaking — reset suppression tracking
+      audioStreamEndSentRef.current = false;
+      suppressionStartRef.current = 0;
 
       micForwardedChunksRef.current += 1;
       lastForwardedChunkAtRef.current = now;
@@ -208,15 +263,21 @@ export function useSessionManager() {
             suppressedChunks: micSuppressedChunksRef.current,
             inputLevel,
           },
-          "Forwarded microphone chunk to Gemini."
+          "Forwarded microphone chunk to Gemini.",
         );
       }
       sendAudioChunk(chunk);
     },
-    [inputAudioLevelRef, isAssistantSpeakingRef, sendAudioChunk]
+    [
+      inputAudioLevelRef,
+      isAssistantSpeakingRef,
+      sendAudioChunk,
+      sendAudioStreamEnd,
+      getCompatibilityProfile,
+    ],
   );
 
-  // Keep the ref current so the reconnect timer can always call the latest version
+  // Keep the ref current so timers always call the latest version
   useEffect(() => {
     forwardMicChunkRef.current = forwardMicChunk;
   }, [forwardMicChunk]);
@@ -226,7 +287,8 @@ export function useSessionManager() {
     if (!isInitialized) return;
     log.debug("Attached Gemini audio callback.");
     onAudioDataRef.current = (b64) => {
-      assistantHoldoffUntilRef.current = performance.now() + ASSISTANT_HOLDOFF_MS;
+      assistantHoldoffUntilRef.current =
+        performance.now() + ASSISTANT_HOLDOFF_MS;
       playAudioChunk(b64);
     };
     return () => {
@@ -256,7 +318,7 @@ export function useSessionManager() {
     onTurnCompleteRef.current = () => {
       assistantHoldoffUntilRef.current = Math.max(
         assistantHoldoffUntilRef.current,
-        performance.now() + ASSISTANT_HOLDOFF_MS
+        performance.now() + ASSISTANT_HOLDOFF_MS,
       );
       markAssistantTurnComplete();
     };
@@ -266,51 +328,47 @@ export function useSessionManager() {
     };
   }, [onTurnCompleteRef, markAssistantTurnComplete, isInitialized]);
 
-  // ── Wire webcam frames → Gemini ────────────────────────────────────────────
+  // ── Wire webcam frames → Gemini (FIX SM1) ─────────────────────────────────
+  // Removed `isConnected` from deps. `sendVideoFrame` already guards on
+  // statusRef internally — having isConnected here caused the callback to
+  // detach→reattach on every status toggle during reconnect, producing
+  // brief frame blackouts and unnecessary GC churn.
   useEffect(() => {
     if (!isInitialized) return;
     log.debug("Attached webcam frame callback.");
     onFrameRef.current = (base64) => {
-      if (isConnected) sendVideoFrame(base64);
+      sendVideoFrame(base64);
     };
     return () => {
       onFrameRef.current = null;
       log.debug("Detached webcam frame callback.");
     };
-  }, [onFrameRef, isConnected, sendVideoFrame, isInitialized]);
+  }, [onFrameRef, sendVideoFrame, isInitialized]);
 
-  // ── Auto-reconnect on unexpected drop (Fix #9, #11) ───────────────────────
+  // ── Auto-reconnect on unexpected drop (FIX SM2, SM4, SM5) ─────────────────
   useEffect(() => {
     if (!isInitialized) return;
 
     if (geminiStatus !== "disconnected" && geminiStatus !== "error") {
-      // Session is healthy — nothing to do
       return;
     }
 
-    // Fix M2: do not auto-reconnect on clean client-initiated closes (1000/1001)
-    // These happen when the server cancels a tool call mid-session (switch_camera)
-    // and our code sends a clean close in response. Reconnect only on server
-    // errors (1011+) or abnormal closes (1006).
     const closeCode = lastCloseCode?.current;
-    const isCleanClose =
-      closeCode === 1000 || closeCode === 1001;
+    const isCleanClose = closeCode === 1000 || closeCode === 1001;
 
     if (isCleanClose && !isManualStopRef.current) {
       log.info(
         { closeCode },
-        "Clean WebSocket close — not triggering auto-reconnect."
+        "Clean WebSocket close — not triggering auto-reconnect.",
       );
-      // Still need to clean up initialized state
-      sendAudioStreamEnd();
+      // FIX(SM5): Removed sendAudioStreamEnd() — session is already
+      // disconnected at this point so it's always a no-op.
       stopMic();
       stopWebcam();
       setTimeout(() => setIsInitialized(false), 0);
       return;
     }
 
-    // Fix #11: key the drop guard on the current reconnect attempt count so
-    // StrictMode double-fires see the same count and both no-op after the first.
     const currentAttempt = reconnectAttemptsRef.current;
     if (dropHandledForConnectionRef.current === currentAttempt) {
       return;
@@ -325,9 +383,8 @@ export function useSessionManager() {
     if (currentAttempt >= MAX_AUTO_RECONNECT_ATTEMPTS) {
       log.warn(
         { status: geminiStatus },
-        "Gemini session dropped; max reconnect attempts reached — stopping media."
+        "Gemini session dropped; max reconnect attempts reached — stopping media.",
       );
-      sendAudioStreamEnd();
       stopMic();
       stopWebcam();
       setTimeout(() => setIsInitialized(false), 0);
@@ -336,42 +393,83 @@ export function useSessionManager() {
 
     reconnectAttemptsRef.current += 1;
     const attempt = reconnectAttemptsRef.current;
-    // Wave 1: exponential backoff with jitter (driven by gemini-session.json)
     const delayMs = computeBackoff(attempt - 1);
 
     log.warn(
       { status: geminiStatus, attempt, delayMs },
-      "Gemini session dropped; attempting automatic reconnect."
+      "Gemini session dropped; attempting automatic reconnect.",
     );
 
     sendAudioStreamEnd();
     stopMic();
 
+    // FIX(SM2): Clear any existing reconnect timer before scheduling a new
+    // one. Without this, if deps change mid-timer (e.g. StrictMode
+    // double-fire or rapid disconnect→error→disconnect), two timers race
+    // and both call connect() concurrently.
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+
     reconnectTimerRef.current = setTimeout(() => {
+      reconnectTimerRef.current = null;
+
       void (async () => {
-        if (isManualStopRef.current || !isInitialized) return;
+        // FIX(SM4): Read the ref, not the stale closure value.
+        // The effect closure captured `isInitialized` at schedule-time,
+        // but by the time the timer fires the component may have
+        // unmounted or the user may have stopped the session.
+        if (isManualStopRef.current || !isInitializedRef.current) return;
 
         const connected = await connect();
         if (connected) {
-          // Fix #9: reset AFTER successful reconnect, not before
           reconnectAttemptsRef.current = 0;
           dropHandledForConnectionRef.current = null;
-          // Fix #10: call forwardMicChunk through the ref so we always use
-          // the latest closure regardless of when the timer fires.
-          startMic((...args) => forwardMicChunkRef.current(...args));
-          log.info({ attempt }, "Gemini session recovered via automatic reconnect.");
+
+          // FIX: Reset playback state for the new session.
+          // Without this, the old streamer's doneFired flag leaks
+          // across sessions, causing onComplete to never fire for
+          // text-only turns after reconnect.
+          stopPlayback();
+
+          // FIX(SM3): Await startMic and log if it fails. Without this,
+          // a denied mic permission after reconnect leaves the user with
+          // a live avatar that can't hear them — and no feedback.
+          const micStarted = await startMic(
+            (...args) => forwardMicChunkRef.current(...args),
+          );
+          if (!micStarted) {
+            log.warn(
+              { attempt },
+              "Reconnect succeeded but mic failed to start. User has no audio input.",
+            );
+          }
+          log.info(
+            { attempt, micActive: micStarted },
+            "Gemini session recovered via automatic reconnect.",
+          );
         } else {
-          // Allow the next status change to trigger another attempt
           dropHandledForConnectionRef.current = null;
           log.warn({ attempt }, "Automatic reconnect attempt failed.");
         }
       })();
     }, delayMs);
+
+    // FIX(SM2): Cleanup — if deps change before the timer fires, cancel it.
+    // This prevents two concurrent connect() calls from racing.
+    return () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+    };
   }, [
     geminiStatus,
     isInitialized,
     stopMic,
     stopWebcam,
+    stopPlayback,
     connect,
     sendAudioStreamEnd,
     startMic,
@@ -387,6 +485,7 @@ export function useSessionManager() {
     assistantHoldoffUntilRef.current = 0;
   }, []);
 
+  // FIX(SM3): startSession now surfaces mic failure to the user.
   const startSession = useCallback(async () => {
     try {
       isManualStopRef.current = false;
@@ -403,7 +502,6 @@ export function useSessionManager() {
 
       log.info("Starting session.");
 
-      // Resume AudioContext during the user gesture to satisfy autoplay policy
       const streamer = ensureStreamer();
       if (streamer.context.state === "suspended") {
         await streamer.context.resume();
@@ -415,9 +513,19 @@ export function useSessionManager() {
         throw new Error("Gemini session failed to connect.");
       }
 
-      // Fix #10: wrap via ref so the AudioWorklet always calls the latest version
-      startMic((...args) => forwardMicChunkRef.current(...args));
-      log.info("Session started.");
+      // FIX(SM3): Await mic start. If permission is denied, log a clear
+      // warning. We don't throw — the session is still usable for text
+      // input — but the user gets feedback via micError.
+      const micStarted = await startMic(
+        (...args) => forwardMicChunkRef.current(...args),
+      );
+      if (!micStarted) {
+        log.warn(
+          "Session connected but microphone failed to start. " +
+            "User can still interact via text.",
+        );
+      }
+      log.info({ micActive: micStarted }, "Session started.");
     } catch (error) {
       log.error({ err: error }, "Failed to start session.");
       setIsInitialized(false);
@@ -439,7 +547,7 @@ export function useSessionManager() {
         forwardedMicChunks: micForwardedChunksRef.current,
         suppressedMicChunks: micSuppressedChunksRef.current,
       },
-      "Stopping session."
+      "Stopping session.",
     );
 
     sendAudioStreamEnd();
@@ -458,14 +566,12 @@ export function useSessionManager() {
     sendAudioStreamEnd,
   ]);
 
-  // ── Toggle (Fix #14) ───────────────────────────────────────────────────────
-  // Only allow stopping when the session is fully connected or in error state.
-  // If still connecting, do nothing to avoid tearing a mid-handshake session.
+  // ── Toggle ─────────────────────────────────────────────────────────────────
   const toggleSession = useCallback(() => {
     if (isTransitioningRef.current) {
       log.debug(
         { status: geminiStatus },
-        "Session toggle ignored while transitioning."
+        "Session toggle ignored while transitioning.",
       );
       return;
     }
@@ -483,7 +589,6 @@ export function useSessionManager() {
         isTransitioningRef.current = false;
       }, 500);
     } else {
-      // geminiStatus === "disconnected"
       isTransitioningRef.current = true;
       log.info("Starting session via toggle.");
       startSession().finally(() => {
@@ -508,9 +613,11 @@ export function useSessionManager() {
     if (isCameraActive) {
       stopWebcam();
     } else {
-      startWebcam();
+      const activeMode = getCompatibilityProfile() as GeminiSessionMode;
+      const modeFps = getModeConfig(activeMode).video.fps;
+      startWebcam(undefined, modeFps);
     }
-  }, [isCameraActive, stopWebcam, startWebcam]);
+  }, [isCameraActive, stopWebcam, startWebcam, getCompatibilityProfile]);
 
   // ── Cleanup on unmount ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -523,7 +630,6 @@ export function useSessionManager() {
   }, []);
 
   return {
-    // State
     isConnected,
     status: geminiStatus,
     errorMessage,
@@ -536,7 +642,6 @@ export function useSessionManager() {
     facingMode,
     videoRef,
 
-    // Actions
     toggleSession,
     toggleMic,
     toggleCamera,
@@ -544,17 +649,11 @@ export function useSessionManager() {
     sendText,
     getCompatibilityProfile,
 
-    // Audio scheduling
     onAudioScheduledRef,
     onPlaybackComplete: onPlaybackCompleteRef,
 
-    /**
-     * Register an application-level tool handler.
-     * Must be called before `toggleSession` / `connect`.
-     */
     registerTool,
 
-    // Callback refs
     onToolCall,
     onTranscript,
     onUserTranscript,

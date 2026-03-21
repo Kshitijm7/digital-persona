@@ -59,6 +59,11 @@ export interface AnimationConfig {
   includeMultiAnimations: boolean;
 }
 
+export interface ModeHeartbeatConfig {
+  /** When true, send a precomputed zero-chunk instead of audioStreamEnd during silence. */
+  precomputeFallback: boolean;
+}
+
 export interface ModeConfig {
   description: string;
   generation: GenerationConfig;
@@ -71,6 +76,7 @@ export interface ModeConfig {
   /** Which function declarations to include (by name from TOOL_REGISTRY) */
   tools: string[];
   animation: AnimationConfig;
+  heartbeat: ModeHeartbeatConfig;
 }
 
 export interface StabilityConfig {
@@ -106,6 +112,7 @@ export interface HeartbeatConfig {
   enabled: boolean;
   intervalMs: number;
   useAudioStreamEnd: boolean;
+  audioStreamEndDelayMs: number;
   precomputeZeroChunk: boolean;
   zeroChunkBytes: number;
 }
