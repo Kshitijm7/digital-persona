@@ -70,9 +70,17 @@ The `TOOL_SILENCE_POLICY` constant and `TOOL_SILENCE_POLICY` variable in `useGem
 - Multi-turn degradation: **-30 to -50%** (earlier context compression)
 - Connection stability: **improved** (SILENT removed, smaller setup payload)
 
+## Wave 0.5 — Multi-Animation Categories ✅ IMPLEMENTED
+
+> **Queue depths and stackability are bounded by `src/config/gemini-session.json`.**
+
+- `constants.ts` defines `SINGLE_ANIMATIONS` (expression, gestures) and `MULTI_ANIMATIONS` (dance).
+- `gemini-session.json` exposes `animation.queueDepth` and `animation.includeMultiAnimations`.
+- `page.tsx` tool handler `trigger_animation` checks if the animation is in `MULTI_ANIMATIONS` to decide sequence depth. Single animations are hard-capped at depth `1`.
+
 ---
 
-## Wave 1 — Stability-Critical Fixes
+## Wave 1 — Stability-Critical Fixes ✅ IMPLEMENTED
 
 > Fix the bugs and failure modes that cause session drops.
 
@@ -287,16 +295,16 @@ Keep `test:run` as `test:unit` + `test:integration` for deterministic CI.
 
 ## Execution Order
 
-### Deploy immediately (Wave 0)
+### Deploy immediately (Wave 0) ✅ IMPLEMENTED
 1. `constants.ts` — remove fallback model, trim animation enum, **delete `TOOL_SILENCE_POLICY` constant**, merge its rules into `SYSTEM_PROMPT`
 2. `useGeminiLive.ts` — config changes only (thinking, maxOutput, mediaRes, triggerTokens, remove SILENT scheduling, move avatar baseline, **remove `TOOL_SILENCE_POLICY` concatenation from `systemInstruction`**)
-3. Deploy, measure latency before vs after
+3. Deploy, measure latency before vs after confirmed.
 
-### Week 1 (Wave 1)
+### Week 1 (Wave 0.5 & Wave 1) ✅ IMPLEMENTED
 1. `useGeminiLive.ts` — transcript fix, 2-mode profile, goAway, 1011 degrade, usageMetadata, reset lastCloseCode, gate v1alpha features
 2. `useSessionManager.ts` — exponential backoff, video rollover
-3. `constants.ts` — typed profile config object
-4. Unit tests for transcript routing, degradation flow, goAway handling
+3. `constants.ts` — defined `SINGLE_ANIMATIONS` vs `MULTI_ANIMATIONS`
+4. `page.tsx` — wired up dynamic multi-animation sequence depth
 
 ### Week 2 (Wave 2)
 1. `useSessionManager.ts` — heartbeat → audioStreamEnd, precompute zero chunk
@@ -332,6 +340,8 @@ Keep `test:run` as `test:unit` + `test:integration` for deterministic CI.
 | `maxOutputTokens` | 384 | 384 |
 | `thinkingBudget` | 0 | 0 |
 | `mediaResolution` | LOW | LOW |
+| `animation.queueDepth` | 10 | 1 |
+| `animation.includeMultiAnimations` | ✅ | ❌ |
 
 ---
 
@@ -359,3 +369,6 @@ Keep `test:run` as `test:unit` + `test:integration` for deterministic CI.
 - `project_docs/gemini_api/gemin_live_api_doc.md` — Live API reference (goAway, transcription, usageMetadata)
 - `project_docs/gemini_api/official_docs.md` — session limits, thinking, mediaResolution, VAD
 - `project_docs/gemini_api/best_practice.md` — ephemeral tokens, architecture patterns
+
+@beautifulMention ok keep things as planned, little update to it, add new variable in @beautifulMention as boolen to use precompute fallback or not in both modes. default it as false and wrap @beautifulMention  this into that boolean. so that we can enable and disable and it creates and keeps the chunk in cache for usage. also we already have fps settings in json file for both the modes. use that. implement rest of wave 2 as planned. i want clean audio playback. do what is gold standard for audio search online for best practice for fast and seamless and clear audio stream like real conversations. and start implementing wave 2
+

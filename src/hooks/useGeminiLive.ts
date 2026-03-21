@@ -10,9 +10,8 @@ import {
 } from "@google/genai";
 import {
   GEMINI_MODEL,
-  GEMINI_TOOLS,
-  GEMINI_TOOLS_NO_SEARCH,
   SYSTEM_PROMPT,
+  getToolsForMode,
 } from "@/lib/constants";
 import {
   getSessionConfig,
@@ -75,6 +74,7 @@ export interface UseGeminiLiveReturn {
   lastSessionHandle: React.RefObject<string | null>;
   lastCloseCode: React.RefObject<number | null>;
   errorMessage: string | null;
+  getCompatibilityProfile: () => GeminiSessionMode;
 }
 
 export function useGeminiLive(): UseGeminiLiveReturn {
@@ -135,6 +135,11 @@ export function useGeminiLive(): UseGeminiLiveReturn {
 
   const [status, setStatus] = useState<GeminiStatus>("disconnected");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const getCompatibilityProfile = useCallback(
+    () => compatibilityProfileRef.current,
+    []
+  );
 
   // ── Audio signature sweep (Fix #6) ────────────────────────────────────────
   // Runs on an interval outside the hot audio path so the per-chunk cost is O(1).
@@ -246,6 +251,8 @@ export function useGeminiLive(): UseGeminiLiveReturn {
     forwardedAudioChunkCountRef.current = 0;
     droppedAudioChunkCountRef.current = 0;
     lastTextPayloadRef.current = null;
+    lastCloseCodeRef.current = null; // Wave 1: reset on manual disconnect
+    compatibilityProfileRef.current = "full"; // Upgrade: next session starts in full mode
 
     statusRef.current = "disconnected";
     setStatus("disconnected");
@@ -374,6 +381,34 @@ export function useGeminiLive(): UseGeminiLiveReturn {
           );
         }
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const goAway = (message as any).goAway;
+        if (goAway) {
+          log.warn(
+            { connectionId, timeLeft: goAway.timeLeft },
+            "Server sent goAway — initiating proactive reconnect."
+          );
+          // Trigger a clean disconnect; the auto-reconnect effect will handle recovery
+          // using sessionResumption with the saved handle.
+          statusRef.current = "disconnected";
+          setStatus("disconnected");
+          return;
+        }
+
+        // Wave 1: capture usageMetadata for telemetry
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const usage = (message as any).usageMetadata;
+        if (usage) {
+          log.info(
+            {
+              connectionId,
+              totalTokens: usage.totalTokenCount,
+              promptTokens: usage.promptTokenCount,
+            },
+            "Usage metadata received."
+          );
+        }
+
         if (message.toolCallCancellation) {
           const cancelledIds = message.toolCallCancellation.ids ?? [];
           log.debug({ connectionId, cancelledIds }, "Tool calls cancelled.");
@@ -406,8 +441,13 @@ export function useGeminiLive(): UseGeminiLiveReturn {
             onTurnComplete.current?.();
           }
 
+          // Wave 1: fix transcript routing — inputTranscription = user speech,
+          // outputTranscription = model speech (per API docs)
+          if (serverContent.inputTranscription?.text) {
+            onUserTranscript.current?.(serverContent.inputTranscription.text);
+          }
           if (serverContent.outputTranscription?.text) {
-            onUserTranscript.current?.(serverContent.outputTranscription.text);
+            onTranscript.current?.(serverContent.outputTranscription.text);
           }
 
           const parts = serverContent.modelTurn?.parts;
@@ -627,6 +667,9 @@ export function useGeminiLive(): UseGeminiLiveReturn {
       const useGoogleSearch = cfg.features.googleSearch && modeCfg.features.googleSearch;
       const useProactiveAudio = cfg.features.proactiveAudio && modeCfg.features.proactiveAudio;
 
+      // Wave 1: reset lastCloseCodeRef on new connect
+      lastCloseCodeRef.current = null;
+
       const session = await clientRef.current!.live.connect({
         model: GEMINI_MODEL,
         config: {
@@ -643,9 +686,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
               },
             ],
           },
-          tools: useGoogleSearch
-            ? GEMINI_TOOLS
-            : GEMINI_TOOLS_NO_SEARCH,
+          tools: getToolsForMode(currentMode, useGoogleSearch),
           temperature: modeCfg.generation.temperature,
           ...(modeCfg.generation.topP != null ? { topP: modeCfg.generation.topP } : {}),
           maxOutputTokens: modeCfg.generation.maxOutputTokens,
@@ -924,6 +965,7 @@ export function useGeminiLive(): UseGeminiLiveReturn {
     onInterrupted,
     onTurnComplete,
     onToolCallCancellation,
+    getCompatibilityProfile,
     lastSessionHandle: sessionHandleRef,
     lastCloseCode: lastCloseCodeRef,
     errorMessage,

@@ -5,6 +5,7 @@ import { useGeminiLive } from "./useGeminiLive";
 import { useAudioProcessor } from "./useAudioProcessor";
 import { useWebcam } from "./useWebcam";
 import { createLogger } from "@/lib/logging/logger";
+import { getSessionConfig, computeBackoff } from "@/lib/gemini-session-config";
 
 const log = createLogger("useSessionManager");
 
@@ -12,8 +13,8 @@ const AMBIENT_INPUT_FLOOR = 0.006;
 const ASSISTANT_ECHO_BLOCK_THRESHOLD = 0.22;
 const ASSISTANT_ECHO_RELEASE_THRESHOLD = 0.32;
 const ASSISTANT_HOLDOFF_MS = 500;
-const MAX_AUTO_RECONNECT_ATTEMPTS = 2;
-const AUTO_RECONNECT_BASE_DELAY_MS = 800;
+const SESSION_CFG = getSessionConfig();
+const MAX_AUTO_RECONNECT_ATTEMPTS = SESSION_CFG.stability.maxRetriesInStableMode;
 
 /**
  * Centralized session management hook.
@@ -33,6 +34,7 @@ export function useSessionManager() {
     onInterrupted: onInterruptedRef,
     onTurnComplete: onTurnCompleteRef,
     registerTool,
+    getCompatibilityProfile,
     ...gemini
   } = useGeminiLive();
 
@@ -334,7 +336,8 @@ export function useSessionManager() {
 
     reconnectAttemptsRef.current += 1;
     const attempt = reconnectAttemptsRef.current;
-    const delayMs = AUTO_RECONNECT_BASE_DELAY_MS * attempt;
+    // Wave 1: exponential backoff with jitter (driven by gemini-session.json)
+    const delayMs = computeBackoff(attempt - 1);
 
     log.warn(
       { status: geminiStatus, attempt, delayMs },
@@ -539,6 +542,7 @@ export function useSessionManager() {
     toggleCamera,
     switchCamera,
     sendText,
+    getCompatibilityProfile,
 
     // Audio scheduling
     onAudioScheduledRef,

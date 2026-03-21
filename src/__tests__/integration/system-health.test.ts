@@ -51,11 +51,12 @@ describe('Digital Persona System Health', () => {
     });
 
     it('should have valid Gemini tools configuration', async () => {
-      const { GEMINI_TOOLS } = await import('@/lib/constants');
-      
-      expect(GEMINI_TOOLS.length).toBeGreaterThanOrEqual(1);
+      const { getToolsForMode } = await import('@/lib/constants');
+      const tools = getToolsForMode("full");
 
-      const toolsWithFunctions = GEMINI_TOOLS.filter((tool) =>
+      expect(tools.length).toBeGreaterThanOrEqual(1);
+
+      const toolsWithFunctions = tools.filter((tool) =>
         Array.isArray(tool.functionDeclarations)
       );
       expect(toolsWithFunctions.length).toBeGreaterThanOrEqual(1);

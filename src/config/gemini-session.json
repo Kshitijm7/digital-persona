@@ -48,6 +48,14 @@
         "automaticActivityDetection": true,
         "startOfSpeechSensitivity": "START_SENSITIVITY_HIGH",
         "endOfSpeechSensitivity": "END_SENSITIVITY_HIGH"
+      },
+      "tools": [
+        "trigger_animation", "set_expression", "update_persona_state",
+        "display_text", "get_time_date", "switch_camera", "end_call"
+      ],
+      "animation": {
+        "queueDepth": 5,
+        "includeMultiAnimations": true
       }
     },
 
@@ -87,6 +95,14 @@
         "automaticActivityDetection": true,
         "startOfSpeechSensitivity": "START_SENSITIVITY_HIGH",
         "endOfSpeechSensitivity": "END_SENSITIVITY_HIGH"
+      },
+      "tools": [
+        "trigger_animation", "set_expression",
+        "display_text", "get_time_date", "end_call"
+      ],
+      "animation": {
+        "queueDepth": 1,
+        "includeMultiAnimations": false
       }
     }
   },

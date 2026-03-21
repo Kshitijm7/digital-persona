@@ -359,7 +359,7 @@ describe('Gemini Live API Integration', () => {
       'should invoke google search when asking a real-time factual question',
       async () => {
         const { GoogleGenAI, Modality } = await import('@google/genai');
-        const { GEMINI_TOOLS } = await import('@/lib/constants');
+        const { getToolsForMode } = await import('@/lib/constants');
 
         const ai = new GoogleGenAI({ apiKey: API_KEY! });
 
@@ -373,7 +373,7 @@ describe('Gemini Live API Integration', () => {
           model: 'gemini-2.5-flash-native-audio-preview-12-2025',
           config: {
             responseModalities: [Modality.AUDIO],
-            tools: GEMINI_TOOLS,
+            tools: getToolsForMode("full"),
           },
           callbacks: {
             onopen: () => {},

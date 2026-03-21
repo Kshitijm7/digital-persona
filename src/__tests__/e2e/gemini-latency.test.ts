@@ -268,10 +268,10 @@ describe('Gemini Latency Benchmarks', () => {
     );
 
     it.skipIf(shouldSkip)(
-      'with GEMINI_TOOLS (functions + search)',
+      'with getToolsForMode("full") (functions + search)',
       async () => {
-        const { GEMINI_TOOLS } = await import('@/lib/constants');
-        const ms = await measureConnectionLatency('With GEMINI_TOOLS', { tools: GEMINI_TOOLS });
+        const { getToolsForMode } = await import('@/lib/constants');
+        const ms = await measureConnectionLatency('With getToolsForMode(full)', { tools: getToolsForMode("full") });
         expect(ms).toBeGreaterThan(0);
         logResult({ label: 'Connection: functions + search', connectionMs: ms, firstResponseMs: -1, toolCallMs: -1, totalMs: ms });
       },

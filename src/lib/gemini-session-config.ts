@@ -52,6 +52,13 @@ export interface VadConfig {
   endOfSpeechSensitivity: string;
 }
 
+export interface AnimationConfig {
+  /** Max pending animations in queue. 10 = multi-stack, 1 = single animation only */
+  queueDepth: number;
+  /** Whether to include multi-animations (like dance) in tool declarations. false in stable mode */
+  includeMultiAnimations: boolean;
+}
+
 export interface ModeConfig {
   description: string;
   generation: GenerationConfig;
@@ -61,6 +68,9 @@ export interface ModeConfig {
   thinking: ThinkingConfig;
   contextWindow: ContextWindowConfig;
   vad: VadConfig;
+  /** Which function declarations to include (by name from TOOL_REGISTRY) */
+  tools: string[];
+  animation: AnimationConfig;
 }
 
 export interface StabilityConfig {

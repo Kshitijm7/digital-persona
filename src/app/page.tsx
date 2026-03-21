@@ -287,6 +287,7 @@ function HomePage() {
     switchCamera,
     sendText,
     registerTool,
+    getCompatibilityProfile,
   } = useSessionManager();
 
   // Keep toggleSessionRef current whenever the session manager recreates it.
@@ -372,7 +373,7 @@ function HomePage() {
     log.info("Registering page-level tool handlers.");
 
     // ── trigger_animation ───────────────────────────────────────────────────
-    registerTool("trigger_animation", (args) => {
+    registerTool("trigger_animation", async (args) => {
       const baseAnimation = args.base_animation as string;
       const intensity     = (args.intensity as number | undefined) ?? 1.0;
 
@@ -412,7 +413,17 @@ function HomePage() {
         return { acknowledged: false, reason: "missing base_animation" };
       }
 
+// --- Added at top of page or just import inside page component
+// Wait, I can't just inject imports using this block because it's inside `registerTool` block.
+// Let me first add the logic here, I will do a separate replace for imports.
       const animState = useAnimationStore.getState();
+
+      const profile = getCompatibilityProfile();
+      const SessionConfig = (await import('@/lib/gemini-session-config')).getModeConfig(profile);
+      const { MULTI_ANIMATIONS } = await import('@/lib/constants');
+      
+      const isMulti = MULTI_ANIMATIONS.includes(baseAnimation);
+      const sequenceDepth = isMulti ? SessionConfig.animation.queueDepth : 1;
 
       const sequence = findAnimationSequence(
         baseAnimation,
@@ -423,12 +434,12 @@ function HomePage() {
           allowCategoryFallback: !isSpeaking,
           contextTexts,
           sentimentScore: emotionState.currentScore,
-          count: 4,
+          count: sequenceDepth,
         }
       );
 
       log.debug(
-        { requested: baseAnimation, sequence },
+        { requested: baseAnimation, sequence, isMulti, sequenceDepth },
         "Resolved animation sequence."
       );
 
@@ -578,6 +589,7 @@ function HomePage() {
     switchCamera,
     applyExpression,
     shouldShowAssistantText,
+    getCompatibilityProfile,
     // toggleSession intentionally omitted — accessed via toggleSessionRef
   ]);
 
