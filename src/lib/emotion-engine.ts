@@ -1,25 +1,20 @@
-import * as THREE from 'three';
-import { useEmotionStore } from '@/store/useEmotionStore';
-import { type AIStyleControl, type EmotionControl } from '@/lib/avatar-control.types';
-import emotionTuning from '@/config/emotion-tuning.json';
+import * as THREE from "three";
+import { useEmotionStore } from "@/store/useEmotionStore";
+import {
+  type AIStyleControl,
+  type EmotionControl,
+} from "@/lib/avatar-control.types";
+import emotionTuning from "@/config/emotion-tuning.json";
 
 interface EmotionRuntimeOptions {
   emotionControl?: EmotionControl;
   aiStyleControl?: AIStyleControl;
+  // 0–1 speech energy from LipSyncEngine.speechEnergy.
+  // Drives proportional expression modulation — louder speech
+  // produces more expressive face, whisper is subtler.
+  speechLevel?: number;
 }
 
-/**
- * The full set of blendshapes this engine writes each frame.
- * Exported so Avatar.tsx micro-expression system can skip these shapes —
- * both systems use damp toward their own targets, and conflicting targets
- * on the same shape produce visible fighting (the value oscillates between
- * two attractors rather than settling).
- *
- * `cheekSquintLeft/Right` is intentionally omitted from the micro-expression
- * exclusion list in Avatar.tsx because IdleExpressionEngine's blink-squint
- * and EmotionEngine's smile-cheek both contribute to natural cheek behaviour
- * and their damp targets are complementary rather than conflicting.
- */
 export const EMOTION_ENGINE_DRIVEN_MORPHS = [
   "mouthSmileLeft",
   "mouthSmileRight",
@@ -34,6 +29,10 @@ export const EMOTION_ENGINE_DRIVEN_MORPHS = [
 
 export class EmotionEngine {
   private smoothedScore = 0;
+  // Smoothed speech level for proportional modulation.
+  // Raw speechLevel from lip sync can be jittery frame-to-frame;
+  // smoothing gives organic expression transitions.
+  private smoothedSpeechLevel = 0;
 
   update(
     delta: number,
@@ -47,72 +46,137 @@ export class EmotionEngine {
     const head = nodes.Wolf3D_Head as THREE.SkinnedMesh;
     if (!head?.morphTargetDictionary || !head.morphTargetInfluences) return;
 
-    const allowHoverFace = !isSpeaking && hovered && featureToggles.hoverEffect;
-    let targetSmile      = allowHoverFace ? 0.8 : 0;
-    let targetCheek      = allowHoverFace ? 0.3 : 0;
-    let targetBrowInnerUp = 0;
-    let targetBrowDown    = 0;
-    let targetFrown       = 0;
+    // Smooth the speech level for organic modulation.
+    // Lambda 8 = responsive but not jittery (~60ms settling).
+    const rawSpeechLevel = THREE.MathUtils.clamp(options.speechLevel ?? 0, 0, 1);
+    this.smoothedSpeechLevel = THREE.MathUtils.damp(
+      this.smoothedSpeechLevel,
+      rawSpeechLevel,
+      8,
+      delta,
+    );
 
-    // Contextual sentiment score from store — read via getState() so this
-    // engine has no React dependency and can be instantiated outside a component.
+    // Speech-proportional expression multiplier.
+    // At full speech energy: +25% more expressive.
+    // At silence: 1.0 (no change). Subtle but sells "alive".
+    const speechExprMult = isSpeaking
+      ? 1 + this.smoothedSpeechLevel * 0.25
+      : 1;
+
+    const allowHoverFace = !isSpeaking && hovered && featureToggles.hoverEffect;
+    let targetSmile = allowHoverFace ? 0.8 : 0;
+    let targetCheek = allowHoverFace ? 0.3 : 0;
+    let targetBrowInnerUp = 0;
+    let targetBrowDown = 0;
+    let targetFrown = 0;
+
     const sentimentScore = useEmotionStore.getState().currentScore;
-    this.smoothedScore = THREE.MathUtils.damp(this.smoothedScore, sentimentScore, 2, delta);
+    this.smoothedScore = THREE.MathUtils.damp(
+      this.smoothedScore,
+      sentimentScore,
+      2,
+      delta,
+    );
 
     const { sentiment } = emotionTuning;
 
     if (this.smoothedScore > sentiment.positiveThreshold) {
       const multiplier = isSpeaking ? sentiment.speechMultiplier : 1.0;
-      targetSmile = Math.min(1, targetSmile + this.smoothedScore * sentiment.smileWeight * multiplier);
-      targetCheek = Math.min(1, targetCheek + this.smoothedScore * sentiment.cheekWeight * multiplier);
+      targetSmile = Math.min(
+        1,
+        targetSmile +
+          this.smoothedScore * sentiment.smileWeight * multiplier * speechExprMult,
+      );
+      targetCheek = Math.min(
+        1,
+        targetCheek +
+          this.smoothedScore * sentiment.cheekWeight * multiplier * speechExprMult,
+      );
     } else if (this.smoothedScore < sentiment.negativeThreshold) {
       const multiplier = isSpeaking ? sentiment.speechMultiplier : 1.0;
-      targetFrown    = Math.min(1, targetFrown    + Math.abs(this.smoothedScore) * sentiment.frownWeight    * multiplier);
-      targetBrowDown = Math.min(1, targetBrowDown + Math.abs(this.smoothedScore) * sentiment.browDownWeight * multiplier);
+      targetFrown = Math.min(
+        1,
+        targetFrown +
+          Math.abs(this.smoothedScore) *
+            sentiment.frownWeight *
+            multiplier *
+            speechExprMult,
+      );
+      targetBrowDown = Math.min(
+        1,
+        targetBrowDown +
+          Math.abs(this.smoothedScore) *
+            sentiment.browDownWeight *
+            multiplier *
+            speechExprMult,
+      );
     }
 
-    const hasExplicitExpression = Boolean(currentExpression && currentExpression !== "idle");
+    const hasExplicitExpression = Boolean(
+      currentExpression && currentExpression !== "idle",
+    );
 
-    const emotionControl  = options.emotionControl;
-    const aiStyleControl  = options.aiStyleControl;
-    const promptInfluence = THREE.MathUtils.clamp((aiStyleControl?.cfgScale ?? 1) / 2, 0.5, 2.5);
+    const emotionControl = options.emotionControl;
+    const aiStyleControl = options.aiStyleControl;
+    const promptInfluence = THREE.MathUtils.clamp(
+      (aiStyleControl?.cfgScale ?? 1) / 2,
+      0.5,
+      2.5,
+    );
 
     if (emotionControl && !hasExplicitExpression) {
-      const controlIntensity = THREE.MathUtils.clamp(emotionControl.emotionIntensity, 0, 1);
-      const styleIntensity   = THREE.MathUtils.clamp(aiStyleControl?.emotionIntensity ?? 1, 0, 1.5);
+      const controlIntensity = THREE.MathUtils.clamp(
+        emotionControl.emotionIntensity,
+        0,
+        1,
+      );
+      const styleIntensity = THREE.MathUtils.clamp(
+        aiStyleControl?.emotionIntensity ?? 1,
+        0,
+        1.5,
+      );
       const blendedIntensity = THREE.MathUtils.clamp(
-        controlIntensity * styleIntensity * promptInfluence, 0, 1.5
+        controlIntensity * styleIntensity * promptInfluence * speechExprMult,
+        0,
+        1.5,
       );
 
       switch (emotionControl.emotionState) {
-        case 'joy':
-          targetSmile = Math.max(targetSmile, 0.8  * blendedIntensity);
+        case "joy":
+          targetSmile = Math.max(targetSmile, 0.8 * blendedIntensity);
           targetCheek = Math.max(targetCheek, 0.45 * blendedIntensity);
           break;
-        case 'anger':
+        case "anger":
           targetBrowDown = Math.max(targetBrowDown, 0.75 * blendedIntensity);
-          targetFrown    = Math.max(targetFrown,    0.35 * blendedIntensity);
+          targetFrown = Math.max(targetFrown, 0.35 * blendedIntensity);
           break;
-        case 'sadness':
-          targetBrowInnerUp = Math.max(targetBrowInnerUp, 0.7  * blendedIntensity);
-          targetFrown       = Math.max(targetFrown,       0.6  * blendedIntensity);
+        case "sadness":
+          targetBrowInnerUp = Math.max(
+            targetBrowInnerUp,
+            0.7 * blendedIntensity,
+          );
+          targetFrown = Math.max(targetFrown, 0.6 * blendedIntensity);
           break;
-        case 'surprised':
-        case 'fear':
-          targetBrowInnerUp = Math.max(targetBrowInnerUp, 0.85 * blendedIntensity);
+        case "surprised":
+        case "fear":
+          targetBrowInnerUp = Math.max(
+            targetBrowInnerUp,
+            0.85 * blendedIntensity,
+          );
           break;
-        case 'disgust':
-          targetBrowDown = Math.max(targetBrowDown, 0.5  * blendedIntensity);
-          targetFrown    = Math.max(targetFrown,    0.45 * blendedIntensity);
+        case "disgust":
+          targetBrowDown = Math.max(targetBrowDown, 0.5 * blendedIntensity);
+          targetFrown = Math.max(targetFrown, 0.45 * blendedIntensity);
           break;
       }
 
-      const conditioning = `${emotionControl.textConditioning || ''} ${aiStyleControl?.emotionTextPrompt || ''}`.toLowerCase();
-      if (conditioning.includes('furrow') || conditioning.includes('angry')) {
+      const conditioning =
+        `${emotionControl.textConditioning || ""} ${aiStyleControl?.emotionTextPrompt || ""}`.toLowerCase();
+      if (conditioning.includes("furrow") || conditioning.includes("angry")) {
         targetBrowDown = Math.max(targetBrowDown, 0.55 * blendedIntensity);
       }
-      if (conditioning.includes('smile') || conditioning.includes('joy')) {
-        targetSmile = Math.max(targetSmile, 0.7  * blendedIntensity);
+      if (conditioning.includes("smile") || conditioning.includes("joy")) {
+        targetSmile = Math.max(targetSmile, 0.7 * blendedIntensity);
         targetCheek = Math.max(targetCheek, 0.35 * blendedIntensity);
       }
     }
@@ -132,10 +196,14 @@ export class EmotionEngine {
     const dict       = head.morphTargetDictionary;
     const influences = head.morphTargetInfluences;
 
+    // Asymmetric damping — fast onset (lambda 8), slow release (lambda 3).
+    // Smiles appear naturally and linger instead of robotic toggle.
     const apply = (name: string, target: number) => {
       const idx = dict[name];
       if (idx !== undefined) {
-        influences[idx] = THREE.MathUtils.damp(influences[idx], target, 5, delta);
+        const current = influences[idx];
+        const lambda = target > current ? 8 : 3;
+        influences[idx] = THREE.MathUtils.damp(current, target, lambda, delta);
       }
     };
 

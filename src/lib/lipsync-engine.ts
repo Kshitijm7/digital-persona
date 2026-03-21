@@ -49,7 +49,10 @@ const ARKIT_VISEME_MAP: Record<string, Partial<Record<(typeof ARKIT_MOUTH_TARGET
 };
 
 const LIPSYNC_LEVEL_FLOOR = 0.02;
-const LIPSYNC_LEVEL_RANGE = 0.3;
+// Voice presence chain compresses dynamics, narrowing the
+// effective amplitude range. 0.22 ensures full mouth articulation
+// on loud syllables instead of capping at ~70%.
+const LIPSYNC_LEVEL_RANGE = 0.22;
 const ACTIVE_VOWEL_WEIGHT = 0.58;
 const ACTIVE_CONSONANT_WEIGHT = 0.5;
 const ACTIVE_WEIGHT_BOOST = 0.22;
@@ -128,6 +131,10 @@ class VisemeQueue<T> {
 }
 
 export class LipSyncEngine {
+  // Readable by the emotion engine for speech-proportional
+  // expression modulation. Updated every frame.
+  public speechEnergy = 0;
+
   private currentTuning: LipSyncTuning = { ...DEFAULT_LIPSYNC_TUNING };
   private lastViseme = 'viseme_sil';
   private previousViseme = 'viseme_sil';
@@ -186,7 +193,13 @@ export class LipSyncEngine {
           0,
           1,
         );
-        const speakingGain = Math.pow(levelNorm, 0.82);
+        // More linear response for compressed audio. The compressor
+        // already lifts quiet parts, so we need less nonlinear expansion.
+        // 0.70 maps the narrower post-compression range more evenly to 0–1.
+        const speakingGain = Math.pow(levelNorm, 0.70);
+
+        // Publish for emotion engine consumption
+        this.speechEnergy = speakingGain;
         const robustDetectedViseme = this.getRobustDetectedViseme(
           detectedVisemeRaw,
           state,
@@ -321,6 +334,18 @@ export class LipSyncEngine {
               target = THREE.MathUtils.clamp(target + jawEnergyTarget, 0, weightCap);
             }
 
+            // Inter-word breath micro-motion — jaw doesn't snap shut
+            // between words. Subtle sinusoidal oscillation (~2.5Hz) decays
+            // over 800ms after last detected speech. Max amplitude 0.035 —
+            // imperceptible as motion, but the absence feels robotic.
+            if (viseme === "viseme_aa" && activeViseme === "viseme_sil") {
+              const timeSinceSpeech = clockMs - this.lastNonSilenceAtMs;
+              if (timeSinceSpeech > 0 && timeSinceSpeech < 800) {
+                const decay = 1 - timeSinceSpeech / 800;
+                target += Math.sin(clockMs * 0.005 * Math.PI * 2) * 0.035 * decay;
+              }
+            }
+
             this.applyMorph(head, viseme, target, delta, visemeLambda);
             if (teeth && teeth.morphTargetDictionary && teeth.morphTargetInfluences) {
               this.applyMorph(teeth, viseme, target * 0.95, delta, visemeLambda);
@@ -423,6 +448,18 @@ export class LipSyncEngine {
     // Apply Jaw Decoupling
     if (jawEnergyTarget > 0) {
       accum.jawOpen = (accum.jawOpen ?? 0) + jawEnergyTarget;
+    }
+
+    // Inter-word breath micro-motion (ARKit path)
+    // Same logic as native path — keeps jaw alive between words.
+    if (activeViseme === "viseme_sil" && this.lastNonSilenceAtMs > 0) {
+      const clockMs = performance.now(); // ARKit path doesn't receive clockMs
+      const timeSinceSpeech = clockMs - this.lastNonSilenceAtMs;
+      if (timeSinceSpeech > 0 && timeSinceSpeech < 800) {
+        const decay = 1 - timeSinceSpeech / 800;
+        accum.jawOpen = (accum.jawOpen ?? 0) +
+          Math.sin(clockMs * 0.005 * Math.PI * 2) * 0.035 * decay;
+      }
     }
 
     // Morph Weight Capping (ARKit)

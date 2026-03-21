@@ -501,7 +501,7 @@ export function Avatar({
       hovered,
       featureToggles,
       isSpeaking,
-      { emotionControl, aiStyleControl }
+      { emotionControl, aiStyleControl, speechLevel: lipsyncEngine.speechEnergy }
     );
 
     // ── Idle expression engine ──────────────────────────────────────────────

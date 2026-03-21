@@ -3,8 +3,9 @@
  *
  * Real-time PCM-16 playback over WebSocket.
  *
- * O(1) ring buffer · discontinuity fade-in · remainder flush
+ * O(1) ring buffer · discontinuity fade-in · end-of-stream fade-out
  * 100 ms initial latency · 250 ms look-ahead · 30 ms recovery
+ * Broadcast-quality voice chain: compressor → warmth EQ → presence EQ
  */
 export class AudioStreamer {
   /* ── Tuning constants ──────────────────────────────────────────── */
@@ -43,6 +44,14 @@ export class AudioStreamer {
   public readonly analyserNode: AnalyserNode;
   private readonly timeDomainData: Uint8Array;
 
+  // ── Voice presence chain ──────────────────────────────────────
+  // Three zero-latency Web Audio nodes that transform flat TTS output
+  // into broadcast-quality voice. The analyser (lip sync) sees the
+  // processed signal, giving more consistent mouth movement.
+  private readonly compressor: DynamicsCompressorNode;
+  private readonly warmth: BiquadFilterNode;
+  private readonly presence: BiquadFilterNode;
+
   /* ── Callbacks ─────────────────────────────────────────────────── */
   public onComplete: () => void = () => {};
   public onAudioScheduled:
@@ -57,18 +66,48 @@ export class AudioStreamer {
     this.ring = new Array<Float32Array | null>(this.maxQueueLength).fill(null);
 
     this.gainNode = this.context.createGain();
+
+    // ── Compressor ────────────────────────────────────────────────
+    // Makes quiet syllables audible and loud peaks controlled.
+    // Soft knee + moderate ratio = transparent, podcast-quality feel.
+    this.compressor = this.context.createDynamicsCompressor();
+    this.compressor.threshold.value = -24;
+    this.compressor.knee.value = 12;
+    this.compressor.ratio.value = 3;
+    this.compressor.attack.value = 0.003;
+    this.compressor.release.value = 0.15;
+
+    // ── Low-shelf warmth ──────────────────────────────────────────
+    // +3dB at 200Hz — proximity effect, adds body without muddiness.
+    this.warmth = this.context.createBiquadFilter();
+    this.warmth.type = "lowshelf";
+    this.warmth.frequency.value = 200;
+    this.warmth.gain.value = 3;
+
+    // ── High-shelf presence ───────────────────────────────────────
+    // +2dB at 3.5kHz — consonant clarity, voice cuts through.
+    this.presence = this.context.createBiquadFilter();
+    this.presence.type = "highshelf";
+    this.presence.frequency.value = 3500;
+    this.presence.gain.value = 2;
+
+    // ── Analyser (lip sync + volume meter) ────────────────────────
     this.analyserNode = this.context.createAnalyser();
     this.analyserNode.fftSize = 1024;
     this.timeDomainData = new Uint8Array(this.analyserNode.fftSize);
 
-    this.gainNode.connect(this.analyserNode);
+    // ── Chain: gain → compressor → warmth → presence → analyser → out
+    this.gainNode.connect(this.compressor);
+    this.compressor.connect(this.warmth);
+    this.warmth.connect(this.presence);
+    this.presence.connect(this.analyserNode);
     this.analyserNode.connect(this.context.destination);
 
     this.addPCM16 = this.addPCM16.bind(this);
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-   *  Ring Buffer — O(1), GC-friendly null-on-dequeue
+   *  Ring Buffer
    * ═══════════════════════════════════════════════════════════════════ */
 
   private enqueue(data: Float32Array): void {
@@ -99,14 +138,7 @@ export class AudioStreamer {
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-   *  Discontinuity Fade-In
-   *
-   *  Web Audio schedules buffers sample-accurately, so contiguous
-   *  buffers need zero processing.  A fade-in is only applied at
-   *  real discontinuities (first play / underrun recovery).
-   *
-   *  The previous crossfade approach blended tail[N] into head[N+1],
-   *  causing those samples to be heard twice (phase artifact).
+   *  Boundary Fades
    * ═══════════════════════════════════════════════════════════════════ */
 
   private applyFadeIn(data: Float32Array): void {
@@ -137,10 +169,6 @@ export class AudioStreamer {
     }
     return out;
   }
-
-  /* ═══════════════════════════════════════════════════════════════════
-   *  Gain helper — idempotent, safe to call from any state
-   * ═══════════════════════════════════════════════════════════════════ */
 
   private ensureGainRestored(): void {
     const now = this.context.currentTime;
@@ -189,9 +217,6 @@ export class AudioStreamer {
    * ═══════════════════════════════════════════════════════════════════ */
 
   private startPlayback(): void {
-    // FIX(1): If stop() was just called, its teardown timer may still
-    // be pending and gain is ramping to zero.  Cancel both before we
-    // schedule new sources, or the teardown kills our fresh playback.
     this.clearTeardownTimer();
     this.ensureGainRestored();
 
@@ -212,27 +237,21 @@ export class AudioStreamer {
       const data = this.dequeue();
       if (!data) break;
 
-      // Underrun recovery — snap forward
       if (this.scheduledTime < this.context.currentTime) {
         this.scheduledTime = this.context.currentTime + this.recoveryOffsetSec;
         this.needsFadeIn = true;
       }
 
-      // Fade-in at discontinuities only
       if (this.needsFadeIn) {
         this.applyFadeIn(data);
         this.needsFadeIn = false;
       }
 
-      // Fade-out on the very last buffer of a completed stream.
-      // Without this, the waveform cuts mid-sample → audible click/pop.
-      // 64 samples at 24kHz = 2.7ms — inaudible as a fade, but
-      // eliminates the hard edge.
+      // Fade-out on the last buffer of a completed stream
       if (this.streamDone && this.size === 0) {
         this.applyFadeOut(data);
       }
 
-      // Create & schedule source
       const audioBuf = this.context.createBuffer(1, data.length, this.sampleRate);
       audioBuf.getChannelData(0).set(data);
 
@@ -256,7 +275,6 @@ export class AudioStreamer {
       this.scheduledTime += audioBuf.duration;
     }
 
-    // Re-arm the scheduler
     const msUntilNeeded =
       this.size > 0
         ? (this.scheduledTime - this.context.currentTime) * 1000 - 150
@@ -280,20 +298,10 @@ export class AudioStreamer {
    *  Public API — Lifecycle
    * ═══════════════════════════════════════════════════════════════════ */
 
-  /**
-   * Signal that no more PCM data will arrive.
-   * Flushes any sub-buffer remainder and waits for all scheduled
-   * sources to finish before firing `onComplete`.
-   */
   complete(): void {
     this.streamDone = true;
-    // FIX: Reset so each complete() call can fire the callback.
-    // Without this, calling complete() on a streamer that already
-    // completed a previous turn (without new addPCM16 data in between)
-    // silently swallows the onComplete callback.
     this.doneFired = false;
 
-    // Flush leftover samples that never filled a complete buffer
     if (this.remainder !== null && this.remainder.length > 0) {
       this.enqueue(this.remainder);
       this.remainder = null;
@@ -308,17 +316,11 @@ export class AudioStreamer {
       this.scheduleNextBuffer(this.generation);
     }
 
-    // FIX(3): Fire onComplete even if playback already drained or
-    // was never started (e.g. complete() called with an empty stream).
     if (this.size === 0 && this.sources.size === 0) {
       this.handleComplete();
     }
   }
 
-  /**
-   * Immediately halt playback.  Ramps gain to zero, then tears down
-   * all sources after a short delay to avoid clicks.
-   */
   stop(): void {
     this.generation++;
     this.playing = false;
@@ -332,40 +334,25 @@ export class AudioStreamer {
     this.clearSchedulerTimer();
     this.clearTeardownTimer();
 
-    // Smooth gain ramp → 0
     const now = this.context.currentTime;
     this.gainNode.gain.cancelScheduledValues(now);
     this.gainNode.gain.setTargetAtTime(0, now, this.stopRampSec);
 
-    // Deferred source cleanup (after gain reaches ~0)
     this.teardownTimer = setTimeout(() => {
       this.teardownTimer = null;
-
       for (const src of this.sources) {
-        try {
-          src.stop();
-        } catch {
-          /* already stopped */
-        }
+        try { src.stop(); } catch { /* already stopped */ }
         src.disconnect();
       }
       this.sources.clear();
-
       this.ensureGainRestored();
     }, this.teardownDelayMs);
   }
 
-  /**
-   * Resume the AudioContext (if suspended by autoplay policy)
-   * and prepare for a new stream.
-   */
   async resume(): Promise<void> {
-    if (this.context.state === 'suspended') {
+    if (this.context.state === "suspended") {
       await this.context.resume();
     }
-
-    // FIX(2): Cancel any pending teardown from a prior stop(),
-    //         clear stale remainder from the old stream.
     this.clearTeardownTimer();
     this.streamDone = false;
     this.remainder = null;
@@ -374,12 +361,10 @@ export class AudioStreamer {
     this.ensureGainRestored();
   }
 
-  /**
-   * RMS volume (0–1) from the analyser node.
-   * Suitable for driving a visual level meter.
-   */
   getVolume(): number {
-    this.analyserNode.getByteTimeDomainData(this.timeDomainData as Uint8Array<ArrayBuffer>);
+    this.analyserNode.getByteTimeDomainData(
+      this.timeDomainData as Uint8Array<ArrayBuffer>,
+    );
     let sumSq = 0;
     for (let i = 0; i < this.timeDomainData.length; i++) {
       const n = (this.timeDomainData[i] - 128) / 128;
