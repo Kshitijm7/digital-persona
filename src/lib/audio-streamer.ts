@@ -116,6 +116,14 @@ export class AudioStreamer {
     }
   }
 
+  private applyFadeOut(data: Float32Array): void {
+    const n = Math.min(this.fadeSamples, data.length);
+    const start = data.length - n;
+    for (let i = 0; i < n; i++) {
+      data[start + i] *= 1 - i / n;
+    }
+  }
+
   /* ═══════════════════════════════════════════════════════════════════
    *  PCM-16 Decode
    * ═══════════════════════════════════════════════════════════════════ */
@@ -214,6 +222,14 @@ export class AudioStreamer {
       if (this.needsFadeIn) {
         this.applyFadeIn(data);
         this.needsFadeIn = false;
+      }
+
+      // Fade-out on the very last buffer of a completed stream.
+      // Without this, the waveform cuts mid-sample → audible click/pop.
+      // 64 samples at 24kHz = 2.7ms — inaudible as a fade, but
+      // eliminates the hard edge.
+      if (this.streamDone && this.size === 0) {
+        this.applyFadeOut(data);
       }
 
       // Create & schedule source

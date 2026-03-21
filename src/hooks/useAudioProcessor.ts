@@ -449,57 +449,49 @@ export function useAudioProcessor() {
     syncCombinedLevel();
   }, [syncCombinedLevel]);
 
-  // ── playAudioChunk (FIX AP2: single path) ──────────────────────────────────
+  // ── playAudioChunk (synchronous hot path) ───────────────────────────────────
   const playAudioChunk = useCallback(
     (base64: string) => {
-      void (async () => {
-        try {
-          // FIX(AP2): Always go through getStreamer — it handles lazy init.
-          // No separate "streamer doesn't exist" branch needed.
-          const streamer = getStreamer();
-          const ctx = playbackCtxRef.current!;
+      const streamer = getStreamer();
+      const ctx = playbackCtxRef.current!;
 
-          if (ctx.state === "suspended") {
-            await ctx.resume();
-            log.info(
-              "[AudioProcessor] Playback AudioContext resumed from suspended.",
-            );
-            // FIX(AP4): After await, verify streamer wasn't replaced
-            if (audioStreamerRef.current !== streamer) {
-              log.debug(
-                "Streamer replaced during async resume; dropping stale chunk.",
-              );
-              return;
-            }
-          }
+      // Resume is only needed once — after that ctx.state === "running"
+      // and this branch is never entered again.
+      if (ctx.state === "suspended") {
+        // Fire-and-forget the resume, but don't delay the chunk.
+        // AudioStreamer internally schedules at currentTime + initialBufferSec,
+        // which gives the context ~100ms to actually resume before playback
+        // starts. The chunk is queued synchronously into the ring buffer NOW
+        // so it's ready when the context wakes up.
+        void ctx.resume().then(() => {
+          log.info(
+            "[AudioProcessor] Playback AudioContext resumed from suspended.",
+          );
+        });
+      }
 
-          // FIX(AP2): Single decode path
-          const bytes = decodeBase64ToBytes(base64);
-          streamer.addPCM16(bytes);
+      const bytes = decodeBase64ToBytes(base64);
+      streamer.addPCM16(bytes);
 
-          queuedPlaybackChunkCountRef.current += 1;
-          if (
-            queuedPlaybackChunkCountRef.current === 1 ||
-            queuedPlaybackChunkCountRef.current % 30 === 0
-          ) {
-            log.debug(
-              {
-                queuedChunks: queuedPlaybackChunkCountRef.current,
-                droppedDuplicates: droppedPlaybackChunkCountRef.current,
-                pcmBytes: bytes.length,
-              },
-              "Queued assistant audio chunk for playback.",
-            );
-          }
+      queuedPlaybackChunkCountRef.current += 1;
+      if (
+        queuedPlaybackChunkCountRef.current === 1 ||
+        queuedPlaybackChunkCountRef.current % 30 === 0
+      ) {
+        log.debug(
+          {
+            queuedChunks: queuedPlaybackChunkCountRef.current,
+            droppedDuplicates: droppedPlaybackChunkCountRef.current,
+            pcmBytes: bytes.length,
+          },
+          "Queued assistant audio chunk for playback.",
+        );
+      }
 
-          isAssistantSpeakingRef.current = true;
-          lastOutputSignalAtRef.current = performance.now();
-          startSignatureSweep();
-          startPlaybackLevelLoop();
-        } catch (err) {
-          log.error({ err }, "Failed to queue assistant audio chunk.");
-        }
-      })();
+      isAssistantSpeakingRef.current = true;
+      lastOutputSignalAtRef.current = performance.now();
+      startSignatureSweep();
+      startPlaybackLevelLoop();
     },
     [getStreamer, startPlaybackLevelLoop, startSignatureSweep],
   );
