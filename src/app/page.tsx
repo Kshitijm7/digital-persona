@@ -45,6 +45,7 @@ import { SkinPreset, SKIN_PRESETS } from "@/lib/skinConfig";
 import { useEmotionStore } from "@/store/useEmotionStore";
 import { createLogger } from "@/lib/logging/logger";
 import { useAvatarRuntimeStore } from "@/store/useAvatarRuntimeStore";
+import { useEmotiveSpeechStore } from "@/store/useEmotiveSpeechStore";
 import { sanitizeControlPatch } from "@/lib/avatar-control.types";
 import type { EmotionState } from "@/lib/avatar-control.types";
 
@@ -508,6 +509,15 @@ function HomePage() {
       if (mode) {
         setPersonaMode(mode);
         applied.mode = mode;
+        
+        const modeMap: Record<string, "broadcast" | "intimate" | "energetic"> = {
+          focus: "broadcast",
+          casual: "intimate",
+          presentation: "energetic",
+        };
+        if (modeMap[mode]) {
+          useEmotiveSpeechStore.getState().setMode(modeMap[mode]);
+        }
       }
 
       const emotionStateArg  = args.emotionState as string | undefined;

@@ -1,0 +1,309 @@
+{
+  "version": 2,
+  "defaultMode": "broadcast",
+
+  "arkitVisemeMap": {
+    "viseme_sil": { "mouthClose": 0.28 },
+    "viseme_PP":  { "mouthClose": 1.0, "mouthPressLeft": 0.45, "mouthPressRight": 0.45 },
+    "viseme_FF":  { "mouthFunnel": 0.5, "jawOpen": 0.08 },
+    "viseme_TH":  { "jawOpen": 0.22, "mouthFunnel": 0.3 },
+    "viseme_DD":  { "jawOpen": 0.18, "mouthClose": 0.45 },
+    "viseme_kk":  { "jawOpen": 0.28 },
+    "viseme_CH":  { "mouthPucker": 0.6, "jawOpen": 0.18 },
+    "viseme_SS":  { "mouthStretchLeft": 0.65, "mouthStretchRight": 0.65, "jawOpen": 0.1 },
+    "viseme_nn":  { "mouthClose": 0.6, "jawOpen": 0.12 },
+    "viseme_RR":  { "mouthFunnel": 0.42, "mouthPucker": 0.34, "jawOpen": 0.16 },
+    "viseme_aa":  { "jawOpen": 0.62 },
+    "viseme_E":   { "mouthStretchLeft": 0.55, "mouthStretchRight": 0.55, "jawOpen": 0.2 },
+    "viseme_I":   { "mouthSmileLeft": 0.55, "mouthSmileRight": 0.55, "jawOpen": 0.18 },
+    "viseme_O":   { "mouthFunnel": 0.72, "jawOpen": 0.23 },
+    "viseme_U":   { "mouthPucker": 0.72, "jawOpen": 0.14 }
+  },
+
+  "modes": {
+    "broadcast": {
+      "description": "Polished, podcast-quality voice with full articulation",
+
+      "lipsync": {
+        "levelFloor": 0.02,
+        "levelRange": 0.22,
+        "levelExponent": 0.70,
+        "activeVowelWeight": 0.58,
+        "activeConsonantWeight": 0.50,
+        "activeWeightBoost": 0.22,
+        "silenceWeightMin": 0.08,
+        "silenceWeightMax": 0.24,
+        "silenceGainDamping": 0.65,
+        "maxPendingVisemes": 72,
+        "coarticulation": {
+          "vowelCarryWeight": 0.24,
+          "consonantCarryWeight": 0.18,
+          "jawHeavyCarryLambda": 6,
+          "vowelCarryLambda": 10,
+          "fricativeCarryLambda": 14,
+          "defaultCarryLambda": 18
+        },
+        "breathMicroMotion": {
+          "enabled": true,
+          "decayMs": 800,
+          "frequencyHz": 2.5,
+          "amplitude": 0.035
+        },
+        "volumeFallback": {
+          "jawMult": 0.28,
+          "mouthMult": 0.24,
+          "jawCap": 0.45,
+          "mouthCap": 0.40,
+          "funnelRatio": 0.6,
+          "puckerRatio": 0.4,
+          "teethScale": 1.1
+        }
+      },
+
+      "voicePresence": {
+        "compressor": {
+          "threshold": -24,
+          "knee": 12,
+          "ratio": 3,
+          "attack": 0.003,
+          "release": 0.15
+        },
+        "warmth": {
+          "type": "lowshelf",
+          "frequency": 200,
+          "gain": 3
+        },
+        "presence": {
+          "type": "highshelf",
+          "frequency": 3500,
+          "gain": 2
+        }
+      },
+
+      "streamer": {
+        "bufferSize": 2048,
+        "maxQueueLength": 100,
+        "initialBufferSec": 0.10,
+        "lookAheadSec": 0.25,
+        "recoveryOffsetSec": 0.03,
+        "fadeSamples": 64,
+        "stopRampSec": 0.015,
+        "teardownDelayMs": 50
+      },
+
+      "emotion": {
+        "speechLevelLambda": 8,
+        "speechExpressionBoost": 0.25,
+        "sentimentLambda": 2,
+        "onsetLambda": 8,
+        "releaseLambda": 3,
+        "hoverSmile": 0.80,
+        "hoverCheek": 0.30,
+        "states": {
+          "joy":       { "smile": 0.80, "cheek": 0.45, "browInnerUp": 0, "browDown": 0, "frown": 0 },
+          "anger":     { "smile": 0, "cheek": 0, "browInnerUp": 0, "browDown": 0.75, "frown": 0.35 },
+          "sadness":   { "smile": 0, "cheek": 0, "browInnerUp": 0.70, "browDown": 0, "frown": 0.60 },
+          "surprised": { "smile": 0, "cheek": 0, "browInnerUp": 0.85, "browDown": 0, "frown": 0 },
+          "fear":      { "smile": 0, "cheek": 0, "browInnerUp": 0.85, "browDown": 0, "frown": 0 },
+          "disgust":   { "smile": 0, "cheek": 0, "browInnerUp": 0, "browDown": 0.50, "frown": 0.45 }
+        },
+        "textConditioningKeywords": {
+          "furrow":  { "browDown": 0.55 },
+          "angry":   { "browDown": 0.55 },
+          "smile":   { "smile": 0.70, "cheek": 0.35 },
+          "joy":     { "smile": 0.70, "cheek": 0.35 }
+        }
+      }
+    },
+
+    "intimate": {
+      "description": "Softer, closer voice — whisper-friendly, subtler jaw",
+
+      "lipsync": {
+        "levelFloor": 0.01,
+        "levelRange": 0.15,
+        "levelExponent": 0.55,
+        "activeVowelWeight": 0.42,
+        "activeConsonantWeight": 0.38,
+        "activeWeightBoost": 0.15,
+        "silenceWeightMin": 0.06,
+        "silenceWeightMax": 0.18,
+        "silenceGainDamping": 0.50,
+        "maxPendingVisemes": 72,
+        "coarticulation": {
+          "vowelCarryWeight": 0.30,
+          "consonantCarryWeight": 0.22,
+          "jawHeavyCarryLambda": 5,
+          "vowelCarryLambda": 8,
+          "fricativeCarryLambda": 12,
+          "defaultCarryLambda": 16
+        },
+        "breathMicroMotion": {
+          "enabled": true,
+          "decayMs": 1000,
+          "frequencyHz": 2.0,
+          "amplitude": 0.025
+        },
+        "volumeFallback": {
+          "jawMult": 0.22,
+          "mouthMult": 0.18,
+          "jawCap": 0.35,
+          "mouthCap": 0.30,
+          "funnelRatio": 0.6,
+          "puckerRatio": 0.4,
+          "teethScale": 1.0
+        }
+      },
+
+      "voicePresence": {
+        "compressor": {
+          "threshold": -20,
+          "knee": 18,
+          "ratio": 2,
+          "attack": 0.005,
+          "release": 0.20
+        },
+        "warmth": {
+          "type": "lowshelf",
+          "frequency": 180,
+          "gain": 5
+        },
+        "presence": {
+          "type": "highshelf",
+          "frequency": 4000,
+          "gain": 1
+        }
+      },
+
+      "streamer": {
+        "bufferSize": 2048,
+        "maxQueueLength": 100,
+        "initialBufferSec": 0.10,
+        "lookAheadSec": 0.25,
+        "recoveryOffsetSec": 0.03,
+        "fadeSamples": 96,
+        "stopRampSec": 0.020,
+        "teardownDelayMs": 50
+      },
+
+      "emotion": {
+        "speechLevelLambda": 6,
+        "speechExpressionBoost": 0.15,
+        "sentimentLambda": 1.5,
+        "onsetLambda": 6,
+        "releaseLambda": 2,
+        "hoverSmile": 0.60,
+        "hoverCheek": 0.20,
+        "states": {
+          "joy":       { "smile": 0.60, "cheek": 0.30, "browInnerUp": 0, "browDown": 0, "frown": 0 },
+          "anger":     { "smile": 0, "cheek": 0, "browInnerUp": 0, "browDown": 0.55, "frown": 0.25 },
+          "sadness":   { "smile": 0, "cheek": 0, "browInnerUp": 0.80, "browDown": 0, "frown": 0.70 },
+          "surprised": { "smile": 0, "cheek": 0, "browInnerUp": 0.65, "browDown": 0, "frown": 0 },
+          "fear":      { "smile": 0, "cheek": 0, "browInnerUp": 0.70, "browDown": 0, "frown": 0 },
+          "disgust":   { "smile": 0, "cheek": 0, "browInnerUp": 0, "browDown": 0.40, "frown": 0.35 }
+        },
+        "textConditioningKeywords": {
+          "furrow":  { "browDown": 0.40 },
+          "angry":   { "browDown": 0.40 },
+          "smile":   { "smile": 0.50, "cheek": 0.25 },
+          "joy":     { "smile": 0.50, "cheek": 0.25 }
+        }
+      }
+    },
+
+    "energetic": {
+      "description": "High-energy, maximum articulation, punchy compression",
+
+      "lipsync": {
+        "levelFloor": 0.03,
+        "levelRange": 0.28,
+        "levelExponent": 0.85,
+        "activeVowelWeight": 0.68,
+        "activeConsonantWeight": 0.60,
+        "activeWeightBoost": 0.30,
+        "silenceWeightMin": 0.10,
+        "silenceWeightMax": 0.28,
+        "silenceGainDamping": 0.70,
+        "maxPendingVisemes": 96,
+        "coarticulation": {
+          "vowelCarryWeight": 0.20,
+          "consonantCarryWeight": 0.14,
+          "jawHeavyCarryLambda": 8,
+          "vowelCarryLambda": 12,
+          "fricativeCarryLambda": 16,
+          "defaultCarryLambda": 20
+        },
+        "breathMicroMotion": {
+          "enabled": true,
+          "decayMs": 500,
+          "frequencyHz": 3.0,
+          "amplitude": 0.045
+        },
+        "volumeFallback": {
+          "jawMult": 0.34,
+          "mouthMult": 0.30,
+          "jawCap": 0.55,
+          "mouthCap": 0.50,
+          "funnelRatio": 0.6,
+          "puckerRatio": 0.4,
+          "teethScale": 1.15
+        }
+      },
+
+      "voicePresence": {
+        "compressor": {
+          "threshold": -28,
+          "knee": 8,
+          "ratio": 4,
+          "attack": 0.002,
+          "release": 0.10
+        },
+        "warmth": {
+          "type": "lowshelf",
+          "frequency": 220,
+          "gain": 2
+        },
+        "presence": {
+          "type": "highshelf",
+          "frequency": 3000,
+          "gain": 3.5
+        }
+      },
+
+      "streamer": {
+        "bufferSize": 2048,
+        "maxQueueLength": 100,
+        "initialBufferSec": 0.08,
+        "lookAheadSec": 0.20,
+        "recoveryOffsetSec": 0.025,
+        "fadeSamples": 48,
+        "stopRampSec": 0.010,
+        "teardownDelayMs": 50
+      },
+
+      "emotion": {
+        "speechLevelLambda": 10,
+        "speechExpressionBoost": 0.35,
+        "sentimentLambda": 3,
+        "onsetLambda": 10,
+        "releaseLambda": 4,
+        "hoverSmile": 0.90,
+        "hoverCheek": 0.40,
+        "states": {
+          "joy":       { "smile": 0.95, "cheek": 0.55, "browInnerUp": 0, "browDown": 0, "frown": 0 },
+          "anger":     { "smile": 0, "cheek": 0, "browInnerUp": 0, "browDown": 0.90, "frown": 0.50 },
+          "sadness":   { "smile": 0, "cheek": 0, "browInnerUp": 0.60, "browDown": 0, "frown": 0.50 },
+          "surprised": { "smile": 0, "cheek": 0, "browInnerUp": 0.95, "browDown": 0, "frown": 0 },
+          "fear":      { "smile": 0, "cheek": 0, "browInnerUp": 0.90, "browDown": 0, "frown": 0 },
+          "disgust":   { "smile": 0, "cheek": 0, "browInnerUp": 0, "browDown": 0.65, "frown": 0.55 }
+        },
+        "textConditioningKeywords": {
+          "furrow":  { "browDown": 0.65 },
+          "angry":   { "browDown": 0.65 },
+          "smile":   { "smile": 0.85, "cheek": 0.45 },
+          "joy":     { "smile": 0.85, "cheek": 0.45 }
+        }
+      }
+    }
+  }
+}

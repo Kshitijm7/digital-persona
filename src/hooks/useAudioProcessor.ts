@@ -9,6 +9,7 @@ import {
   useLipSyncStore,
 } from "@/store/useLipSyncStore";
 import { createLogger } from "@/lib/logging/logger";
+import { useEmotiveSpeechStore } from "@/store/useEmotiveSpeechStore";
 
 const log = createLogger("useAudioProcessor");
 const BASE64_CHUNK_SIZE = 0x8000;
@@ -36,6 +37,8 @@ function decodeBase64ToBytes(base64: string): Uint8Array {
 export function useAudioProcessor() {
   const [isMicActive, setIsMicActive] = useState(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
+  
+  const mode = useEmotiveSpeechStore((s) => s.mode);
 
   // ── Level refs ──────────────────────────────────────────────────────────────
   const audioLevelRef = useRef(0);
@@ -79,6 +82,12 @@ export function useAudioProcessor() {
     ((startMs: number, durationMs: number) => void) | null
   >(null);
   const onPlaybackCompleteRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (audioStreamerRef.current) {
+      audioStreamerRef.current.setMode(mode);
+    }
+  }, [mode]);
 
   // ── Level sync ──────────────────────────────────────────────────────────────
   const syncCombinedLevel = useCallback(() => {
@@ -359,9 +368,11 @@ export function useAudioProcessor() {
     }
 
     if (!audioStreamerRef.current) {
+      const currentMode = useEmotiveSpeechStore.getState().mode;
       const streamer = new AudioStreamer(
         playbackCtxRef.current,
         AUDIO_CONFIG.output_hz,
+        currentMode
       );
       streamer.analyserNode.smoothingTimeConstant = tuning.analyserSmoothing;
       streamer.analyserNode.minDecibels = -100;
@@ -395,9 +406,7 @@ export function useAudioProcessor() {
       wawaConfig.binWidth =
         streamer.context.sampleRate / streamer.analyserNode.fftSize;
       wawaConfig.maxVisemeDuration = tuning.visemePersistenceMs;
-      if ("audioStreamerRef" in wawaConfig) {
-        wawaConfig.audioStreamerRef = audioStreamerRef;
-      }
+
       wawaRef.current = wawa;
       useLipSyncStore.getState().setWawaLipsync(wawa);
     }
@@ -500,6 +509,7 @@ export function useAudioProcessor() {
   const stopPlayback = useCallback(() => {
     if (audioStreamerRef.current) {
       audioStreamerRef.current.stop();
+      audioStreamerRef.current.destroy();
       // FIX(AP4): Null the ref so getStreamer creates a fresh instance
       // next time. A stopped streamer's internal generation is stale —
       // reusing it causes scheduleNextBuffer to silently no-op.

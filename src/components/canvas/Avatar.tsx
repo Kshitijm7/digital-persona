@@ -18,6 +18,8 @@ import { LipSyncEngine } from "@/lib/lipsync-engine";
 import { EmotionEngine, EMOTION_ENGINE_DRIVEN_MORPHS } from "@/lib/emotion-engine";
 import { useLipSyncStore } from "@/store/useLipSyncStore";
 import { createLogger } from "@/lib/logging/logger";
+import { detectCapabilities } from "@/lib/avatars";
+import { useEmotiveSpeechStore } from "@/store/useEmotiveSpeechStore";
 import {
   DEFAULT_AI_STYLE_CONTROL,
   DEFAULT_ANATOMICAL_POST_PROCESSING,
@@ -381,11 +383,18 @@ export function Avatar({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const mode = useEmotiveSpeechStore((s) => s.mode);
+
   // ── Engines ───────────────────────────────────────────────────────────────
   const idleEngine    = React.useMemo(() => new IdleExpressionEngine(), []);
   const gazeEngine    = React.useMemo(() => new GazeEngine(), []);
-  const lipsyncEngine = React.useMemo(() => new LipSyncEngine(), []);
-  const emotionEngine = React.useMemo(() => new EmotionEngine(), []);
+  const lipsyncEngine = React.useMemo(() => new LipSyncEngine(useEmotiveSpeechStore.getState().mode), []);
+  const emotionEngine = React.useMemo(() => new EmotionEngine(useEmotiveSpeechStore.getState().mode), []);
+
+  React.useEffect(() => {
+    lipsyncEngine.setMode(mode);
+    emotionEngine.setMode(mode);
+  }, [mode, lipsyncEngine, emotionEngine]);
 
   const coarticulationWindowMs = React.useMemo(() => {
     const frames = Math.max(1, aiStyleControl.coarticulationWindowSize || 1);
@@ -406,6 +415,18 @@ export function Avatar({
         { morphTargets: Object.keys(head.morphTargetDictionary) },
         "[Avatar] Mesh Morph Targets"
       );
+
+      const caps = detectCapabilities(head.morphTargetDictionary);
+      if (!caps.hasOculusVisemes) {
+        log.warn("Avatar missing Oculus visemes — using ARKit fallback lip sync");
+      }
+      if (!caps.hasEmotionTargets) {
+        log.warn("Avatar missing emotion blendshapes — expressions will be limited");
+      }
+      if (caps.missingTargets.length > 0) {
+        log.debug({ missing: caps.missingTargets }, "Missing morph targets");
+      }
+
       hasLoggedMorphs.current = true;
     }
   }, [nodes.Wolf3D_Head]);
@@ -487,7 +508,8 @@ export function Avatar({
         nodes,
         wawaLipsync,
         runtimeLipSyncTuning,
-        { visemeOverrides, meshPostProcessing, anatomicalPostProcessing }
+        { visemeOverrides, meshPostProcessing, anatomicalPostProcessing },
+        !!wawaLipsync,
       );
     }
 

@@ -1,23 +1,57 @@
 /**
- * Gold-Standard AudioStreamer
- *
- * Real-time PCM-16 playback over WebSocket.
+ * AudioStreamer — Real-time PCM-16 playback over WebSocket
  *
  * O(1) ring buffer · discontinuity fade-in · end-of-stream fade-out
- * 100 ms initial latency · 250 ms look-ahead · 30 ms recovery
- * Broadcast-quality voice chain: compressor → warmth EQ → presence EQ
+ * Mode-switchable voice chain: compressor → warmth EQ → presence EQ
+ *
+ * Audio graph:
+ *   gain → compressor → warmth (low-shelf) → presence (high-shelf) → analyser → destination
+ *
+ * The analyser sits post-chain so lip-sync and volume metering read
+ * the processed signal, giving more consistent mouth movement from
+ * compressed/EQ'd audio.
+ *
+ * Emotive speech modes (broadcast / intimate / energetic) change the
+ * voice presence chain and streamer timing in one call via setMode().
  */
+
+import {
+  getModeTuning,
+  type StreamerModeConfig,
+  type VoicePresenceConfig,
+  type EmotiveSpeechMode,
+} from "@/lib/emotive-speech-config";
+
+// ═══════════════════════════════════════════════════════════════════
+//  Runtime Voice Presence Override
+// ═══════════════════════════════════════════════════════════════════
+
+export interface VoicePresenceOverride {
+  compressor?: Partial<{
+    threshold: number;
+    knee: number;
+    ratio: number;
+    attack: number;
+    release: number;
+  }>;
+  warmth?: Partial<{
+    frequency: number;
+    gain: number;
+  }>;
+  presence?: Partial<{
+    frequency: number;
+    gain: number;
+  }>;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  AudioStreamer
+// ═══════════════════════════════════════════════════════════════════
+
 export class AudioStreamer {
-  /* ── Tuning constants ──────────────────────────────────────────── */
+  /* ── Tuning (from emotive-speech config) ───────────────────────── */
   private readonly sampleRate: number;
-  private readonly bufferSize = 2048;
-  private readonly maxQueueLength = 100;
-  private readonly initialBufferSec = 0.1;
-  private readonly lookAheadSec = 0.25;
-  private readonly recoveryOffsetSec = 0.03;
-  private readonly fadeSamples = 64;
-  private readonly stopRampSec = 0.015;
-  private readonly teardownDelayMs = 50;
+  private cfg: StreamerModeConfig;
 
   /* ── Ring buffer ───────────────────────────────────────────────── */
   private ring: (Float32Array | null)[];
@@ -58,45 +92,58 @@ export class AudioStreamer {
     | ((startTimeMs: number, durationMs: number) => void)
     | null = null;
 
+  /* ── Public state ──────────────────────────────────────────────── */
+
+  /** Whether audio buffers are actively being scheduled and played. */
+  get isPlaying(): boolean {
+    return this.playing;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  Constructor
+  // ═══════════════════════════════════════════════════════════════
+
   constructor(
     public readonly context: AudioContext,
     sampleRate = 24_000,
+    mode: EmotiveSpeechMode = "broadcast",
   ) {
     this.sampleRate = sampleRate;
-    this.ring = new Array<Float32Array | null>(this.maxQueueLength).fill(null);
+
+    const modeTuning = getModeTuning(mode);
+    this.cfg = modeTuning.streamer;
+    const voice = modeTuning.voicePresence;
+
+    this.ring = new Array<Float32Array | null>(this.cfg.maxQueueLength).fill(null);
 
     this.gainNode = this.context.createGain();
 
-    // ── Compressor ────────────────────────────────────────────────
+    // ── Compressor ──────────────────────────────────────────────
     // Makes quiet syllables audible and loud peaks controlled.
     // Soft knee + moderate ratio = transparent, podcast-quality feel.
     this.compressor = this.context.createDynamicsCompressor();
-    this.compressor.threshold.value = -24;
-    this.compressor.knee.value = 12;
-    this.compressor.ratio.value = 3;
-    this.compressor.attack.value = 0.003;
-    this.compressor.release.value = 0.15;
+    this.applyCompressorValues(voice.compressor);
 
-    // ── Low-shelf warmth ──────────────────────────────────────────
-    // +3dB at 200Hz — proximity effect, adds body without muddiness.
+    // ── Low-shelf warmth ────────────────────────────────────────
+    // Proximity effect — adds body without muddiness.
     this.warmth = this.context.createBiquadFilter();
-    this.warmth.type = "lowshelf";
-    this.warmth.frequency.value = 200;
-    this.warmth.gain.value = 3;
+    this.warmth.type = voice.warmth.type as BiquadFilterType;
+    this.warmth.frequency.value = voice.warmth.frequency;
+    this.warmth.gain.value = voice.warmth.gain;
 
-    // ── High-shelf presence ───────────────────────────────────────
-    // +2dB at 3.5kHz — consonant clarity, voice cuts through.
+    // ── High-shelf presence ─────────────────────────────────────
+    // Consonant clarity — voice cuts through.
     this.presence = this.context.createBiquadFilter();
-    this.presence.type = "highshelf";
-    this.presence.frequency.value = 3500;
-    this.presence.gain.value = 2;
+    this.presence.type = voice.presence.type as BiquadFilterType;
+    this.presence.frequency.value = voice.presence.frequency;
+    this.presence.gain.value = voice.presence.gain;
 
-    // ── Analyser (lip sync + volume meter) ────────────────────────
+    // ── Analyser (lip sync + volume meter) ──────────────────────
     this.analyserNode = this.context.createAnalyser();
     this.analyserNode.fftSize = 1024;
     this.timeDomainData = new Uint8Array(this.analyserNode.fftSize);
 
-    // ── Chain: gain → compressor → warmth → presence → analyser → out
+    // ── Chain: gain → compressor → warmth → presence → analyser → destination
     this.gainNode.connect(this.compressor);
     this.compressor.connect(this.warmth);
     this.warmth.connect(this.presence);
@@ -106,18 +153,105 @@ export class AudioStreamer {
     this.addPCM16 = this.addPCM16.bind(this);
   }
 
-  /* ═══════════════════════════════════════════════════════════════════
-   *  Ring Buffer
-   * ═══════════════════════════════════════════════════════════════════ */
+  // ═══════════════════════════════════════════════════════════════
+  //  Mode Switching
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Hot-swap the entire emotive speech mode — updates voice presence
+   * chain (compressor + EQ) and streamer timing in one call.
+   * EQ params ramp over 50ms to avoid clicks. Safe mid-playback.
+   *
+   * ```ts
+   * streamer.setMode("intimate"); // softer voice, subtler compression
+   * streamer.setMode("energetic"); // punchy, max articulation
+   * ```
+   */
+  setMode(mode: EmotiveSpeechMode): void {
+    const modeTuning = getModeTuning(mode);
+    this.cfg = modeTuning.streamer;
+
+    const voice = modeTuning.voicePresence;
+    this.applyCompressorValues(voice.compressor);
+
+    const now = this.context.currentTime;
+    const ramp = 0.05; // 50ms ramp avoids clicks
+
+    this.warmth.type = voice.warmth.type as BiquadFilterType;
+    this.warmth.frequency.setTargetAtTime(voice.warmth.frequency, now, ramp);
+    this.warmth.gain.setTargetAtTime(voice.warmth.gain, now, ramp);
+
+    this.presence.type = voice.presence.type as BiquadFilterType;
+    this.presence.frequency.setTargetAtTime(voice.presence.frequency, now, ramp);
+    this.presence.gain.setTargetAtTime(voice.presence.gain, now, ramp);
+  }
+
+  /**
+   * Fine-grained voice presence override independent of mode.
+   * Only specified fields are changed; unspecified are left as-is.
+   * EQ params ramp over 50ms.
+   *
+   * ```ts
+   * streamer.updateVoicePresence({
+   *   compressor: { threshold: -20 },
+   *   warmth: { gain: 5 },
+   * });
+   * ```
+   */
+  updateVoicePresence(config: VoicePresenceOverride): void {
+    const now = this.context.currentTime;
+    const ramp = 0.05;
+
+    if (config.compressor) {
+      const c = config.compressor;
+      if (c.threshold !== undefined) this.compressor.threshold.value = c.threshold;
+      if (c.knee !== undefined) this.compressor.knee.value = c.knee;
+      if (c.ratio !== undefined) this.compressor.ratio.value = c.ratio;
+      if (c.attack !== undefined) this.compressor.attack.value = c.attack;
+      if (c.release !== undefined) this.compressor.release.value = c.release;
+    }
+
+    if (config.warmth) {
+      if (config.warmth.frequency !== undefined) {
+        this.warmth.frequency.setTargetAtTime(config.warmth.frequency, now, ramp);
+      }
+      if (config.warmth.gain !== undefined) {
+        this.warmth.gain.setTargetAtTime(config.warmth.gain, now, ramp);
+      }
+    }
+
+    if (config.presence) {
+      if (config.presence.frequency !== undefined) {
+        this.presence.frequency.setTargetAtTime(config.presence.frequency, now, ramp);
+      }
+      if (config.presence.gain !== undefined) {
+        this.presence.gain.setTargetAtTime(config.presence.gain, now, ramp);
+      }
+    }
+  }
+
+  private applyCompressorValues(
+    c: VoicePresenceConfig["compressor"],
+  ): void {
+    this.compressor.threshold.value = c.threshold;
+    this.compressor.knee.value = c.knee;
+    this.compressor.ratio.value = c.ratio;
+    this.compressor.attack.value = c.attack;
+    this.compressor.release.value = c.release;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  Ring Buffer
+  // ═══════════════════════════════════════════════════════════════
 
   private enqueue(data: Float32Array): void {
-    if (this.size >= this.maxQueueLength) {
+    if (this.size >= this.cfg.maxQueueLength) {
       this.ring[this.head] = null;
-      this.head = (this.head + 1) % this.maxQueueLength;
+      this.head = (this.head + 1) % this.cfg.maxQueueLength;
       this.size--;
     }
     this.ring[this.tail] = data;
-    this.tail = (this.tail + 1) % this.maxQueueLength;
+    this.tail = (this.tail + 1) % this.cfg.maxQueueLength;
     this.size++;
   }
 
@@ -125,31 +259,31 @@ export class AudioStreamer {
     if (this.size === 0) return null;
     const data = this.ring[this.head];
     this.ring[this.head] = null;
-    this.head = (this.head + 1) % this.maxQueueLength;
+    this.head = (this.head + 1) % this.cfg.maxQueueLength;
     this.size--;
     return data;
   }
 
   private drainRing(): void {
-    for (let i = 0; i < this.maxQueueLength; i++) this.ring[i] = null;
+    for (let i = 0; i < this.cfg.maxQueueLength; i++) this.ring[i] = null;
     this.head = 0;
     this.tail = 0;
     this.size = 0;
   }
 
-  /* ═══════════════════════════════════════════════════════════════════
-   *  Boundary Fades
-   * ═══════════════════════════════════════════════════════════════════ */
+  // ═══════════════════════════════════════════════════════════════
+  //  Boundary Fades
+  // ═══════════════════════════════════════════════════════════════
 
   private applyFadeIn(data: Float32Array): void {
-    const n = Math.min(this.fadeSamples, data.length);
+    const n = Math.min(this.cfg.fadeSamples, data.length);
     for (let i = 0; i < n; i++) {
       data[i] *= i / n;
     }
   }
 
   private applyFadeOut(data: Float32Array): void {
-    const n = Math.min(this.fadeSamples, data.length);
+    const n = Math.min(this.cfg.fadeSamples, data.length);
     const start = data.length - n;
     for (let i = 0; i < n; i++) {
       data[start + i] *= 1 - i / n;
@@ -197,9 +331,9 @@ export class AudioStreamer {
     }
 
     let offset = 0;
-    while (pcm.length - offset >= this.bufferSize) {
-      this.enqueue(pcm.slice(offset, offset + this.bufferSize));
-      offset += this.bufferSize;
+    while (pcm.length - offset >= this.cfg.bufferSize) {
+      this.enqueue(pcm.slice(offset, offset + this.cfg.bufferSize));
+      offset += this.cfg.bufferSize;
     }
     if (offset < pcm.length) {
       this.remainder = pcm.slice(offset);
@@ -223,7 +357,7 @@ export class AudioStreamer {
     this.playing = true;
     this.doneFired = false;
     this.needsFadeIn = true;
-    this.scheduledTime = this.context.currentTime + this.initialBufferSec;
+    this.scheduledTime = this.context.currentTime + this.cfg.initialBufferSec;
     this.scheduleNextBuffer(this.generation);
   }
 
@@ -231,14 +365,14 @@ export class AudioStreamer {
     if (!this.playing || gen !== this.generation) return;
     this.clearSchedulerTimer();
 
-    const horizon = this.context.currentTime + this.lookAheadSec;
+    const horizon = this.context.currentTime + this.cfg.lookAheadSec;
 
     while (this.size > 0 && this.scheduledTime < horizon) {
       const data = this.dequeue();
       if (!data) break;
 
       if (this.scheduledTime < this.context.currentTime) {
-        this.scheduledTime = this.context.currentTime + this.recoveryOffsetSec;
+        this.scheduledTime = this.context.currentTime + this.cfg.recoveryOffsetSec;
         this.needsFadeIn = true;
       }
 
@@ -280,9 +414,11 @@ export class AudioStreamer {
         ? (this.scheduledTime - this.context.currentTime) * 1000 - 150
         : 50;
 
+    // Cap at 500ms — defensive ceiling prevents runaway timers
+    // if scheduledTime drifts far ahead under tab-backgrounding.
     this.schedulerTimer = setTimeout(
       () => this.scheduleNextBuffer(gen),
-      Math.max(20, msUntilNeeded),
+      Math.max(20, Math.min(msUntilNeeded, 500)),
     );
   }
 
@@ -336,7 +472,7 @@ export class AudioStreamer {
 
     const now = this.context.currentTime;
     this.gainNode.gain.cancelScheduledValues(now);
-    this.gainNode.gain.setTargetAtTime(0, now, this.stopRampSec);
+    this.gainNode.gain.setTargetAtTime(0, now, this.cfg.stopRampSec);
 
     this.teardownTimer = setTimeout(() => {
       this.teardownTimer = null;
@@ -346,7 +482,7 @@ export class AudioStreamer {
       }
       this.sources.clear();
       this.ensureGainRestored();
-    }, this.teardownDelayMs);
+    }, this.cfg.teardownDelayMs);
   }
 
   async resume(): Promise<void> {
@@ -357,10 +493,45 @@ export class AudioStreamer {
     this.streamDone = false;
     this.remainder = null;
     this.needsFadeIn = true;
-    this.scheduledTime = this.context.currentTime + this.initialBufferSec;
+    this.scheduledTime = this.context.currentTime + this.cfg.initialBufferSec;
     this.ensureGainRestored();
   }
 
+  /**
+   * Fully tear down the audio graph and release all resources.
+   * Call on component unmount. The instance is not reusable after this.
+   */
+  destroy(): void {
+    this.stop();
+
+    // Let the stop() teardown timer finish, then disconnect graph
+    setTimeout(() => {
+      this.clearSchedulerTimer();
+      this.clearTeardownTimer();
+
+      try { this.analyserNode.disconnect(); } catch { /* ok */ }
+      try { this.presence.disconnect(); } catch { /* ok */ }
+      try { this.warmth.disconnect(); } catch { /* ok */ }
+      try { this.compressor.disconnect(); } catch { /* ok */ }
+      try { this.gainNode.disconnect(); } catch { /* ok */ }
+    }, this.cfg.teardownDelayMs + 20);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  Public API — Metering
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Returns RMS volume (0–1) of the post-chain audio signal.
+   * Called per-frame by LipSyncEngine for audio-level input.
+   *
+   * Because the analyser sits after the compressor, the returned
+   * value reflects the compressed dynamic range. This is intentional:
+   * the compressor lifts quiet syllables, giving LipSyncEngine a
+   * more consistent signal and therefore smoother mouth articulation.
+   * The LipSyncEngine's LIPSYNC_LEVEL_RANGE (0.22 in broadcast mode)
+   * is tuned against this post-compression signal.
+   */
   getVolume(): number {
     this.analyserNode.getByteTimeDomainData(
       this.timeDomainData as Uint8Array<ArrayBuffer>,
@@ -373,7 +544,7 @@ export class AudioStreamer {
     return Math.sqrt(sumSq / this.timeDomainData.length);
   }
 
-  /* ── Timer helpers ─────────────────────────────────────────────── */
+  // ── Timer helpers ───────────────────────────────────────────────
 
   private clearSchedulerTimer(): void {
     if (this.schedulerTimer !== null) {

@@ -1,9 +1,25 @@
-import * as THREE from 'three';
+/**
+ * LipSyncEngine — viseme-driven mouth animation
+ *
+ * Processes wawa-lipsync output (or audio-level fallback) into morph
+ * target weights for both Oculus-native and ARKit-fallback avatar meshes.
+ *
+ * Scheduled viseme queue with anticipation blending · coarticulation
+ * carry · adaptive noise floor · inter-word breath micro-motion
+ * All tuning constants from emotive-speech.json mode config.
+ *
+ * Publishes `speechEnergy` for EmotionEngine consumption.
+ */
+
+import * as THREE from "three";
 import { PHYSICS_SMOOTHING, VISEME_MAP } from "@/lib/constants";
-import { OCULUS_VISEMES } from './viseme-map';
-import { Lipsync } from 'wawa-lipsync';
-import { createLogger } from '@/lib/logging/logger';
-import { DEFAULT_LIPSYNC_TUNING, type LipSyncTuning } from '@/store/useLipSyncStore';
+import { OCULUS_VISEMES } from "./viseme-map";
+import { Lipsync } from "wawa-lipsync";
+import { createLogger } from "@/lib/logging/logger";
+import {
+  DEFAULT_LIPSYNC_TUNING,
+  type LipSyncTuning,
+} from "@/store/useLipSyncStore";
 import {
   DEFAULT_ANATOMICAL_POST_PROCESSING,
   DEFAULT_MESH_POST_PROCESSING,
@@ -11,9 +27,20 @@ import {
   type AnatomicalPostProcessing,
   type MeshPostProcessing,
   type VisemeOverrides,
-} from '@/lib/avatar-control.types';
+} from "@/lib/avatar-control.types";
+import {
+  getModeTuning,
+  getArkitVisemeMap,
+  type LipSyncModeConfig,
+  type ArkitVisemeMap,
+  type EmotiveSpeechMode,
+} from "@/lib/emotive-speech-config";
 
 const log = createLogger("lipsync-engine");
+
+// ═══════════════════════════════════════════════════════════════════
+//  Constants
+// ═══════════════════════════════════════════════════════════════════
 
 const ARKIT_MOUTH_TARGETS = [
   "jawOpen",
@@ -30,33 +57,11 @@ const ARKIT_MOUTH_TARGETS = [
   "mouthLowerDownRight",
 ] as const;
 
-const ARKIT_VISEME_MAP: Record<string, Partial<Record<(typeof ARKIT_MOUTH_TARGETS)[number], number>>> = {
-  viseme_sil: { mouthClose: 0.28 },
-  viseme_PP: { mouthClose: 1.0, mouthPressLeft: 0.45, mouthPressRight: 0.45 },
-  viseme_FF: { mouthFunnel: 0.5, jawOpen: 0.08 },
-  viseme_TH: { jawOpen: 0.22, mouthFunnel: 0.3 },
-  viseme_DD: { jawOpen: 0.18, mouthClose: 0.45 },
-  viseme_kk: { jawOpen: 0.28 },
-  viseme_CH: { mouthPucker: 0.6, jawOpen: 0.18 },
-  viseme_SS: { mouthStretchLeft: 0.65, mouthStretchRight: 0.65, jawOpen: 0.1 },
-  viseme_nn: { mouthClose: 0.6, jawOpen: 0.12 },
-  viseme_RR: { mouthFunnel: 0.42, mouthPucker: 0.34, jawOpen: 0.16 },
-  viseme_aa: { jawOpen: 0.62 },
-  viseme_E: { mouthStretchLeft: 0.55, mouthStretchRight: 0.55, jawOpen: 0.2 },
-  viseme_I: { mouthSmileLeft: 0.55, mouthSmileRight: 0.55, jawOpen: 0.18 },
-  viseme_O: { mouthFunnel: 0.72, jawOpen: 0.23 },
-  viseme_U: { mouthPucker: 0.72, jawOpen: 0.14 },
-};
+type ArkitMouthTarget = (typeof ARKIT_MOUTH_TARGETS)[number];
 
-const LIPSYNC_LEVEL_FLOOR = 0.02;
-// Voice presence chain compresses dynamics, narrowing the
-// effective amplitude range. 0.22 ensures full mouth articulation
-// on loud syllables instead of capping at ~70%.
-const LIPSYNC_LEVEL_RANGE = 0.22;
-const ACTIVE_VOWEL_WEIGHT = 0.58;
-const ACTIVE_CONSONANT_WEIGHT = 0.5;
-const ACTIVE_WEIGHT_BOOST = 0.22;
-const MAX_PENDING_VISEMES = 72;
+// ═══════════════════════════════════════════════════════════════════
+//  Types
+// ═══════════════════════════════════════════════════════════════════
 
 type LipState = "vowel" | "plosive" | "fricative" | "silence";
 
@@ -74,6 +79,10 @@ interface LipSyncRuntimeOptions {
   anatomicalPostProcessing?: AnatomicalPostProcessing;
 }
 
+// ═══════════════════════════════════════════════════════════════════
+//  VisemeQueue — O(1) amortised enqueue/dequeue
+// ═══════════════════════════════════════════════════════════════════
+
 class VisemeQueue<T> {
   private items: T[] = [];
   private headIndex = 0;
@@ -83,7 +92,7 @@ class VisemeQueue<T> {
     this.cleanupThreshold = cleanupThreshold;
   }
 
-  enqueue(item: T) {
+  enqueue(item: T): void {
     this.items.push(item);
   }
 
@@ -96,16 +105,18 @@ class VisemeQueue<T> {
   }
 
   peek(): T | undefined {
-    if (this.headIndex >= this.items.length) return undefined;
-    return this.items[this.headIndex];
+    return this.headIndex < this.items.length
+      ? this.items[this.headIndex]
+      : undefined;
   }
 
   peekLast(): T | undefined {
-    if (this.length === 0) return undefined;
-    return this.items[this.items.length - 1];
+    return this.length > 0
+      ? this.items[this.items.length - 1]
+      : undefined;
   }
 
-  trimToMax(maxLength: number) {
+  trimToMax(maxLength: number): void {
     if (maxLength < 0) return;
     while (this.length > maxLength) {
       this.headIndex += 1;
@@ -113,16 +124,16 @@ class VisemeQueue<T> {
     this.compactIfNeeded();
   }
 
-  clear() {
+  clear(): void {
     this.items = [];
     this.headIndex = 0;
   }
 
-  get length() {
+  get length(): number {
     return this.items.length - this.headIndex;
   }
 
-  private compactIfNeeded() {
+  private compactIfNeeded(): void {
     if (this.headIndex >= this.cleanupThreshold) {
       this.items = this.items.slice(this.headIndex);
       this.headIndex = 0;
@@ -130,37 +141,72 @@ class VisemeQueue<T> {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+//  Silence viseme constant
+// ═══════════════════════════════════════════════════════════════════
+
+const SILENCE_VISEME: ScheduledViseme = {
+  viseme: "viseme_sil",
+  state: "silence",
+  speakingGain: 0,
+  capturedAtMs: 0,
+  applyAtMs: 0,
+};
+
+// ═══════════════════════════════════════════════════════════════════
+//  LipSyncEngine
+// ═══════════════════════════════════════════════════════════════════
+
 export class LipSyncEngine {
-  // Readable by the emotion engine for speech-proportional
-  // expression modulation. Updated every frame.
+  /** Readable by EmotionEngine for speech-proportional modulation. */
   public speechEnergy = 0;
 
+  /* ── Mode config ───────────────────────────────────────────────── */
+  private modeCfg: LipSyncModeConfig;
+  private arkitMap: ArkitVisemeMap;
+
+  /* ── Per-frame tuning (from store) ─────────────────────────────── */
   private currentTuning: LipSyncTuning = { ...DEFAULT_LIPSYNC_TUNING };
-  private lastViseme = 'viseme_sil';
-  private previousViseme = 'viseme_sil';
+
+  /* ── Viseme state ──────────────────────────────────────────────── */
+  private lastViseme = "viseme_sil";
+  private previousViseme = "viseme_sil";
   private transitionCarry = 0;
-  private warnedNoNativeVisemes = false;
-  private consecutiveSilentDetections = 0;
-  private lastDetectedViseme = 'viseme_sil';
-  private lastDetectedAtMs = 0;
-  private lastNonSilenceAtMs = 0;
-  private dynamicNoiseFloor = LIPSYNC_LEVEL_FLOOR;
-  private pendingVisemes = new VisemeQueue<ScheduledViseme>();
-  private activeScheduledViseme: ScheduledViseme = {
-    viseme: "viseme_sil",
-    state: "silence",
-    speakingGain: 0,
-    capturedAtMs: 0,
-    applyAtMs: 0,
-  };
-  private morphHistory = new Map<string, number>();
-  private currentRuntimeOptions: LipSyncRuntimeOptions = {};
   private currentLipAsymmetry = 0;
 
-  /**
-   * Native audio fallback: Maps raw volume level to basic jaw and mouth shapes.
-   * Dampens the movement for smoother "co-articulation".
-   */
+  /* ── Detection state ───────────────────────────────────────────── */
+  private warnedNoNativeVisemes = false;
+  private consecutiveSilentDetections = 0;
+  private lastDetectedViseme = "viseme_sil";
+  private lastDetectedAtMs = 0;
+  private lastNonSilenceAtMs = 0;
+
+  /* ── Adaptive noise floor ──────────────────────────────────────── */
+  private dynamicNoiseFloor: number;
+
+  /* ── Scheduled viseme queue ────────────────────────────────────── */
+  private pendingVisemes = new VisemeQueue<ScheduledViseme>();
+  private activeScheduledViseme: ScheduledViseme = { ...SILENCE_VISEME };
+
+  /* ── Temporal smoothing history ────────────────────────────────── */
+  private morphHistory = new Map<string, number>();
+  private currentRuntimeOptions: LipSyncRuntimeOptions = {};
+
+  constructor(mode: EmotiveSpeechMode = "broadcast") {
+    this.modeCfg = getModeTuning(mode).lipsync;
+    this.arkitMap = getArkitVisemeMap();
+    this.dynamicNoiseFloor = this.modeCfg.levelFloor;
+  }
+
+  /** Hot-swap lip sync mode config. Safe mid-frame. */
+  setMode(mode: EmotiveSpeechMode): void {
+    this.modeCfg = getModeTuning(mode).lipsync;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  Main Update
+  // ═══════════════════════════════════════════════════════════════
+
   updateFromAudioLevel(
     level: number,
     delta: number,
@@ -168,242 +214,353 @@ export class LipSyncEngine {
     wawaLipsync: Lipsync | null = null,
     tuning: LipSyncTuning = DEFAULT_LIPSYNC_TUNING,
     options: LipSyncRuntimeOptions = {},
-  ) {
+    isPlaybackMode: boolean = true,
+  ): void {
     this.currentTuning = tuning;
     this.currentRuntimeOptions = options;
+    const cfg = this.modeCfg;
+
     const head = nodes.Wolf3D_Head as THREE.SkinnedMesh;
     const teeth = nodes.Wolf3D_Teeth as THREE.SkinnedMesh;
 
-    if (!head || !head.morphTargetDictionary || !head.morphTargetInfluences) return;
+    if (!head?.morphTargetDictionary || !head.morphTargetInfluences) return;
 
     if (wawaLipsync) {
       try {
-        wawaLipsync.processAudio();
-        const state = this.normalizeState(
-          (wawaLipsync as unknown as { state?: string }).state,
-        );
-        const { clockMs, clockCompensationMs } = this.getAudioClock(wawaLipsync, tuning);
-        const detectedVisemeRaw = (wawaLipsync.viseme as string) || "viseme_sil";
-        const spectralLevel = this.getSpectralLevel(wawaLipsync);
-        
-        const levelSource = Math.max(level, spectralLevel);
-        const effectiveFloor = this.getEffectiveFloor(levelSource, delta, tuning);
-        const levelNorm = THREE.MathUtils.clamp(
-          (levelSource - effectiveFloor) / LIPSYNC_LEVEL_RANGE,
-          0,
-          1,
-        );
-        // More linear response for compressed audio. The compressor
-        // already lifts quiet parts, so we need less nonlinear expansion.
-        // 0.70 maps the narrower post-compression range more evenly to 0–1.
-        const speakingGain = Math.pow(levelNorm, 0.70);
-
-        // Publish for emotion engine consumption
-        this.speechEnergy = speakingGain;
-        const robustDetectedViseme = this.getRobustDetectedViseme(
-          detectedVisemeRaw,
-          state,
-          speakingGain,
-          levelSource,
-          spectralLevel,
-        );
-
-        const detectedViseme = this.stabilizeDetectedViseme(
-          speakingGain < 0.035 ? "viseme_sil" : robustDetectedViseme,
-          state,
-          speakingGain,
-          clockMs,
+        this.processWawaLipsync(
+          wawaLipsync,
+          level,
+          delta,
+          head,
+          teeth,
           tuning,
+          options,
+          isPlaybackMode,
         );
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const isPlaybackMode = !!((wawaLipsync as any).audioStreamerRef?.current?.isPlaying);
-
-        // Normalize viseme name (ensure viseme_ prefix)
-        const normalizedDetected = this.normalizeVisemeName(detectedViseme);
-
-        if (normalizedDetected !== "viseme_sil") {
-          this.lastNonSilenceAtMs = clockMs;
-        } else if (clockMs - this.lastNonSilenceAtMs > tuning.resetSilenceHoldMs) {
-          this.pendingVisemes.clear();
-        }
-
-        if (!isPlaybackMode) {
-          // Bypassing the queue for local microphone input
-          this.activeScheduledViseme = {
-            viseme: normalizedDetected,
-            state,
-            speakingGain,
-            capturedAtMs: clockMs,
-            applyAtMs: clockMs,
-          };
-          this.pendingVisemes.clear();
-        } else {
-          this.enqueueViseme({
-            viseme: normalizedDetected,
-            state,
-            speakingGain,
-            capturedAtMs: clockMs,
-            applyAtMs: clockMs + clockCompensationMs,
-          });
-          this.advanceScheduledViseme(clockMs);
-        }
-
-        const scheduled = this.activeScheduledViseme;
-        const activeViseme = scheduled.viseme;
-        const activeState: LipState =
-          scheduled.state === "silence" && activeViseme !== "viseme_sil"
-            ? "vowel"
-            : scheduled.state;
-        const activeGain = scheduled.speakingGain;
-
-        if (activeViseme !== this.lastViseme) {
-          this.previousViseme = this.lastViseme;
-          this.lastViseme = activeViseme;
-          this.transitionCarry = 1;
-
-          // Subtle Lip Asymmetry offset re-rolled per fresh viseme transition
-          const asymMax = options.meshPostProcessing?.lipAsymmetryOffset ?? 0;
-          this.currentLipAsymmetry = asymMax > 0 ? (Math.random() * 2 - 1) * asymMax : 0;
-        }
-
-        const jawHeavyVisemes = ["viseme_aa", "viseme_O", "viseme_U", "viseme_RR"];
-        const carryLambda =
-          jawHeavyVisemes.includes(this.previousViseme) ? 6 :
-          activeState === "vowel" ? 10 : activeState === "fricative" ? 14 : 18;
-        this.transitionCarry = THREE.MathUtils.damp(this.transitionCarry, 0, carryLambda, delta);
-
-        const baseWeight =
-          activeState === "vowel" ? ACTIVE_VOWEL_WEIGHT : ACTIVE_CONSONANT_WEIGHT;
-        const activeWeight = activeViseme === "viseme_sil"
-          ? THREE.MathUtils.clamp(0.22 * (1 - activeGain * 0.65), 0.08, 0.24)
-          : THREE.MathUtils.clamp(
-              baseWeight + activeGain * ACTIVE_WEIGHT_BOOST,
-              0,
-              0.9,
-            );
-        const carryWeight = this.previousViseme === "viseme_sil"
-          ? 0
-          : activeWeight * (activeState === "vowel" ? 0.24 : 0.18) * this.transitionCarry;
-        const visemeLambda = this.getVisemeLambda(activeState);
-        const anticipation = this.getAnticipation(clockMs, activeViseme, tuning);
-        const anticipatedViseme = anticipation.viseme;
-        const anticipationWeight = anticipatedViseme
-          ? activeWeight * anticipation.weight
-          : 0;
-        const stabilizedActiveWeight = Math.max(0, activeWeight - anticipationWeight);
-        
-
-        const useNativeVisemes = this.hasNativeVisemes(head);
-        if (!useNativeVisemes && !this.warnedNoNativeVisemes) {
-          this.warnedNoNativeVisemes = true;
-          log.warn("Avatar has no native Oculus viseme targets; using ARKit fallback mapping.");
-        }
-
-        // Jaw Decoupling: Audio-energy driven jaw opening
-        const decoupleWeight = options.anatomicalPostProcessing?.jawDecouplingWeight ?? 0;
-        const jawEnergyTarget = (activeGain > 0.1) ? Math.pow(activeGain, 1.2) * decoupleWeight : 0;
-
-        if (useNativeVisemes) {
-          let totalWeight = 0;
-          const targetCaps: Record<string, number> = {};
-
-          for (const viseme of OCULUS_VISEMES) {
-            let target = 0;
-            if (viseme === this.lastViseme) target = stabilizedActiveWeight;
-            else if (viseme === this.previousViseme) target = carryWeight;
-            else if (anticipatedViseme && viseme === anticipatedViseme) {
-              target = anticipationWeight;
-            }
-
-            target *= this.getVisemeScale(viseme, options.visemeOverrides);
-            targetCaps[viseme] = target;
-            totalWeight += target;
-          }
-
-          // Morph Weight Capping (Native)
-          const weightCap = options.meshPostProcessing?.morphWeightCap ?? 1.0;
-          const normalizeFactor = totalWeight > weightCap ? weightCap / totalWeight : 1.0;
-
-          for (const viseme of OCULUS_VISEMES) {
-            let target = targetCaps[viseme] * normalizeFactor;
-            target = this.applyRegionalPostProcessing(target, viseme, options);
-
-            // Add decoupled jaw energy to the main jaw viseme (usually aa)
-            if (viseme === "viseme_aa" && jawEnergyTarget > 0) {
-              target = THREE.MathUtils.clamp(target + jawEnergyTarget, 0, weightCap);
-            }
-
-            // Inter-word breath micro-motion — jaw doesn't snap shut
-            // between words. Subtle sinusoidal oscillation (~2.5Hz) decays
-            // over 800ms after last detected speech. Max amplitude 0.035 —
-            // imperceptible as motion, but the absence feels robotic.
-            if (viseme === "viseme_aa" && activeViseme === "viseme_sil") {
-              const timeSinceSpeech = clockMs - this.lastNonSilenceAtMs;
-              if (timeSinceSpeech > 0 && timeSinceSpeech < 800) {
-                const decay = 1 - timeSinceSpeech / 800;
-                target += Math.sin(clockMs * 0.005 * Math.PI * 2) * 0.035 * decay;
-              }
-            }
-
-            this.applyMorph(head, viseme, target, delta, visemeLambda);
-            if (teeth && teeth.morphTargetDictionary && teeth.morphTargetInfluences) {
-              this.applyMorph(teeth, viseme, target * 0.95, delta, visemeLambda);
-            }
-          }
-        } else {
-          this.applyArkitFromVisemes(
-            head,
-            this.lastViseme,
-            this.previousViseme,
-            stabilizedActiveWeight * this.getVisemeScale(this.lastViseme, options.visemeOverrides),
-            carryWeight * this.getVisemeScale(this.previousViseme, options.visemeOverrides),
-            delta,
-            visemeLambda,
-            anticipatedViseme,
-            anticipatedViseme
-              ? anticipationWeight * this.getVisemeScale(anticipatedViseme, options.visemeOverrides)
-              : anticipationWeight,
-            options,
-            jawEnergyTarget,
-            this.currentLipAsymmetry
-          );
-        }
         return;
       } catch (e) {
         log.error({ err: e }, "Wawa Lipsync evaluation failed");
       }
     }
 
+    // Fallback path — no wawa lipsync available
     this.pendingVisemes.clear();
     if (tuning.adaptiveNoiseFloor) {
-      this.getEffectiveFloor(level, delta, tuning);
+      this.computeEffectiveFloor(level, delta, tuning);
     } else {
-      this.dynamicNoiseFloor = LIPSYNC_LEVEL_FLOOR;
+      this.dynamicNoiseFloor = cfg.levelFloor;
     }
     this.applyVolumeFallback(head, teeth, level, delta);
   }
 
-  private applyVolumeFallback(head: THREE.SkinnedMesh, teeth: THREE.SkinnedMesh, level: number, delta: number) {
-      // Absolute fallback: Volume-based jaw/mouth (if wawa isn't ready or volume is extremely low)
-      const normalizedLevel = THREE.MathUtils.clamp((level - 0.03) / 0.3, 0, 1);
-      const targetJaw = Math.min(0.45, normalizedLevel * PHYSICS_SMOOTHING.jaw_mult * 0.28);
-      const targetMouth = Math.min(0.4, normalizedLevel * PHYSICS_SMOOTHING.mouth_mult * 0.24);
+  // ═══════════════════════════════════════════════════════════════
+  //  Wawa Lipsync Processing
+  // ═══════════════════════════════════════════════════════════════
 
-      this.applyMorph(head, VISEME_MAP.jawOpen, targetJaw, delta);
-      this.applyMorph(head, VISEME_MAP.mouthFunnel, targetMouth * 0.6, delta);
-      this.applyMorph(head, VISEME_MAP.mouthPucker, targetMouth * 0.4, delta);
-      
-      if (teeth && teeth.morphTargetDictionary && teeth.morphTargetInfluences) {
-        this.applyMorph(teeth, VISEME_MAP.jawOpen, targetJaw * 1.1, delta);
+  private processWawaLipsync(
+    wawaLipsync: Lipsync,
+    level: number,
+    delta: number,
+    head: THREE.SkinnedMesh,
+    teeth: THREE.SkinnedMesh | undefined,
+    tuning: LipSyncTuning,
+    options: LipSyncRuntimeOptions,
+    isPlaybackMode: boolean,
+  ): void {
+    const cfg = this.modeCfg;
+
+    wawaLipsync.processAudio();
+
+    const state = this.normalizeState(
+      (wawaLipsync as unknown as { state?: string }).state,
+    );
+    const { clockMs, clockCompensationMs } = this.getAudioClock(
+      wawaLipsync,
+      tuning,
+    );
+    const detectedVisemeRaw =
+      (wawaLipsync.viseme as string) || "viseme_sil";
+    const spectralLevel = this.getSpectralLevel(wawaLipsync);
+
+    // ── Compute speaking gain ────────────────────────────────────
+    const levelSource = Math.max(level, spectralLevel);
+    const effectiveFloor = this.computeEffectiveFloor(
+      levelSource,
+      delta,
+      tuning,
+    );
+    const levelNorm = THREE.MathUtils.clamp(
+      (levelSource - effectiveFloor) / cfg.levelRange,
+      0,
+      1,
+    );
+    const speakingGain = Math.pow(levelNorm, cfg.levelExponent);
+
+    // Publish for EmotionEngine
+    this.speechEnergy = speakingGain;
+
+    // ── Robust viseme detection ──────────────────────────────────
+    const robustViseme = this.getRobustDetectedViseme(
+      detectedVisemeRaw,
+      state,
+      speakingGain,
+      levelSource,
+      spectralLevel,
+    );
+    const detectedViseme = this.stabilizeDetectedViseme(
+      speakingGain < 0.035 ? "viseme_sil" : robustViseme,
+      state,
+      speakingGain,
+      clockMs,
+      tuning,
+    );
+
+    const normalizedDetected = this.normalizeVisemeName(detectedViseme);
+
+    // ── Track last non-silence ───────────────────────────────────
+    if (normalizedDetected !== "viseme_sil") {
+      this.lastNonSilenceAtMs = clockMs;
+    } else if (clockMs - this.lastNonSilenceAtMs > tuning.resetSilenceHoldMs) {
+      this.pendingVisemes.clear();
+    }
+
+    // ── Schedule or apply directly ───────────────────────────────
+    if (!isPlaybackMode) {
+      // Local microphone — bypass queue
+      this.activeScheduledViseme = {
+        viseme: normalizedDetected,
+        state,
+        speakingGain,
+        capturedAtMs: clockMs,
+        applyAtMs: clockMs,
+      };
+      this.pendingVisemes.clear();
+    } else {
+      this.enqueueViseme({
+        viseme: normalizedDetected,
+        state,
+        speakingGain,
+        capturedAtMs: clockMs,
+        applyAtMs: clockMs + clockCompensationMs,
+      });
+      this.advanceScheduledViseme(clockMs);
+    }
+
+    // ── Read active scheduled viseme ─────────────────────────────
+    const scheduled = this.activeScheduledViseme;
+    const activeViseme = scheduled.viseme;
+    const activeState: LipState =
+      scheduled.state === "silence" && activeViseme !== "viseme_sil"
+        ? "vowel"
+        : scheduled.state;
+    const activeGain = scheduled.speakingGain;
+
+    // ── Transition tracking ──────────────────────────────────────
+    if (activeViseme !== this.lastViseme) {
+      this.previousViseme = this.lastViseme;
+      this.lastViseme = activeViseme;
+      this.transitionCarry = 1;
+
+      // Subtle lip asymmetry per viseme transition
+      const asymMax =
+        options.meshPostProcessing?.lipAsymmetryOffset ?? 0;
+      this.currentLipAsymmetry =
+        asymMax > 0 ? (Math.random() * 2 - 1) * asymMax : 0;
+    }
+
+    // ── Coarticulation carry decay ───────────────────────────────
+    const coart = cfg.coarticulation;
+    const jawHeavy = ["viseme_aa", "viseme_O", "viseme_U", "viseme_RR"];
+    const carryLambda = jawHeavy.includes(this.previousViseme)
+      ? coart.jawHeavyCarryLambda
+      : activeState === "vowel"
+        ? coart.vowelCarryLambda
+        : activeState === "fricative"
+          ? coart.fricativeCarryLambda
+          : coart.defaultCarryLambda;
+    this.transitionCarry = THREE.MathUtils.damp(
+      this.transitionCarry,
+      0,
+      carryLambda,
+      delta,
+    );
+
+    // ── Compute weights ──────────────────────────────────────────
+    const baseWeight =
+      activeState === "vowel"
+        ? cfg.activeVowelWeight
+        : cfg.activeConsonantWeight;
+
+    const activeWeight =
+      activeViseme === "viseme_sil"
+        ? THREE.MathUtils.clamp(
+            cfg.silenceWeightMax *
+              (1 - activeGain * cfg.silenceGainDamping),
+            cfg.silenceWeightMin,
+            cfg.silenceWeightMax,
+          )
+        : THREE.MathUtils.clamp(
+            baseWeight + activeGain * cfg.activeWeightBoost,
+            0,
+            0.9,
+          );
+
+    const carryRatio =
+      activeState === "vowel"
+        ? coart.vowelCarryWeight
+        : coart.consonantCarryWeight;
+    const carryWeight =
+      this.previousViseme === "viseme_sil"
+        ? 0
+        : activeWeight * carryRatio * this.transitionCarry;
+
+    const visemeLambda = this.getVisemeLambda(activeState);
+
+    // ── Anticipation ─────────────────────────────────────────────
+    const anticipation = this.getAnticipation(
+      clockMs,
+      activeViseme,
+      tuning,
+    );
+    const anticipatedViseme = anticipation.viseme;
+    const anticipationWeight = anticipatedViseme
+      ? activeWeight * anticipation.weight
+      : 0;
+    const stabilizedActiveWeight = Math.max(
+      0,
+      activeWeight - anticipationWeight,
+    );
+
+    // ── Choose native vs ARKit path ──────────────────────────────
+    const useNativeVisemes = this.hasNativeVisemes(head);
+    if (!useNativeVisemes && !this.warnedNoNativeVisemes) {
+      this.warnedNoNativeVisemes = true;
+      log.warn(
+        "Avatar has no native Oculus viseme targets; using ARKit fallback.",
+      );
+    }
+
+    // ── Jaw decoupling ───────────────────────────────────────────
+    const decoupleWeight =
+      options.anatomicalPostProcessing?.jawDecouplingWeight ?? 0;
+    const jawEnergyTarget =
+      activeGain > 0.1
+        ? Math.pow(activeGain, 1.2) * decoupleWeight
+        : 0;
+
+    if (useNativeVisemes) {
+      this.applyNativeVisemes(
+        head,
+        teeth,
+        delta,
+        visemeLambda,
+        stabilizedActiveWeight,
+        carryWeight,
+        anticipatedViseme,
+        anticipationWeight,
+        activeViseme,
+        jawEnergyTarget,
+        clockMs,
+        options,
+      );
+    } else {
+      this.applyArkitFromVisemes(
+        head,
+        this.lastViseme,
+        this.previousViseme,
+        stabilizedActiveWeight *
+          this.getVisemeScale(this.lastViseme, options.visemeOverrides),
+        carryWeight *
+          this.getVisemeScale(
+            this.previousViseme,
+            options.visemeOverrides,
+          ),
+        delta,
+        visemeLambda,
+        anticipatedViseme,
+        anticipatedViseme
+          ? anticipationWeight *
+              this.getVisemeScale(
+                anticipatedViseme,
+                options.visemeOverrides,
+              )
+          : anticipationWeight,
+        options,
+        jawEnergyTarget,
+        this.currentLipAsymmetry,
+        clockMs,
+      );
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  Native Viseme Application
+  // ═══════════════════════════════════════════════════════════════
+
+  private applyNativeVisemes(
+    head: THREE.SkinnedMesh,
+    teeth: THREE.SkinnedMesh | undefined,
+    delta: number,
+    visemeLambda: number,
+    stabilizedActiveWeight: number,
+    carryWeight: number,
+    anticipatedViseme: string | null,
+    anticipationWeight: number,
+    activeViseme: string,
+    jawEnergyTarget: number,
+    clockMs: number,
+    options: LipSyncRuntimeOptions,
+  ): void {
+    let totalWeight = 0;
+    const targetCaps: Record<string, number> = {};
+
+    for (const viseme of OCULUS_VISEMES) {
+      let target = 0;
+      if (viseme === this.lastViseme) target = stabilizedActiveWeight;
+      else if (viseme === this.previousViseme) target = carryWeight;
+      else if (anticipatedViseme && viseme === anticipatedViseme) {
+        target = anticipationWeight;
       }
+
+      target *= this.getVisemeScale(viseme, options.visemeOverrides);
+      targetCaps[viseme] = target;
+      totalWeight += target;
+    }
+
+    // Morph weight capping
+    const weightCap =
+      options.meshPostProcessing?.morphWeightCap ?? 1.0;
+    const normFactor =
+      totalWeight > weightCap ? weightCap / totalWeight : 1.0;
+
+    for (const viseme of OCULUS_VISEMES) {
+      let target = targetCaps[viseme] * normFactor;
+      target = this.applyRegionalPostProcessing(target, viseme, options);
+
+      // Jaw decoupling
+      if (viseme === "viseme_aa" && jawEnergyTarget > 0) {
+        target = THREE.MathUtils.clamp(
+          target + jawEnergyTarget,
+          0,
+          weightCap,
+        );
+      }
+
+      // Inter-word breath micro-motion
+      if (viseme === "viseme_aa" && activeViseme === "viseme_sil") {
+        target = this.addBreathMicroMotion(target, clockMs);
+      }
+
+      this.applyMorph(head, viseme, target, delta, visemeLambda);
+      if (teeth?.morphTargetDictionary && teeth.morphTargetInfluences) {
+        this.applyMorph(teeth, viseme, target * 0.95, delta, visemeLambda);
+      }
+    }
   }
 
-  private hasNativeVisemes(mesh: THREE.SkinnedMesh): boolean {
-    const dict = mesh.morphTargetDictionary;
-    if (!dict) return false;
-    return dict.viseme_aa !== undefined || dict.viseme_PP !== undefined;
-  }
+  // ═══════════════════════════════════════════════════════════════
+  //  ARKit Fallback Application
+  // ═══════════════════════════════════════════════════════════════
 
   private applyArkitFromVisemes(
     mesh: THREE.SkinnedMesh,
@@ -417,90 +574,203 @@ export class LipSyncEngine {
     anticipatedWeight: number = 0,
     options: LipSyncRuntimeOptions = {},
     jawEnergyTarget: number = 0,
-    lipAsymmetry: number = 0
-  ) {
-    const accum: Partial<Record<(typeof ARKIT_MOUTH_TARGETS)[number], number>> = {};
+    lipAsymmetry: number = 0,
+    clockMs: number = performance.now(),
+  ): void {
+    const accum: Record<ArkitMouthTarget, number> = {} as Record<
+      ArkitMouthTarget,
+      number
+    >;
     for (const target of ARKIT_MOUTH_TARGETS) {
       accum[target] = 0;
     }
 
     const blendViseme = (viseme: string, weight: number) => {
-      const mapping = ARKIT_VISEME_MAP[viseme];
+      const mapping = this.arkitMap[viseme];
       if (!mapping || weight <= 0) return;
       for (const [target, mix] of Object.entries(mapping)) {
-        const key = target as (typeof ARKIT_MOUTH_TARGETS)[number];
-        accum[key] = (accum[key] ?? 0) + weight * (mix ?? 0);
+        const key = target as ArkitMouthTarget;
+        if (key in accum) {
+          accum[key] += weight * (mix ?? 0);
+        }
       }
     };
 
     blendViseme(activeViseme, activeWeight);
     blendViseme(previousViseme, carryWeight);
-    blendViseme(anticipatedViseme ?? "", anticipatedWeight);
+    if (anticipatedViseme) {
+      blendViseme(anticipatedViseme, anticipatedWeight);
+    }
 
-    // Apply Lip Asymmetry
+    // Lip asymmetry
     if (lipAsymmetry !== 0) {
-      accum.mouthSmileLeft = Math.max(0, (accum.mouthSmileLeft ?? 0) + lipAsymmetry);
-      accum.mouthSmileRight = Math.max(0, (accum.mouthSmileRight ?? 0) - lipAsymmetry);
-      accum.mouthStretchLeft = Math.max(0, (accum.mouthStretchLeft ?? 0) + lipAsymmetry);
-      accum.mouthStretchRight = Math.max(0, (accum.mouthStretchRight ?? 0) - lipAsymmetry);
+      accum.mouthSmileLeft = Math.max(
+        0,
+        accum.mouthSmileLeft + lipAsymmetry,
+      );
+      accum.mouthSmileRight = Math.max(
+        0,
+        accum.mouthSmileRight - lipAsymmetry,
+      );
+      accum.mouthStretchLeft = Math.max(
+        0,
+        accum.mouthStretchLeft + lipAsymmetry,
+      );
+      accum.mouthStretchRight = Math.max(
+        0,
+        accum.mouthStretchRight - lipAsymmetry,
+      );
     }
 
-    // Apply Jaw Decoupling
+    // Jaw decoupling
     if (jawEnergyTarget > 0) {
-      accum.jawOpen = (accum.jawOpen ?? 0) + jawEnergyTarget;
+      accum.jawOpen += jawEnergyTarget;
     }
 
-    // Inter-word breath micro-motion (ARKit path)
-    // Same logic as native path — keeps jaw alive between words.
+    // Inter-word breath micro-motion
     if (activeViseme === "viseme_sil" && this.lastNonSilenceAtMs > 0) {
-      const clockMs = performance.now(); // ARKit path doesn't receive clockMs
-      const timeSinceSpeech = clockMs - this.lastNonSilenceAtMs;
-      if (timeSinceSpeech > 0 && timeSinceSpeech < 800) {
-        const decay = 1 - timeSinceSpeech / 800;
-        accum.jawOpen = (accum.jawOpen ?? 0) +
-          Math.sin(clockMs * 0.005 * Math.PI * 2) * 0.035 * decay;
-      }
+      accum.jawOpen = this.addBreathMicroMotion(accum.jawOpen, clockMs);
     }
 
-    // Morph Weight Capping (ARKit)
+    // Morph weight capping
     let totalWeight = 0;
     for (const target of ARKIT_MOUTH_TARGETS) {
-      totalWeight += accum[target] ?? 0;
+      totalWeight += accum[target];
     }
-    const weightCap = options.meshPostProcessing?.morphWeightCap ?? 1.0;
-    const normalizeFactor = totalWeight > weightCap ? weightCap / totalWeight : 1.0;
+    const weightCap =
+      options.meshPostProcessing?.morphWeightCap ?? 1.0;
+    const normFactor =
+      totalWeight > weightCap ? weightCap / totalWeight : 1.0;
 
     for (const target of ARKIT_MOUTH_TARGETS) {
-      const cappedValue = (accum[target] ?? 0) * normalizeFactor;
-      const processed = this.applyRegionalPostProcessing(cappedValue, target, options);
+      const cappedValue = accum[target] * normFactor;
+      const processed = this.applyRegionalPostProcessing(
+        cappedValue,
+        target,
+        options,
+      );
       this.applyMorph(mesh, target, processed, delta, lambda);
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  //  Volume-Only Fallback
+  // ═══════════════════════════════════════════════════════════════
+
+  private applyVolumeFallback(
+    head: THREE.SkinnedMesh,
+    teeth: THREE.SkinnedMesh | undefined,
+    level: number,
+    delta: number,
+  ): void {
+    const fb = this.modeCfg.volumeFallback;
+    const normalizedLevel = THREE.MathUtils.clamp(
+      (level - 0.03) / 0.3,
+      0,
+      1,
+    );
+    const targetJaw = Math.min(
+      fb.jawCap,
+      normalizedLevel * PHYSICS_SMOOTHING.jaw_mult * fb.jawMult,
+    );
+    const targetMouth = Math.min(
+      fb.mouthCap,
+      normalizedLevel * PHYSICS_SMOOTHING.mouth_mult * fb.mouthMult,
+    );
+
+    this.applyMorph(head, VISEME_MAP.jawOpen, targetJaw, delta);
+    this.applyMorph(
+      head,
+      VISEME_MAP.mouthFunnel,
+      targetMouth * fb.funnelRatio,
+      delta,
+    );
+    this.applyMorph(
+      head,
+      VISEME_MAP.mouthPucker,
+      targetMouth * fb.puckerRatio,
+      delta,
+    );
+
+    if (teeth?.morphTargetDictionary && teeth.morphTargetInfluences) {
+      this.applyMorph(
+        teeth,
+        VISEME_MAP.jawOpen,
+        targetJaw * fb.teethScale,
+        delta,
+      );
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  Breath Micro-Motion
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Inter-word breath micro-motion — jaw doesn't snap shut between
+   * words. Subtle sinusoidal oscillation decays after last speech.
+   * Max amplitude is imperceptible as motion, but the absence
+   * feels robotic.
+   */
+  private addBreathMicroMotion(
+    currentTarget: number,
+    clockMs: number,
+  ): number {
+    const breath = this.modeCfg.breathMicroMotion;
+    if (!breath.enabled || this.lastNonSilenceAtMs <= 0) {
+      return currentTarget;
+    }
+
+    const timeSinceSpeech = clockMs - this.lastNonSilenceAtMs;
+    if (timeSinceSpeech <= 0 || timeSinceSpeech >= breath.decayMs) {
+      return currentTarget;
+    }
+
+    const decay = 1 - timeSinceSpeech / breath.decayMs;
+    const oscillation =
+      Math.sin(clockMs * breath.frequencyHz * 0.001 * Math.PI * 2) *
+      breath.amplitude *
+      decay;
+
+    return currentTarget + oscillation;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  Helpers — Detection & Stabilisation
+  // ═══════════════════════════════════════════════════════════════
+
+  private hasNativeVisemes(mesh: THREE.SkinnedMesh): boolean {
+    const dict = mesh.morphTargetDictionary;
+    if (!dict) return false;
+    return (
+      dict.viseme_aa !== undefined || dict.viseme_PP !== undefined
+    );
+  }
+
   private normalizeState(state: string | undefined): LipState {
-    if (state === "plosive" || state === "fricative" || state === "silence" || state === "vowel") {
+    if (
+      state === "plosive" ||
+      state === "fricative" ||
+      state === "silence" ||
+      state === "vowel"
+    ) {
       return state;
     }
     return "vowel";
   }
 
   private getSpectralLevel(wawaLipsync: Lipsync): number {
-    const features = (wawaLipsync as unknown as { features?: { volume?: number } | null }).features;
+    const features = (
+      wawaLipsync as unknown as { features?: { volume?: number } | null }
+    ).features;
     const volume = features?.volume;
-    if (typeof volume !== "number" || !Number.isFinite(volume)) {
-      return 0;
-    }
+    if (typeof volume !== "number" || !Number.isFinite(volume)) return 0;
     return THREE.MathUtils.clamp(volume, 0, 1);
   }
 
   private normalizeVisemeName(name: string): string {
     if (!name || name === "silence" || name === "sil") return "viseme_sil";
     if (name.startsWith("viseme_")) return name;
-    // Common mappings if wawa-lipsync returns raw phonemes
-    if (name.length <= 2) {
-       // Rough fallback prefixing
-       return `viseme_${name}`;
-    }
     return `viseme_${name}`;
   }
 
@@ -508,23 +778,31 @@ export class LipSyncEngine {
     wawaLipsync: Lipsync,
     tuning: LipSyncTuning,
   ): { clockMs: number; clockCompensationMs: number } {
-    const context = (wawaLipsync as unknown as { audioContext?: AudioContext }).audioContext;
+    const context = (
+      wawaLipsync as unknown as { audioContext?: AudioContext }
+    ).audioContext;
     if (!context) {
       return { clockMs: performance.now(), clockCompensationMs: 0 };
     }
 
     const outputLatencyMs = Number.isFinite(context.outputLatency)
-      ? THREE.MathUtils.clamp(context.outputLatency * 1000, 0, tuning.maxClockCompensationMs)
+      ? THREE.MathUtils.clamp(
+          context.outputLatency * 1000,
+          0,
+          tuning.maxClockCompensationMs,
+        )
       : 0;
-    const clockCompensationMs = outputLatencyMs * tuning.clockCompensationRatio;
+    const clockCompensationMs =
+      outputLatencyMs * tuning.clockCompensationRatio;
 
     let clockMs = context.currentTime * 1000;
-    
-    // ✅ Improved Clock Stalling Fix: Keep a baseline if currentTime is 0 or hasn't started.
-    // Use an offset to keep performance.now() and context.currentTime in the same scale.
+
+    // Fallback if AudioContext hasn't started yet
     if (clockMs === 0) {
       clockMs = performance.now();
     }
+
+    // Prefer high-resolution output timestamp when available
     try {
       const withTimestamp = context as AudioContext & {
         getOutputTimestamp?: () => AudioTimestamp;
@@ -532,16 +810,23 @@ export class LipSyncEngine {
       if (typeof withTimestamp.getOutputTimestamp === "function") {
         const timestamp = withTimestamp.getOutputTimestamp();
         const contextTime = timestamp?.contextTime;
-        if (typeof contextTime === "number" && Number.isFinite(contextTime) && contextTime > 0) {
+        if (
+          typeof contextTime === "number" &&
+          Number.isFinite(contextTime) &&
+          contextTime > 0
+        ) {
           clockMs = contextTime * 1000;
         }
       }
     } catch {
-      // Browsers without reliable timestamp support gracefully fall back to currentTime.
+      // Graceful fallback to context.currentTime
     }
 
     return { clockMs, clockCompensationMs };
   }
+    // ═══════════════════════════════════════════════════════════════
+  //  Helpers — Stabilisation & Queue
+  // ═══════════════════════════════════════════════════════════════
 
   private stabilizeDetectedViseme(
     detectedViseme: string,
@@ -563,7 +848,10 @@ export class LipSyncEngine {
           : state === "vowel"
             ? tuning.minSwitchMsVowel
             : tuning.minSwitchMsSilence;
-    const allowImmediateSwitch = speakingGain > 0.72 || detectedViseme === "viseme_sil";
+
+    const allowImmediateSwitch =
+      speakingGain > 0.72 || detectedViseme === "viseme_sil";
+
     if (elapsed < minIntervalMs && !allowImmediateSwitch) {
       return this.lastDetectedViseme;
     }
@@ -573,13 +861,14 @@ export class LipSyncEngine {
     return detectedViseme;
   }
 
-  private enqueueViseme(frame: ScheduledViseme) {
+  private enqueueViseme(frame: ScheduledViseme): void {
     const lastQueued = this.pendingVisemes.peekLast();
     if (
       lastQueued &&
       lastQueued.viseme === frame.viseme &&
       Math.abs(lastQueued.applyAtMs - frame.applyAtMs) < 12
     ) {
+      // Merge into existing — avoid queue bloat for duplicate detections
       lastQueued.state = frame.state;
       lastQueued.speakingGain = frame.speakingGain;
       lastQueued.capturedAtMs = frame.capturedAtMs;
@@ -587,25 +876,23 @@ export class LipSyncEngine {
     }
 
     this.pendingVisemes.enqueue(frame);
-    this.pendingVisemes.trimToMax(MAX_PENDING_VISEMES);
+    this.pendingVisemes.trimToMax(this.modeCfg.maxPendingVisemes);
   }
 
-  private advanceScheduledViseme(clockMs: number) {
+  private advanceScheduledViseme(clockMs: number): void {
     while (this.pendingVisemes.length > 0) {
       const next = this.pendingVisemes.peek();
-      if (!next || next.applyAtMs > clockMs) {
-        break;
-      }
+      if (!next || next.applyAtMs > clockMs) break;
+
       const dequeued = this.pendingVisemes.dequeue();
-      if (!dequeued) {
-        break;
-      }
+      if (!dequeued) break;
+
       this.activeScheduledViseme = dequeued;
     }
   }
 
   private getVisemeLambda(state: LipState): number {
-    const tuning = (this.currentTuning ?? DEFAULT_LIPSYNC_TUNING);
+    const tuning = this.currentTuning;
     if (state === "plosive") return tuning.lambdaPlosive;
     if (state === "fricative") return tuning.lambdaFricative;
     if (state === "vowel") return tuning.lambdaVowel;
@@ -618,7 +905,11 @@ export class LipSyncEngine {
     tuning: LipSyncTuning,
   ): { viseme: string | null; weight: number } {
     const next = this.pendingVisemes.peek();
-    if (!next || next.viseme === activeViseme || next.viseme === "viseme_sil") {
+    if (
+      !next ||
+      next.viseme === activeViseme ||
+      next.viseme === "viseme_sil"
+    ) {
       return { viseme: null, weight: 0 };
     }
 
@@ -629,25 +920,42 @@ export class LipSyncEngine {
     }
 
     const blendProgress = 1 - timeUntilApply / windowMs;
-    const maxWeight = THREE.MathUtils.clamp(tuning.anticipationWeightMax, 0, 0.5);
-    const weight = THREE.MathUtils.clamp(blendProgress * maxWeight, 0, maxWeight);
+    const maxWeight = THREE.MathUtils.clamp(
+      tuning.anticipationWeightMax,
+      0,
+      0.5,
+    );
+    const weight = THREE.MathUtils.clamp(
+      blendProgress * maxWeight,
+      0,
+      maxWeight,
+    );
     return { viseme: next.viseme, weight };
   }
 
-  private getEffectiveFloor(
+  // ═══════════════════════════════════════════════════════════════
+  //  Helpers — Noise Floor & Robust Detection
+  // ═══════════════════════════════════════════════════════════════
+
+  private computeEffectiveFloor(
     levelSource: number,
     delta: number,
     tuning: LipSyncTuning,
   ): number {
     if (!tuning.adaptiveNoiseFloor) {
-      this.dynamicNoiseFloor = LIPSYNC_LEVEL_FLOOR;
-      return LIPSYNC_LEVEL_FLOOR;
+      this.dynamicNoiseFloor = this.modeCfg.levelFloor;
+      return this.modeCfg.levelFloor;
     }
 
     const minFloor = tuning.noiseFloorMin;
     const maxFloor = tuning.noiseFloorMax;
-    const clampedLevel = THREE.MathUtils.clamp(levelSource, minFloor, maxFloor);
-    const quietBand = this.dynamicNoiseFloor + tuning.speechThresholdOffset * 1.5;
+    const clampedLevel = THREE.MathUtils.clamp(
+      levelSource,
+      minFloor,
+      maxFloor,
+    );
+    const quietBand =
+      this.dynamicNoiseFloor + tuning.speechThresholdOffset * 1.5;
 
     if (levelSource <= quietBand) {
       this.dynamicNoiseFloor = THREE.MathUtils.damp(
@@ -665,7 +973,12 @@ export class LipSyncEngine {
       );
     }
 
-    this.dynamicNoiseFloor = THREE.MathUtils.clamp(this.dynamicNoiseFloor, minFloor, maxFloor);
+    this.dynamicNoiseFloor = THREE.MathUtils.clamp(
+      this.dynamicNoiseFloor,
+      minFloor,
+      maxFloor,
+    );
+
     return THREE.MathUtils.clamp(
       this.dynamicNoiseFloor + tuning.speechThresholdOffset,
       minFloor,
@@ -686,13 +999,21 @@ export class LipSyncEngine {
     }
 
     this.consecutiveSilentDetections += 1;
-    const hasAudibleSpeech = speakingGain > 0.12 || levelSource > 0.09 || spectralLevel > 0.03;
-    
-    // Reduce onset latency: return silent only if definitely silent or we're filtering jitter
-    if (!hasAudibleSpeech || (this.lastDetectedViseme === "viseme_sil" && this.consecutiveSilentDetections < 2)) {
+    const hasAudibleSpeech =
+      speakingGain > 0.12 ||
+      levelSource > 0.09 ||
+      spectralLevel > 0.03;
+
+    if (
+      !hasAudibleSpeech ||
+      (this.lastDetectedViseme === "viseme_sil" &&
+        this.consecutiveSilentDetections < 2)
+    ) {
       return "viseme_sil";
     }
 
+    // Infer a plausible viseme from context when detector returns
+    // silence but audio energy is clearly present
     if (state === "fricative") return "viseme_SS";
     if (state === "plosive") return "viseme_DD";
     if (levelSource > 0.25) return "viseme_aa";
@@ -700,25 +1021,44 @@ export class LipSyncEngine {
     return "viseme_O";
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  //  Helpers — Morph Application & Post-Processing
+  // ═══════════════════════════════════════════════════════════════
+
   private applyMorph(
     mesh: THREE.SkinnedMesh,
     name: string,
     target: number,
     delta: number,
     lambda: number = 25,
-  ) {
+  ): void {
     const dict = mesh.morphTargetDictionary;
     const influences = mesh.morphTargetInfluences;
-    if (dict && influences && dict[name] !== undefined) {
-      const idx = dict[name];
-      const smoothedTarget = this.applyTemporalSmoothing(name, target, this.currentRuntimeOptions);
-      influences[idx] = THREE.MathUtils.damp(influences[idx], smoothedTarget, lambda, delta);
-    }
+    if (!dict || !influences || dict[name] === undefined) return;
+
+    const idx = dict[name];
+    const smoothedTarget = this.applyTemporalSmoothing(
+      name,
+      target,
+      this.currentRuntimeOptions,
+    );
+    influences[idx] = THREE.MathUtils.damp(
+      influences[idx],
+      smoothedTarget,
+      lambda,
+      delta,
+    );
   }
 
   private isLowerFaceTarget(name: string): boolean {
     const key = name.toLowerCase();
-    return key.includes('jaw') || key.includes('mouth') || key.includes('lip') || key.includes('viseme') || key.includes('tongue');
+    return (
+      key.includes("jaw") ||
+      key.includes("mouth") ||
+      key.includes("lip") ||
+      key.includes("viseme") ||
+      key.includes("tongue")
+    );
   }
 
   private applyRegionalPostProcessing(
@@ -726,32 +1066,40 @@ export class LipSyncEngine {
     name: string,
     options: LipSyncRuntimeOptions,
   ): number {
-    const meshPostProcessing = {
+    const meshPP = {
       ...DEFAULT_MESH_POST_PROCESSING,
       ...(options.meshPostProcessing ?? {}),
     };
-    const anatomicalPostProcessing = {
+    const anatPP = {
       ...DEFAULT_ANATOMICAL_POST_PROCESSING,
       ...(options.anatomicalPostProcessing ?? {}),
     };
 
     const isLower = this.isLowerFaceTarget(name);
-    const maskLevel = THREE.MathUtils.clamp(anatomicalPostProcessing.faceMaskLevel, 0, 1);
-    const softMask = THREE.MathUtils.clamp(maskLevel * (1 - anatomicalPostProcessing.faceMaskSoftness * 10), 0, 1);
+    const maskLevel = THREE.MathUtils.clamp(anatPP.faceMaskLevel, 0, 1);
+    const softMask = THREE.MathUtils.clamp(
+      maskLevel * (1 - anatPP.faceMaskSoftness * 10),
+      0,
+      1,
+    );
     const blendedStrength = THREE.MathUtils.lerp(
-      anatomicalPostProcessing.upperFaceStrength,
-      anatomicalPostProcessing.lowerFaceStrength,
+      anatPP.upperFaceStrength,
+      anatPP.lowerFaceStrength,
       isLower ? softMask : 1 - softMask,
     );
 
-    let processed = target * blendedStrength * meshPostProcessing.skinStrength;
-    if (name.toLowerCase().includes('jaw')) {
-      processed = processed * meshPostProcessing.jawStrength * anatomicalPostProcessing.jawStrength;
-      processed += anatomicalPostProcessing.jawHeight;
-      processed += meshPostProcessing.lipOpenOffset;
+    let processed = target * blendedStrength * meshPP.skinStrength;
+
+    const nameLower = name.toLowerCase();
+    if (nameLower.includes("jaw")) {
+      processed =
+        processed * meshPP.jawStrength * anatPP.jawStrength;
+      processed += anatPP.jawHeight;
+      processed += meshPP.lipOpenOffset;
     }
-    if (name.toLowerCase().includes('tongue')) {
-      processed = processed * anatomicalPostProcessing.tongueStrength + anatomicalPostProcessing.tongueHeight;
+    if (nameLower.includes("tongue")) {
+      processed =
+        processed * anatPP.tongueStrength + anatPP.tongueHeight;
     }
 
     return THREE.MathUtils.clamp(processed, 0, 1.2);
@@ -762,39 +1110,68 @@ export class LipSyncEngine {
     target: number,
     options: LipSyncRuntimeOptions,
   ): number {
-    const meshPostProcessing = {
+    const meshPP = {
       ...DEFAULT_MESH_POST_PROCESSING,
       ...(options.meshPostProcessing ?? {}),
     };
     const previous = this.morphHistory.get(name) ?? target;
     const smoothing = this.isLowerFaceTarget(name)
-      ? meshPostProcessing.lowerFaceSmoothing
-      : meshPostProcessing.upperFaceSmoothing;
+      ? meshPP.lowerFaceSmoothing
+      : meshPP.upperFaceSmoothing;
     const alpha = THREE.MathUtils.clamp(smoothing * 60, 0, 0.95);
     const next = previous + (target - previous) * (1 - alpha);
     this.morphHistory.set(name, next);
     return next;
   }
 
-  private getVisemeScale(viseme: string, overrides?: VisemeOverrides): number {
-    const resolvedOverrides = {
+  private getVisemeScale(
+    viseme: string,
+    overrides?: VisemeOverrides,
+  ): number {
+    const resolved = {
       ...DEFAULT_VISEME_OVERRIDES,
       ...(overrides ?? {}),
     };
-    const masterScale = resolvedOverrides.drivingDataScale;
-    if (viseme === 'viseme_PP' || viseme === 'viseme_nn') {
-      return THREE.MathUtils.clamp(masterScale * (resolvedOverrides.strengthBMP / 100), 0, 3);
+    const masterScale = resolved.drivingDataScale;
+
+    if (viseme === "viseme_PP" || viseme === "viseme_nn") {
+      return THREE.MathUtils.clamp(
+        masterScale * (resolved.strengthBMP / 100),
+        0,
+        3,
+      );
     }
-    if (viseme === 'viseme_FF' || viseme === 'viseme_TH') {
-      return THREE.MathUtils.clamp(masterScale * (resolvedOverrides.strengthFV / 100), 0, 3);
+    if (viseme === "viseme_FF" || viseme === "viseme_TH") {
+      return THREE.MathUtils.clamp(
+        masterScale * (resolved.strengthFV / 100),
+        0,
+        3,
+      );
     }
-    if (viseme === 'viseme_O' || viseme === 'viseme_U' || viseme === 'viseme_RR') {
-      return THREE.MathUtils.clamp(masterScale * (resolvedOverrides.strengthWOo / 100), 0, 3);
+    if (
+      viseme === "viseme_O" ||
+      viseme === "viseme_U" ||
+      viseme === "viseme_RR"
+    ) {
+      return THREE.MathUtils.clamp(
+        masterScale * (resolved.strengthWOo / 100),
+        0,
+        3,
+      );
     }
-    if (viseme === 'viseme_SS' || viseme === 'viseme_DD' || viseme === 'viseme_CH' || viseme === 'viseme_kk') {
-      return THREE.MathUtils.clamp(masterScale * (resolvedOverrides.strengthSZTD / 100), 0, 3);
+    if (
+      viseme === "viseme_SS" ||
+      viseme === "viseme_DD" ||
+      viseme === "viseme_CH" ||
+      viseme === "viseme_kk"
+    ) {
+      return THREE.MathUtils.clamp(
+        masterScale * (resolved.strengthSZTD / 100),
+        0,
+        3,
+      );
     }
+
     return THREE.MathUtils.clamp(masterScale, 0, 3);
   }
 }
-
