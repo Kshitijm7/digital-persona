@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ import { LightingSection } from "./config/LightingSection";
 import { FeaturesSection } from "./config/FeaturesSection";
 import { LipSyncSection } from "./config/LipSyncSection";
 import { AvatarRealismSection } from "./config/AvatarRealismSection";
+import { ModeSection } from "./config/ModeSection";
 
 export function ConfigPanel() {
   const { config, setConfig, resetConfig, avatarRegistry } = useSceneConfig();
@@ -149,6 +150,7 @@ export function ConfigPanel() {
     <div className="flex flex-col flex-1 min-h-0 bg-black/10">
       {/* Scrollable Area for Settings */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 thin-scrollbar">
+        <ModeSection />
         <CameraSection draft={draft} patchCamera={patchCamera} />
         <AvatarSection draft={draft} patchAvatar={patchAvatar} avatarRegistry={avatarRegistry} />
         <LightingSection draft={draft} patchLight={patchLight} />

@@ -227,8 +227,8 @@ function HomePage() {
 
   const [currentExpression, setCurrentExpression] = useState<string>("idle");
   const [personaMode, setPersonaMode] = useState<
-    "focus" | "casual" | "presentation"
-  >("casual");
+    "broadcast" | "intimate" | "energetic"
+  >("intimate");
   const [selectedSkin, setSelectedSkin] = useState<SkinPreset>(SKIN_PRESETS[0]);
   const [debugMode, setDebugMode] = useState(false);
   const [dismissedError, setDismissedError] = useState<string | null>(null);
@@ -502,22 +502,14 @@ function HomePage() {
       const applied: Record<string, unknown> = {};
 
       const mode = args.mode as
-        | "focus"
-        | "casual"
-        | "presentation"
+        | "broadcast"
+        | "intimate"
+        | "energetic"
         | undefined;
       if (mode) {
         setPersonaMode(mode);
         applied.mode = mode;
-        
-        const modeMap: Record<string, "broadcast" | "intimate" | "energetic"> = {
-          focus: "broadcast",
-          casual: "intimate",
-          presentation: "energetic",
-        };
-        if (modeMap[mode]) {
-          useEmotiveSpeechStore.getState().setMode(modeMap[mode]);
-        }
+        useEmotiveSpeechStore.getState().setMode(mode);
       }
 
       const emotionStateArg  = args.emotionState as string | undefined;

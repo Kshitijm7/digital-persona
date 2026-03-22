@@ -98,9 +98,9 @@ export const UPDATE_PERSONA_STATE_DECL: FunctionDeclaration = {
     properties: {
       mode: {
         type: Type.STRING,
-        enum: ["focus", "casual", "presentation"],
+        enum: ["broadcast", "intimate", "energetic"],
         description:
-          "focus: technical and brief. casual: conversational and warm. presentation: UI-active, mic passive.",
+          "broadcast: focus, clear articulation. intimate: casual, softer voice. energetic: passionate, presentation.",
       },
       emotionState: {
         type: Type.STRING,
