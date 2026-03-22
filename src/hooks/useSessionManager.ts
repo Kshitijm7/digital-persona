@@ -28,16 +28,26 @@ const BASE64_CHUNK_SIZE = 0x8000;
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
   for (let i = 0; i < bytes.length; i += BASE64_CHUNK_SIZE) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + BASE64_CHUNK_SIZE));
+    binary += String.fromCharCode(
+      ...bytes.subarray(i, i + BASE64_CHUNK_SIZE),
+    );
   }
   return btoa(binary);
 }
 
-const ZERO_CHUNK_BYTES = new Uint8Array(SESSION_CFG.heartbeat.zeroChunkBytes);
+const ZERO_CHUNK_BYTES = new Uint8Array(
+  SESSION_CFG.heartbeat.zeroChunkBytes,
+);
 const ZERO_CHUNK_B64 = bytesToBase64(ZERO_CHUNK_BYTES);
 
-const AUDIO_STREAM_END_DELAY_MS = SESSION_CFG.heartbeat.audioStreamEndDelayMs;
+const AUDIO_STREAM_END_DELAY_MS =
+  SESSION_CFG.heartbeat.audioStreamEndDelayMs;
 const HEARTBEAT_INTERVAL_MS = SESSION_CFG.heartbeat.intervalMs;
+
+// FIX(SM6): Guard window — suppress audioStreamEnd if the server sent a user
+// transcript within this window. Directly prevents the crash pattern where:
+//   mic goes quiet → audioStreamEnd fires → server still processing audio → 1011
+const USER_TRANSCRIPT_GUARD_MS = 2000;
 
 export function useSessionManager() {
   const {
@@ -46,6 +56,10 @@ export function useSessionManager() {
     onTurnComplete: onTurnCompleteRef,
     registerTool,
     getCompatibilityProfile,
+    // FIX(SM6): Read the authoritative transcript timestamp from useGeminiLive.
+    // This ref is updated inside handleMessage (the single source of truth)
+    // before any consumer callback runs — so it's always fresh.
+    lastUserTranscriptAt: lastUserTranscriptAtRef,
     ...gemini
   } = useGeminiLive();
 
@@ -74,6 +88,9 @@ export function useSessionManager() {
     outputAudioLevelRef,
     inputAudioLevelRef,
     isAssistantSpeakingRef,
+    // FIX(SM7): Read the turn-level assistant responding flag.
+    // True from first audio chunk until streamer.onComplete — covers tool-call gaps.
+    assistantRespondingRef,
     startMic,
     stopMic,
     playAudioChunk,
@@ -97,8 +114,6 @@ export function useSessionManager() {
   // ── Session state ──────────────────────────────────────────────────────────
   const [isInitialized, setIsInitialized] = useState(false);
   // FIX(SM4): Ref mirror of isInitialized for fresh reads in async callbacks.
-  // State gives us re-renders; the ref gives us a non-stale value inside
-  // setTimeout / async continuations that outlive the effect closure.
   const isInitializedRef = useRef(false);
   const isConnected = geminiStatus === "connected";
 
@@ -117,7 +132,9 @@ export function useSessionManager() {
   const assistantHoldoffUntilRef = useRef(0);
   const isManualStopRef = useRef(false);
   const reconnectAttemptsRef = useRef(0);
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const isTransitioningRef = useRef(false);
 
   const forwardMicChunkRef = useRef<(chunk: string) => void>(() => {});
@@ -125,6 +142,7 @@ export function useSessionManager() {
   const dropHandledForConnectionRef = useRef<number | null>(null);
 
   const audioStreamEndSentRef = useRef(false);
+  const audioStreamEndDeferredLoggedRef = useRef(false);
   const suppressionStartRef = useRef(0);
 
   // ── Built-in tool: get_time_date ───────────────────────────────────────────
@@ -133,13 +151,74 @@ export function useSessionManager() {
       const now = new Date();
       return {
         iso: now.toISOString(),
-        formatted: now.toLocaleString(),
-        date: now.toLocaleDateString(),
-        time: now.toLocaleTimeString(),
+        formatted: now.toLocaleString().replace(/\u202F/g, " ").replace(/\u202f/g, " "),
+        date: now.toLocaleDateString().replace(/\u202F/g, " ").replace(/\u202f/g, " "),
+        time: now.toLocaleTimeString().replace(/\u202F/g, " ").replace(/\u202f/g, " "),
       };
     });
   }, [registerTool]);
   const lastForwardedChunkAtRef = useRef(0);
+
+  // ── audioStreamEnd guard helper ────────────────────────────────────────────
+  // FIX(SM6): Centralized guard that checks ALL conditions before allowing
+  // audioStreamEnd to fire.  Used by both ambient-silence and echo-block paths.
+  //
+  // Guards:
+  //   1. silenceDuration > AUDIO_STREAM_END_DELAY_MS  (basic silence threshold)
+  //   2. !audioStreamEndSentRef.current               (idempotency)
+  //   3. timeSinceLastTranscript > USER_TRANSCRIPT_GUARD_MS  (server still processing)
+  //   4. !assistantRespondingRef.current              (mid-response tool-call gap)
+  const tryAudioStreamEnd = useCallback(
+    (silenceDuration: number, context: "ambient" | "echo_block") => {
+      if (audioStreamEndSentRef.current) return;
+      if (silenceDuration <= AUDIO_STREAM_END_DELAY_MS) return;
+
+      const now = performance.now();
+      const timeSinceLastTranscript =
+        now - lastUserTranscriptAtRef.current;
+
+      // FIX(SM6): Don't fire if the server recently sent back a user transcript.
+      // The server is still processing buffered audio — sending audioStreamEnd
+      // now would create a contradictory state → 1011 crash.
+      if (timeSinceLastTranscript <= USER_TRANSCRIPT_GUARD_MS) {
+        if (!audioStreamEndDeferredLoggedRef.current) {
+          audioStreamEndDeferredLoggedRef.current = true;
+          log.debug(
+            { silenceDuration, timeSinceLastTranscript, context },
+            "Deferred audioStreamEnd — user transcript still recent.",
+          );
+        }
+        return;
+      }
+
+      // FIX(SM7): Don't fire if the assistant is mid-response (tool calls,
+      // inter-chunk gaps).  assistantRespondingRef stays true from first audio
+      // chunk until streamer.onComplete — covers tool-call gaps.
+      if (assistantRespondingRef.current) {
+        if (!audioStreamEndDeferredLoggedRef.current) {
+          audioStreamEndDeferredLoggedRef.current = true;
+          log.debug(
+            { silenceDuration, context },
+            "Deferred audioStreamEnd — assistant still responding.",
+          );
+        }
+        return;
+      }
+
+      audioStreamEndSentRef.current = true;
+      audioStreamEndDeferredLoggedRef.current = false;
+      log.debug(
+        { silenceDuration, timeSinceLastTranscript, context },
+        "Sent audioStreamEnd after silence.",
+      );
+      sendAudioStreamEnd();
+    },
+    [
+      lastUserTranscriptAtRef,
+      assistantRespondingRef,
+      sendAudioStreamEnd,
+    ],
+  );
 
   // ── Mic chunk forwarding ──────────────────────────────────────────────────
   const forwardMicChunk = useCallback(
@@ -158,7 +237,8 @@ export function useSessionManager() {
             {
               inputLevel,
               ambientFloor: AMBIENT_INPUT_FLOOR,
-              suppressedAmbientChunks: micSuppressedAmbientRef.current,
+              suppressedAmbientChunks:
+                micSuppressedAmbientRef.current,
               forwardedChunks: micForwardedChunksRef.current,
             },
             "Suppressed microphone chunk below ambient floor.",
@@ -169,31 +249,34 @@ export function useSessionManager() {
           suppressionStartRef.current = now;
         }
 
-        const silenceDuration = now - suppressionStartRef.current;
-        const activeMode = getCompatibilityProfile() as GeminiSessionMode;
-        const modeHeartbeat = getModeConfig(activeMode).heartbeat;
+        const silenceDuration =
+          now - suppressionStartRef.current;
+        const activeMode =
+          getCompatibilityProfile() as GeminiSessionMode;
+        const modeHeartbeat =
+          getModeConfig(activeMode).heartbeat;
 
         if (modeHeartbeat.precomputeFallback) {
-          if (now - lastForwardedChunkAtRef.current > HEARTBEAT_INTERVAL_MS) {
+          if (
+            now - lastForwardedChunkAtRef.current >
+            HEARTBEAT_INTERVAL_MS
+          ) {
             micForwardedChunksRef.current += 1;
             lastForwardedChunkAtRef.current = now;
-            log.debug("Sent precomputed zero-chunk heartbeat (ambient).");
+            log.debug(
+              "Sent precomputed zero-chunk heartbeat (ambient).",
+            );
             sendAudioChunk(ZERO_CHUNK_B64);
           }
         } else {
-          if (
-            silenceDuration > AUDIO_STREAM_END_DELAY_MS &&
-            !audioStreamEndSentRef.current
-          ) {
-            audioStreamEndSentRef.current = true;
-            log.debug("Sent audioStreamEnd after ambient silence.");
-            sendAudioStreamEnd();
-          }
+          // FIX(SM6): Use centralized guard instead of inline check
+          tryAudioStreamEnd(silenceDuration, "ambient");
         }
         return;
       }
 
-      const inAssistantHoldoff = now < assistantHoldoffUntilRef.current;
+      const inAssistantHoldoff =
+        now < assistantHoldoffUntilRef.current;
       const shouldBlockEcho =
         (isAssistantSpeakingRef.current &&
           inputLevel < ASSISTANT_ECHO_BLOCK_THRESHOLD) ||
@@ -210,7 +293,8 @@ export function useSessionManager() {
           log.debug(
             {
               suppressedChunks: micSuppressedChunksRef.current,
-              suppressedEchoChunks: micSuppressedEchoRef.current,
+              suppressedEchoChunks:
+                micSuppressedEchoRef.current,
               forwardedChunks: micForwardedChunksRef.current,
               inputLevel,
               inAssistantHoldoff,
@@ -223,32 +307,35 @@ export function useSessionManager() {
           suppressionStartRef.current = now;
         }
 
-        const silenceDuration = now - suppressionStartRef.current;
-        const activeMode = getCompatibilityProfile() as GeminiSessionMode;
-        const modeHeartbeat = getModeConfig(activeMode).heartbeat;
+        const silenceDuration =
+          now - suppressionStartRef.current;
+        const activeMode =
+          getCompatibilityProfile() as GeminiSessionMode;
+        const modeHeartbeat =
+          getModeConfig(activeMode).heartbeat;
 
         if (modeHeartbeat.precomputeFallback) {
-          if (now - lastForwardedChunkAtRef.current > HEARTBEAT_INTERVAL_MS) {
+          if (
+            now - lastForwardedChunkAtRef.current >
+            HEARTBEAT_INTERVAL_MS
+          ) {
             micForwardedChunksRef.current += 1;
             lastForwardedChunkAtRef.current = now;
-            log.debug("Sent precomputed zero-chunk heartbeat (echo block).");
+            log.debug(
+              "Sent precomputed zero-chunk heartbeat (echo block).",
+            );
             sendAudioChunk(ZERO_CHUNK_B64);
           }
         } else {
-          if (
-            silenceDuration > AUDIO_STREAM_END_DELAY_MS &&
-            !audioStreamEndSentRef.current
-          ) {
-            audioStreamEndSentRef.current = true;
-            log.debug("Sent audioStreamEnd during echo block.");
-            sendAudioStreamEnd();
-          }
+          // FIX(SM6): Use centralized guard instead of inline check
+          tryAudioStreamEnd(silenceDuration, "echo_block");
         }
         return;
       }
 
       // User is speaking — reset suppression tracking
       audioStreamEndSentRef.current = false;
+      audioStreamEndDeferredLoggedRef.current = false;
       suppressionStartRef.current = 0;
 
       micForwardedChunksRef.current += 1;
@@ -272,7 +359,7 @@ export function useSessionManager() {
       inputAudioLevelRef,
       isAssistantSpeakingRef,
       sendAudioChunk,
-      sendAudioStreamEnd,
+      tryAudioStreamEnd,
       getCompatibilityProfile,
     ],
   );
@@ -349,7 +436,10 @@ export function useSessionManager() {
   useEffect(() => {
     if (!isInitialized) return;
 
-    if (geminiStatus !== "disconnected" && geminiStatus !== "error") {
+    if (
+      geminiStatus !== "disconnected" &&
+      geminiStatus !== "error"
+    ) {
       return;
     }
 
@@ -376,7 +466,9 @@ export function useSessionManager() {
     dropHandledForConnectionRef.current = currentAttempt;
 
     if (isManualStopRef.current) {
-      log.debug("Session ended manually; skipping auto-reconnect.");
+      log.debug(
+        "Session ended manually; skipping auto-reconnect.",
+      );
       return;
     }
 
@@ -417,10 +509,11 @@ export function useSessionManager() {
 
       void (async () => {
         // FIX(SM4): Read the ref, not the stale closure value.
-        // The effect closure captured `isInitialized` at schedule-time,
-        // but by the time the timer fires the component may have
-        // unmounted or the user may have stopped the session.
-        if (isManualStopRef.current || !isInitializedRef.current) return;
+        if (
+          isManualStopRef.current ||
+          !isInitializedRef.current
+        )
+          return;
 
         const connected = await connect();
         if (connected) {
@@ -428,14 +521,9 @@ export function useSessionManager() {
           dropHandledForConnectionRef.current = null;
 
           // FIX: Reset playback state for the new session.
-          // Without this, the old streamer's doneFired flag leaks
-          // across sessions, causing onComplete to never fire for
-          // text-only turns after reconnect.
           stopPlayback();
 
-          // FIX(SM3): Await startMic and log if it fails. Without this,
-          // a denied mic permission after reconnect leaves the user with
-          // a live avatar that can't hear them — and no feedback.
+          // FIX(SM3): Await startMic and log if it fails.
           const micStarted = await startMic(
             (...args) => forwardMicChunkRef.current(...args),
           );
@@ -451,13 +539,15 @@ export function useSessionManager() {
           );
         } else {
           dropHandledForConnectionRef.current = null;
-          log.warn({ attempt }, "Automatic reconnect attempt failed.");
+          log.warn(
+            { attempt },
+            "Automatic reconnect attempt failed.",
+          );
         }
       })();
     }, delayMs);
 
     // FIX(SM2): Cleanup — if deps change before the timer fires, cancel it.
-    // This prevents two concurrent connect() calls from racing.
     return () => {
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);
@@ -505,7 +595,9 @@ export function useSessionManager() {
       const streamer = ensureStreamer();
       if (streamer.context.state === "suspended") {
         await streamer.context.resume();
-        log.info("Playback AudioContext resumed via user gesture.");
+        log.info(
+          "Playback AudioContext resumed via user gesture.",
+        );
       }
 
       const connected = await connect();
@@ -581,9 +673,15 @@ export function useSessionManager() {
       return;
     }
 
-    if (geminiStatus === "connected" || geminiStatus === "error") {
+    if (
+      geminiStatus === "connected" ||
+      geminiStatus === "error"
+    ) {
       isTransitioningRef.current = true;
-      log.info({ status: geminiStatus }, "Stopping active session via toggle.");
+      log.info(
+        { status: geminiStatus },
+        "Stopping active session via toggle.",
+      );
       stopSession();
       setTimeout(() => {
         isTransitioningRef.current = false;
@@ -605,7 +703,9 @@ export function useSessionManager() {
       stopMic();
     } else {
       log.info("Unmuting microphone.");
-      startMic((...args) => forwardMicChunkRef.current(...args));
+      startMic(
+        (...args) => forwardMicChunkRef.current(...args),
+      );
     }
   }, [isMicActive, stopMic, startMic, sendAudioStreamEnd]);
 
@@ -613,11 +713,17 @@ export function useSessionManager() {
     if (isCameraActive) {
       stopWebcam();
     } else {
-      const activeMode = getCompatibilityProfile() as GeminiSessionMode;
+      const activeMode =
+        getCompatibilityProfile() as GeminiSessionMode;
       const modeFps = getModeConfig(activeMode).video.fps;
       startWebcam(undefined, modeFps);
     }
-  }, [isCameraActive, stopWebcam, startWebcam, getCompatibilityProfile]);
+  }, [
+    isCameraActive,
+    stopWebcam,
+    startWebcam,
+    getCompatibilityProfile,
+  ]);
 
   // ── Cleanup on unmount ─────────────────────────────────────────────────────
   useEffect(() => {

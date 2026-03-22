@@ -19,6 +19,11 @@ export function ChatMessageList({
 }: ChatMessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  const lastMessage = messages[messages.length - 1];
+  const scrollTrigger = lastMessage
+    ? `${lastMessage.id}-${lastMessage.content.length}`
+    : "";
+
   // Auto-scroll on new messages
   useEffect(() => {
     if (!bottomRef.current) return;
@@ -31,7 +36,7 @@ export function ChatMessageList({
     } else {
       bottomRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
-  }, [messages.length, isTyping]);
+  }, [messages.length, isTyping, scrollTrigger]);
 
   return (
     <ScrollArea className={cn("flex-1 min-h-0", className)}>

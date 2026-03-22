@@ -1,3 +1,5 @@
+// File: src/app/page.tsx
+
 "use client";
 
 import dynamic from "next/dynamic";
@@ -56,12 +58,12 @@ import { SceneConfigProvider } from "@/hooks/SceneConfigContext";
 
 const log = createLogger("app/page");
 
-const BASE_ANIMATION_MATCH_THRESHOLD      = 0.15;
-const SPEAKING_ANIMATION_MATCH_THRESHOLD  = 0.25;
-const ASSISTANT_SPEAKING_LEVEL_THRESHOLD  = 0.1;
-const EXPRESSION_AUTO_RESET_MS            = 4_000;
-const END_CALL_FALLBACK_MS                = 10_000;
-const TRANSCRIPT_DEDUP_WINDOW_MS          = 2_500;
+const BASE_ANIMATION_MATCH_THRESHOLD = 0.15;
+const SPEAKING_ANIMATION_MATCH_THRESHOLD = 0.25;
+const ASSISTANT_SPEAKING_LEVEL_THRESHOLD = 0.1;
+const EXPRESSION_AUTO_RESET_MS = 4_000;
+const END_CALL_FALLBACK_MS = 10_000;
+const TRANSCRIPT_DEDUP_WINDOW_MS = 2_500;
 
 // ─── 3D Scene (lazy, no SSR) ──────────────────────────────────────────────────
 
@@ -89,7 +91,6 @@ const IdleScreen = memo(({ onStart }: { onStart: () => void }) => (
     className="absolute inset-0 flex flex-col items-center justify-center z-10"
   >
     <div className="relative mx-4 flex w-full max-w-md flex-col items-center gap-6 overflow-hidden rounded-3xl border border-white/6 bg-white/3 px-6 py-8 backdrop-blur-xl shadow-2xl sm:px-12 sm:py-10">
-      {/* Ambient glow */}
       <div className="absolute top-0 right-0 -mr-16 -mt-16 h-64 w-64 rounded-full bg-cyan-400/5 blur-3xl pointer-events-none" />
 
       <div className="relative z-10 flex flex-col items-center gap-6 w-full">
@@ -161,22 +162,17 @@ ErrorBanner.displayName = "ErrorBanner";
 // ─── HomePage ─────────────────────────────────────────────────────────────────
 
 function HomePage() {
-  // Animation registry — fetched once globally
   useAnimationRegistry();
 
   // ── UI state ────────────────────────────────────────────────────────────────
-  // Replace useMediaQuery with custom ResizeObserver and matchMedia logic
-  const [isChatOpen, setIsChatOpen] = useState(false); // Default starting state, will be set on mount
-
-  // Reference to track previous state to detect "going from X to Y"
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const prevIsNarrowRef = useRef<boolean | null>(null);
-  // Track if user manually closed it, so we don't auto-expand if they go wide
   const userClosedManuallyRef = useRef<boolean>(false);
 
   useLayoutEffect(() => {
     const handleLayoutChange = () => {
       if (typeof window === "undefined") return;
-      
+
       const width = document.documentElement.clientWidth;
       const isPortrait = window.matchMedia("(orientation: portrait)").matches;
       const isNarrow = width < 768 || isPortrait;
@@ -184,28 +180,22 @@ function HomePage() {
       const prevIsNarrow = prevIsNarrowRef.current;
       prevIsNarrowRef.current = isNarrow;
 
-      // Going narrow → always collapse
       if (isNarrow && !prevIsNarrow) {
-         setIsChatOpen(false);
+        setIsChatOpen(false);
       }
       
       // Going wide → auto-expand ONLY if user didn't manually close it
       if (!isNarrow && prevIsNarrow === true && !userClosedManuallyRef.current) {
-         setIsChatOpen(true);
+        setIsChatOpen(true);
       }
-
-      // Initial mount state setup
       if (prevIsNarrow === null) {
-         setIsChatOpen(!isNarrow);
+        setIsChatOpen(!isNarrow);
       }
     };
 
-    const resizeObserver = new ResizeObserver(() => {
-      handleLayoutChange();
-    });
-    
+    const resizeObserver = new ResizeObserver(() => handleLayoutChange());
     resizeObserver.observe(document.documentElement);
-    
+
     const mql = window.matchMedia("(orientation: portrait)");
     const orientationChangeHandler = () => handleLayoutChange();
     mql.addEventListener("change", orientationChangeHandler);
@@ -236,13 +226,14 @@ function HomePage() {
   // ── Chat ────────────────────────────────────────────────────────────────────
   const chat = useChatMessages();
 
-  // Pull stable function references out of the chat object so effects that
-  // depend on them don't re-run on every new message.
+  // Stable references — prevent effect re-runs on every message change
   const appendAssistantMessage = chat.appendAssistantMessage;
-  const addUserMessage          = chat.addUserMessage;
+  const addUserMessage = chat.addUserMessage;
+  const appendUserTranscript = chat.appendUserTranscript;
+  const finalizeUserMessage = chat.finalizeUserMessage;
 
   // ── Avatar store ────────────────────────────────────────────────────────────
-  const applySessionPatch    = useAvatarRuntimeStore((s) => s.applySessionPatch);
+  const applySessionPatch = useAvatarRuntimeStore((s) => s.applySessionPatch);
   const clearSessionOverrides = useAvatarRuntimeStore(
     (s) => s.clearSessionOverrides
   );
@@ -251,19 +242,11 @@ function HomePage() {
   const expressionResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
-
-  // Stable ref for toggleSession so tool handlers always call the latest
-  // version without needing to be listed as effect dependencies (which would
-  // cause full re-registration on every session state change).
   const toggleSessionRef = useRef<() => void>(() => {});
-
-  const endCallPendingRef         = useRef(false);
-  const endCallFallbackTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(
+  const endCallPendingRef = useRef(false);
+  const endCallFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
-
-  // Shared dedup set — prevents the same content appearing in chat from both
-  // the display_text tool and the transcript stream simultaneously.
   const recentAssistantTextsRef = useRef<Map<string, number>>(new Map());
 
   // ── Session manager ─────────────────────────────────────────────────────────
@@ -291,7 +274,6 @@ function HomePage() {
     getCompatibilityProfile,
   } = useSessionManager();
 
-  // Keep toggleSessionRef current whenever the session manager recreates it.
   useEffect(() => {
     toggleSessionRef.current = toggleSession;
   }, [toggleSession]);
@@ -303,18 +285,14 @@ function HomePage() {
   const visibleError =
     rawError && rawError !== dismissedError ? rawError : null;
 
-  // Reset dismissed state when a new distinct error arrives.
   const prevRawErrorRef = useRef<string | null>(null);
   useEffect(() => {
     if (rawError && rawError !== prevRawErrorRef.current) {
-       
       setDismissedError(null);
     }
     prevRawErrorRef.current = rawError ?? null;
   }, [rawError]);
 
-  // Clear session overrides only on intentional disconnects, not during
-  // auto-reconnect transitions. Gate on having been "connected" first.
   const wasConnectedRef = useRef(false);
   useEffect(() => {
     if (status === "connected") {
@@ -335,11 +313,10 @@ function HomePage() {
     (text: string, windowMs = TRANSCRIPT_DEDUP_WINDOW_MS): boolean => {
       const normalized = text.trim();
       if (!normalized) return false;
-      const now    = Date.now();
+      const now = Date.now();
       const seenAt = recentAssistantTextsRef.current.get(normalized);
       if (seenAt !== undefined && now - seenAt < windowMs) return false;
       recentAssistantTextsRef.current.set(normalized, now);
-      // Prune entries older than 2× the window to prevent unbounded growth
       for (const [key, ts] of recentAssistantTextsRef.current) {
         if (now - ts > windowMs * 2) {
           recentAssistantTextsRef.current.delete(key);
@@ -366,17 +343,12 @@ function HomePage() {
   }, []);
 
   // ── Tool handler registration ───────────────────────────────────────────────
-  // Registered once on mount. `toggleSession` is intentionally omitted from
-  // the dependency array — it is accessed through `toggleSessionRef` (kept
-  // current by the effect above) so re-registration on every session state
-  // change is avoided.
   useEffect(() => {
     log.info("Registering page-level tool handlers.");
 
-    // ── trigger_animation ───────────────────────────────────────────────────
     registerTool("trigger_animation", async (args) => {
       const baseAnimation = args.base_animation as string;
-      const intensity     = (args.intensity as number | undefined) ?? 1.0;
+      const intensity = (args.intensity as number | undefined) ?? 1.0;
 
       const assistantSpeakingLevel =
         assistantAudioLevelRef.current ?? 0;
@@ -391,8 +363,6 @@ function HomePage() {
           : BASE_ANIMATION_MATCH_THRESHOLD;
 
       const emotionState = useEmotionStore.getState();
-
-      // Context texts improve fuzzy matching by weighting recent sentiment
       const contextTexts = [emotionState.textBuffer].filter(
         (t): t is string => Boolean(t?.trim())
       );
@@ -414,15 +384,12 @@ function HomePage() {
         return { acknowledged: false, reason: "missing base_animation" };
       }
 
-// --- Added at top of page or just import inside page component
-// Wait, I can't just inject imports using this block because it's inside `registerTool` block.
-// Let me first add the logic here, I will do a separate replace for imports.
       const animState = useAnimationStore.getState();
 
       const profile = getCompatibilityProfile();
       const SessionConfig = (await import('@/lib/gemini-session-config')).getModeConfig(profile);
       const { MULTI_ANIMATIONS } = await import('@/lib/constants');
-      
+
       const isMulti = MULTI_ANIMATIONS.includes(baseAnimation);
       const sequenceDepth = isMulti ? SessionConfig.animation.queueDepth : 1;
 
@@ -465,7 +432,6 @@ function HomePage() {
       };
     });
 
-    // ── set_expression ──────────────────────────────────────────────────────
     registerTool("set_expression", (args) => {
       const expr = args.expression as string;
       log.info({ expression: expr }, "Tool override: set_expression");
@@ -473,11 +439,10 @@ function HomePage() {
       return { acknowledged: true, expression: expr };
     });
 
-    // ── display_text ────────────────────────────────────────────────────────
     registerTool("display_text", (args) => {
       const content = args.content as string;
-      const format  = (args.format as string) ?? "plain";
-      const lang    = (args.language as string | undefined) ?? "";
+      const format = (args.format as string) ?? "plain";
+      const lang = (args.language as string | undefined) ?? "";
 
       const displayContent =
         format === "code" && lang
@@ -497,7 +462,6 @@ function HomePage() {
       return { acknowledged: true, characters_displayed: content.length };
     });
 
-    // ── update_persona_state ────────────────────────────────────────────────
     registerTool("update_persona_state", (args) => {
       const applied: Record<string, unknown> = {};
 
@@ -512,7 +476,7 @@ function HomePage() {
         useEmotiveSpeechStore.getState().setMode(mode);
       }
 
-      const emotionStateArg  = args.emotionState as string | undefined;
+      const emotionStateArg = args.emotionState as string | undefined;
       const emotionIntensity =
         typeof args.emotionIntensity === "number"
           ? args.emotionIntensity
@@ -551,16 +515,12 @@ function HomePage() {
       return { acknowledged: true, applied };
     });
 
-    // ── switch_camera ───────────────────────────────────────────────────────
     registerTool("switch_camera", async () => {
       log.info("Tool override: switch_camera");
       const success = await switchCamera();
       return { acknowledged: true, success };
     });
 
-    // ── end_call ────────────────────────────────────────────────────────────
-    // Reads toggleSession through toggleSessionRef so this handler never needs
-    // to be re-registered when the session manager recreates toggleSession.
     registerTool("end_call", () => {
       log.info("Tool override: end_call");
       endCallPendingRef.current = true;
@@ -592,7 +552,6 @@ function HomePage() {
     applyExpression,
     shouldShowAssistantText,
     getCompatibilityProfile,
-    // toggleSession intentionally omitted — accessed via toggleSessionRef
   ]);
 
   // ── Wire onPlaybackComplete ─────────────────────────────────────────────────
@@ -631,7 +590,7 @@ function HomePage() {
     };
   }, [onToolCallRef]);
 
-  // ── Transcript handler ──────────────────────────────────────────────────────
+  // ── Transcript handler (assistant) ──────────────────────────────────────────
   useEffect(() => {
     onTranscriptRef.current = (text: string) => {
       const normalized = text.trim();
@@ -649,17 +608,48 @@ function HomePage() {
   }, [onTranscriptRef, appendAssistantMessage, shouldShowAssistantText]);
 
   // ── User transcript handler ─────────────────────────────────────────────────
+  // CRITICAL: Do NOT trim the text — leading spaces carry word-boundary info.
+  // The merge logic inside appendUserTranscript handles spacing intelligently.
+  // Only reject completely empty strings.
   useEffect(() => {
-    onUserTranscriptRef.current = (text: string) => {
-      const normalized = text.trim();
-      if (!normalized) return;
-      log.debug({ length: normalized.length }, "User transcript received.");
-      addUserMessage(normalized);
+    onUserTranscriptRef.current = (text: string, isFinal?: boolean) => {
+      if (!text || text.trim().length === 0) return;
+
+      log.debug(
+        { length: text.length, isFinal: isFinal ?? false, raw: text },
+        "User transcript chunk received."
+      );
+
+      // Pass raw text — do NOT trim
+      appendUserTranscript(text, isFinal);
     };
     return () => {
       onUserTranscriptRef.current = null;
     };
-  }, [onUserTranscriptRef, addUserMessage]);
+  }, [onUserTranscriptRef, appendUserTranscript]);
+
+  // ── Finalize user transcript when assistant starts responding ───────────────
+  // Watch for the first assistant message appearing after user speech.
+  // This is more reliable than watching isTyping which can flicker.
+  const lastMessageCountRef = useRef(0);
+  useEffect(() => {
+    const count = chat.messages.length;
+    if (count > lastMessageCountRef.current) {
+      const lastMsg = chat.messages[count - 1];
+      // If a new assistant message just appeared, finalize any pending user text
+      if (lastMsg && lastMsg.role === "assistant" && !lastMsg.pending) {
+        finalizeUserMessage();
+      }
+    }
+    lastMessageCountRef.current = count;
+  }, [chat.messages, finalizeUserMessage]);
+
+  // ── Finalize on disconnect ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (status === "disconnected" || status === "error") {
+      finalizeUserMessage();
+    }
+  }, [status, finalizeUserMessage]);
 
   // ── Cleanup on unmount ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -675,7 +665,7 @@ function HomePage() {
     };
   }, []);
 
-  // ── Send chat text ──────────────────────────────────────────────────────────
+  // ── Send chat text (typed input) ────────────────────────────────────────────
   const handleSendText = useCallback(
     (text: string) => {
       log.info({ textLength: text.length }, "User text sent from chat panel.");
@@ -717,7 +707,6 @@ function HomePage() {
         />
       }
     >
-      {/* 3D Scene — always mounted so the audio context survives errors */}
       <div
         className="absolute inset-0 scan-line z-0"
         data-persona-mode={personaMode}
@@ -731,14 +720,12 @@ function HomePage() {
         />
       </div>
 
-      {/* Floating header */}
       <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 px-3 py-3 sm:px-6 sm:py-4">
         <div className="pointer-events-auto inline-block">
           <CallHeader status={status} sessionTime={timer.formatted} />
         </div>
       </div>
 
-      {/* PiP webcam */}
       <motion.div
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -752,10 +739,8 @@ function HomePage() {
         />
       </motion.div>
 
-      {/* Debug toggle */}
       <DebugToggle debugMode={debugMode} setDebugMode={setDebugMode} />
 
-      {/* Waveform overlay */}
       <div className="pointer-events-none absolute bottom-24 left-4 z-10 sm:left-6">
         <PersonaOverlay
           audioLevelRef={assistantAudioLevelRef}
@@ -763,7 +748,6 @@ function HomePage() {
         />
       </div>
 
-      {/* Inline error banner — does not destroy the component tree */}
       <AnimatePresence>
         {visibleError && (
           <ErrorBanner
@@ -773,12 +757,10 @@ function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* Idle screen — only when genuinely disconnected */}
       <AnimatePresence>
         {showIdleScreen && <IdleScreen onStart={toggleSession} />}
       </AnimatePresence>
 
-      {/* Floating controls */}
       <div className="pointer-events-none absolute bottom-4 left-0 right-0 z-10 flex justify-center sm:bottom-8">
         <div className="pointer-events-auto">
           <CallControls
@@ -797,9 +779,6 @@ function HomePage() {
 }
 
 // ─── Root export ──────────────────────────────────────────────────────────────
-// SceneConfigProvider sits outside ErrorBoundary so config context survives
-// error recovery — the boundary can re-render HomePage without losing the
-// provider or triggering a full config rebuild.
 
 export default function Home() {
   return (

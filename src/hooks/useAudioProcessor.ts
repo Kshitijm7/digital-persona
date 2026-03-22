@@ -45,6 +45,7 @@ export function useAudioProcessor() {
   const inputAudioLevelRef = useRef(0);
   const outputAudioLevelRef = useRef(0);
   const isAssistantSpeakingRef = useRef(false);
+  const assistantRespondingRef = useRef(false);
   const lastOutputSignalAtRef = useRef(0);
 
   // ── Mic pipeline refs ───────────────────────────────────────────────────────
@@ -71,12 +72,6 @@ export function useAudioProcessor() {
   const playbackLoopActiveRef = useRef(false);
 
   const queuedPlaybackChunkCountRef = useRef(0);
-  const droppedPlaybackChunkCountRef = useRef(0);
-
-  const recentChunkSignaturesRef = useRef<Map<string, number>>(new Map());
-  const signatureSweepTimerRef = useRef<ReturnType<typeof setInterval> | null>(
-    null,
-  );
 
   const onAudioScheduledRef = useRef<
     ((startMs: number, durationMs: number) => void) | null
@@ -95,24 +90,6 @@ export function useAudioProcessor() {
       inputAudioLevelRef.current,
       outputAudioLevelRef.current,
     );
-  }, []);
-
-  // ── Signature sweep ─────────────────────────────────────────────────────────
-  const startSignatureSweep = useCallback(() => {
-    if (signatureSweepTimerRef.current) return;
-    signatureSweepTimerRef.current = setInterval(() => {
-      const now = performance.now();
-      for (const [sig, ts] of recentChunkSignaturesRef.current) {
-        if (now - ts > 10_000) recentChunkSignaturesRef.current.delete(sig);
-      }
-    }, 2_000);
-  }, []);
-
-  const stopSignatureSweep = useCallback(() => {
-    if (signatureSweepTimerRef.current) {
-      clearInterval(signatureSweepTimerRef.current);
-      signatureSweepTimerRef.current = null;
-    }
   }, []);
 
   // ── startMic (FIX AP1: no state in deps) ───────────────────────────────────
@@ -243,10 +220,14 @@ export function useAudioProcessor() {
 
         const updateLevel = () => {
           if (!analyserRef.current || !audioCtxRef.current) return;
-          const data = new Uint8Array(analyserRef.current.frequencyBinCount);
-          analyserRef.current.getByteFrequencyData(data);
-          const avg = data.reduce((s, v) => s + v, 0) / data.length;
-          inputAudioLevelRef.current = avg / 255;
+          const data = new Float32Array(analyserRef.current.fftSize);
+          analyserRef.current.getFloatTimeDomainData(data);
+          let sumSquares = 0;
+          for (let i = 0; i < data.length; i++) {
+            sumSquares += data[i] * data[i];
+          }
+          const rms = Math.sqrt(sumSquares / data.length);
+          inputAudioLevelRef.current = rms;
           syncCombinedLevel();
           animFrameRef.current = requestAnimationFrame(updateLevel);
         };
@@ -309,6 +290,11 @@ export function useAudioProcessor() {
       // Don't null onmessage here — the flush response needs to land first.
       // disconnect() severs the audio graph; the node + port get GC'd after
       // we null the ref below.
+      // OR 
+      // we can use Deterministic cleanup if things didnt go well: 
+      // we sacrifice the final 20ms flush buffer 
+      // here to absolutely prevent stale closures from bridging sessions
+      // workletNodeRef.current.port.onmessage = null;
       workletNodeRef.current.disconnect();
       workletNodeRef.current = null;
     }
@@ -352,9 +338,6 @@ export function useAudioProcessor() {
     const tuning =
       useLipSyncStore.getState().tuning ?? DEFAULT_LIPSYNC_TUNING;
 
-    // FIX(AP3): If the playback context was closed (e.g. after unmount
-    // cleanup or stopPlayback tore it down), discard both it and the
-    // streamer so we create fresh ones below.
     if (playbackCtxRef.current?.state === "closed") {
       audioStreamerRef.current = null;
       playbackCtxRef.current = null;
@@ -385,6 +368,7 @@ export function useAudioProcessor() {
         playbackLoopActiveRef.current = false;
         outputAudioLevelRef.current = 0;
         isAssistantSpeakingRef.current = false;
+        assistantRespondingRef.current = false;
         lastOutputSignalAtRef.current = 0;
         syncCombinedLevel();
         log.debug("Assistant playback turn completed.");
@@ -490,23 +474,23 @@ export function useAudioProcessor() {
         log.debug(
           {
             queuedChunks: queuedPlaybackChunkCountRef.current,
-            droppedDuplicates: droppedPlaybackChunkCountRef.current,
             pcmBytes: bytes.length,
           },
           "Queued assistant audio chunk for playback.",
         );
       }
 
+      assistantRespondingRef.current = true;
       isAssistantSpeakingRef.current = true;
       lastOutputSignalAtRef.current = performance.now();
-      startSignatureSweep();
       startPlaybackLevelLoop();
     },
-    [getStreamer, startPlaybackLevelLoop, startSignatureSweep],
+    [getStreamer, startPlaybackLevelLoop],
   );
 
   // ── stopPlayback (FIX AP4: null the streamer ref) ──────────────────────────
   const stopPlayback = useCallback(() => {
+    assistantRespondingRef.current = false;
     if (audioStreamerRef.current) {
       audioStreamerRef.current.stop();
       audioStreamerRef.current.destroy();
@@ -514,23 +498,30 @@ export function useAudioProcessor() {
       // next time. A stopped streamer's internal generation is stale —
       // reusing it causes scheduleNextBuffer to silently no-op.
       audioStreamerRef.current = null;
+
+      // FIX: Clean up suspended AudioContexts when a playback turn is formally
+      // stopped to prevent browser resource leaks. We do this here instead of
+      // in `getStreamer()` because destroying suspended contexts during hot-path 
+      // ingestion would fatally sever the fast-path graph while it is waking up.
+      if (playbackCtxRef.current && playbackCtxRef.current.state === "suspended") {
+        void playbackCtxRef.current.close().catch(() => {});
+        playbackCtxRef.current = null;
+      }
     }
     log.info(
       {
         queuedChunks: queuedPlaybackChunkCountRef.current,
-        droppedDuplicates: droppedPlaybackChunkCountRef.current,
       },
       "Stopped assistant playback and cleared queue.",
     );
     queuedPlaybackChunkCountRef.current = 0;
-    droppedPlaybackChunkCountRef.current = 0;
-    recentChunkSignaturesRef.current.clear();
     stopPlaybackLevelLoop();
   }, [stopPlaybackLevelLoop]);
 
   // ── markAssistantTurnComplete ───────────────────────────────────────────────
   const markAssistantTurnComplete = useCallback(() => {
     if (!audioStreamerRef.current) {
+      // No streamer → playAudioChunk was never called → assistantRespondingRef is already false
       log.debug(
         "Marked assistant turn complete (no active streamer — firing immediately).",
       );
@@ -546,7 +537,6 @@ export function useAudioProcessor() {
     return () => {
       stopPlayback();
       stopMic();
-      stopSignatureSweep();
       cancelAnimationFrame(playbackAnimFrameRef.current);
       playbackLoopActiveRef.current = false;
       if (playbackCtxRef.current) {
@@ -566,6 +556,7 @@ export function useAudioProcessor() {
     inputAudioLevelRef,
     outputAudioLevelRef,
     isAssistantSpeakingRef,
+    assistantRespondingRef,
     startMic,
     stopMic,
     playAudioChunk,
