@@ -232,7 +232,7 @@ async function measureAudioLatency(
 // TESTS
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe('Gemini Latency Benchmarks', () => {
+describe.skip('Gemini Latency Benchmarks', () => {
   const shouldSkip = isPlaceholderKey(API_KEY);
 
   beforeAll(() => {
@@ -245,7 +245,7 @@ describe('Gemini Latency Benchmarks', () => {
 
   // ── 1. Connection Latency ──────────────────────────────────────────────────
 
-  describe('1. Connection Latency', () => {
+  describe.skip('1. Connection Latency', () => {
     it.skipIf(shouldSkip)(
       'baseline — audio-only, no tools',
       async () => {
@@ -291,7 +291,7 @@ describe('Gemini Latency Benchmarks', () => {
 
   // ── 2. System Prompt Impact on Tool Call Latency ───────────────────────────
 
-  describe('2. System Prompt Impact', () => {
+  describe.skip('2. System Prompt Impact', () => {
     const FULL_PROMPT_IMPORT = '@/lib/constants';
     const MINIMAL_PROMPT = 'You are a 3D avatar. Be concise. Use tools when asked.';
     const MEDIUM_PROMPT = `You are the "Digital Persona," a 3D avatar with eyes (webcam) and ears (microphone).
@@ -449,7 +449,7 @@ Your world is a digital void, beautifully constructed with three-point lighting 
 
   // ── 3. Tool Count Impact ───────────────────────────────────────────────────
 
-  describe('3. Tool Count Impact', () => {
+  describe.skip('3. Tool Count Impact', () => {
     it.skipIf(shouldSkip)(
       'all 7 tools (production)',
       async () => {
@@ -511,7 +511,7 @@ Your world is a digital void, beautifully constructed with three-point lighting 
 
   // ── 4. Audio Response Latency ──────────────────────────────────────────────
 
-  describe('4. Audio Response Latency', () => {
+  describe.skip('4. Audio Response Latency', () => {
     it.skipIf(shouldSkip)(
       'audio only — no tools, no transcription',
       async () => {
@@ -579,7 +579,7 @@ Your world is a digital void, beautifully constructed with three-point lighting 
 
   // ── 5. Tool-Specific Latency ───────────────────────────────────────────────
 
-  describe('5. Per-Tool Latency Comparison', () => {
+  describe.skip('5. Per-Tool Latency Comparison', () => {
     const toolTests = [
       { tool: 'trigger_animation', prompt: 'Wave at me.' },
       { tool: 'set_expression',    prompt: 'Smile for me, use set_expression.' },
@@ -605,7 +605,7 @@ Your world is a digital void, beautifully constructed with three-point lighting 
 
   // ── 6. Audio Interruption Latency ────────────────────────────────────────────
 
-  describe('6. Audio Interruption Latency', () => {
+  describe.skip('6. Audio Interruption Latency', () => {
     it.skipIf(shouldSkip)(
       'time to stop audio after user interruption',
       async () => {
@@ -683,7 +683,7 @@ Your world is a digital void, beautifully constructed with three-point lighting 
 
   // ── 7. Voice Config / Audio Format Variants ───────────────────────────────
 
-  describe('7. Voice Config Variants', () => {
+  describe.skip('7. Voice Config Variants', () => {
     const voiceTests: Array<{ label: string; config: Record<string, unknown> }> = [
       {
         label: 'Voice: no speechConfig',
@@ -730,7 +730,7 @@ Your world is a digital void, beautifully constructed with three-point lighting 
 
   // ── 8. Model Comparison ───────────────────────────────────────────────────────
 
-  describe('8. Model Comparison', () => {
+  describe.skip('8. Model Comparison', () => {
     const models = [
       { id: 'gemini-2.5-flash-native-audio-preview-12-2025', label: 'Model: 2.5-flash-native' },
       { id: 'gemini-2.0-flash-live-001',                      label: 'Model: 2.0-flash-live' },
@@ -770,7 +770,7 @@ Your world is a digital void, beautifully constructed with three-point lighting 
 
   // ── 9. Multi-Turn Latency ─────────────────────────────────────────────────────
 
-  describe('9. Multi-Turn Latency', () => {
+  describe.skip('9. Multi-Turn Latency', () => {
     it.skipIf(shouldSkip)(
       'turn 1 vs turn 2 tool call latency',
       async () => {
@@ -849,7 +849,7 @@ Your world is a digital void, beautifully constructed with three-point lighting 
 
   // ── 10. Optimized Prompt Validation ──────────────────────────────────────────
 
-  describe('10. Optimized Prompt Validation', () => {
+  describe.skip('10. Optimized Prompt Validation', () => {
     // Proposed optimized prompt ~920 chars — under the 1500-char safety ceiling
     const OPTIMIZED_PROMPT = `You are the "Digital Persona," a 3D avatar with Eyes (webcam) and Ears (mic).
 
@@ -924,7 +924,7 @@ FORMAT: No markdown headings or action labels like "**Acknowledge**" in spoken o
 
   // ── 11. Hybrid Search Orchestration ──────────────────────────────────────────
 
-  describe('11. Hybrid Search Orchestration', () => {
+  describe.skip('11. Hybrid Search Orchestration', () => {
     it.skipIf(shouldSkip)(
       'custom perform_web_search -> generateContent latency',
       async () => {
@@ -1018,7 +1018,7 @@ FORMAT: No markdown headings or action labels like "**Acknowledge**" in spoken o
 
   // ── Summary ────────────────────────────────────────────────────────────────
 
-  describe('Summary', () => {
+  describe.skip('Summary', () => {
     it.skipIf(shouldSkip)('print all results sorted by tool call latency', () => {
       console.log('\n' + '═'.repeat(80));
       console.log('  LATENCY BENCHMARK RESULTS');

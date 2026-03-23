@@ -374,7 +374,6 @@ describe('useGeminiLive Hook', () => {
               response: { result: 'ok' },
             },
           ],
-          scheduling: 'SILENT',
         });
       });
 
@@ -426,7 +425,6 @@ describe('useGeminiLive Hook', () => {
               response: { formatted: '10:00 AM', iso: '2026-03-07T10:00:00Z' },
             },
           ],
-          scheduling: 'SILENT',
         });
       });
 
@@ -615,7 +613,6 @@ describe('useGeminiLive Hook', () => {
               }),
             },
           ],
-          scheduling: 'SILENT',
         });
       });
 

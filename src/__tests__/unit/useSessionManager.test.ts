@@ -26,6 +26,7 @@ const mockUseGeminiLiveReturn = {
   onToolCallCancellation: { current: null },
   lastSessionHandle: { current: null },
   errorMessage: null as string | null,
+  getCompatibilityProfile: vi.fn(() => 'full'),
 };
 
 // Mock the dependent hooks

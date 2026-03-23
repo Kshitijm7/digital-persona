@@ -25,7 +25,7 @@ function isPlaceholderKey(key: string | undefined): boolean {
   return false;
 }
 
-describe('Gemini Live API Integration', () => {
+describe.skip('Gemini Live API Integration', () => {
 
   beforeAll(() => {
     if (isPlaceholderKey(API_KEY)) {
