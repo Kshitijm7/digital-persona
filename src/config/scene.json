@@ -30,7 +30,7 @@
     },
     "scale": 0.7,
     "model": "male",
-    "idleAnimation": "masculine_idle_m_standing_idle_002"
+    "idleAnimation": "both_idle_both-idle1"
   },
   "lighting": {
     "keyLight": {

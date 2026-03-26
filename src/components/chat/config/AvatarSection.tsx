@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { type SceneConfig } from "@/hooks/SceneConfigContext";
 import { Section, Vec3Input, NumInput } from "./ui-components";
@@ -38,17 +38,16 @@ export function AvatarSection({
       <div>
         <p className="text-[10px] text-muted-foreground/60 mb-1 mt-2">Idle Animation</p>
         <select
-          value={draft.avatar.idleAnimation || "masculine_idle_f_standing_idle_001"}
+          value={draft.avatar.idleAnimation || "both_idle_both-idle1"}
           onChange={(e) => patchAvatar({ idleAnimation: e.target.value })}
           className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-2 text-[11px] text-foreground/90 font-medium focus:outline-none focus:border-violet-400/50 cursor-pointer appearance-none transition-colors hover:bg-white/8"
           style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%2712%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%239ca3af%27 stroke-width=%272%27%3E%3Cpolyline points=%276 9 12 15 18 9%27/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}
         >
           {/* Filter registry for idle animations, plus a forced fallback option */}
-          <option value="masculine_idle_f_standing_idle_001" className="bg-zinc-900 text-white">Default F Standing Idle 001</option>
-          <option value="male-idle" className="bg-zinc-900 text-white">Default Male Idle (male-idle)</option>
-          <option value="idle" className="bg-zinc-900 text-white">Default Idle (idle.glb)</option>
+          <option value="both_idle_both-idle1" className="bg-zinc-900 text-white">Default Both Idle 1</option>
+          <option value="both_idle_both-idle2" className="bg-zinc-900 text-white">Default Both Idle 2</option>
           {Object.entries(useAnimationStore.getState().registry as Record<string, AnimationMeta>)
-            .filter(([, meta]) => meta.type === "idle" && meta.name !== "male-idle" && meta.name !== "idle")
+            .filter(([, meta]) => meta.type === "idle" && meta.name !== "both_idle_both-idle1" && meta.name !== "both_idle_both-idle2")
             .map(([key, meta]) => (
               <option key={key} value={key} className="bg-zinc-900 text-white">
                 {meta.name}

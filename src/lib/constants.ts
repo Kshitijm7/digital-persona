@@ -34,6 +34,8 @@ Be a caring, capable companion. Adapt naturally: patient tutor, efficient assist
 // include via the `tools` array in gemini-session.json.
 // ─────────────────────────────────────────────────────────────────────────────
 
+export const AUTO_GREET_PROMPT = `(System: The user has just connected to the call. Please start the conversation with a brief, warm 'Hi' or 'Hello' and concurrently call the trigger_animation tool with the base_animation 'both_expression_simple_wave').`;
+
 
 
 export const SINGLE_ANIMATIONS = [

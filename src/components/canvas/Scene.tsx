@@ -9,7 +9,7 @@ import {
 import React, { Suspense } from "react";
 import { Avatar } from "./Avatar";
 import { SkinPreset } from "@/lib/skinConfig";
-import { getAvatarUrl } from "@/lib/avatars";
+import { getAvatarUrl, DEFAULT_AVATARS } from "@/lib/avatars";
 import { useSceneConfig } from "@/hooks/SceneConfigContext";
 import { useAvatarRuntimeStore } from "@/store/useAvatarRuntimeStore";
 import { mergeAvatarControls } from "@/lib/avatar-control.types";
@@ -20,6 +20,28 @@ import { WebGLContextGuard } from "./WebGLContextGuard";
 import { createLogger } from "@/lib/logging/logger";
 
 const log = createLogger("Scene");
+
+class AvatarErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallback: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode; fallback: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    log.error({ error, errorInfo }, "Avatar failed to load. Falling back to default.");
+  }
+
+  render() {
+    return this.state.hasError ? this.props.fallback : this.props.children;
+  }
+}
 
 /**
  * Resolve DPR range dynamically, matching Visage BaseCanvas behaviour.
@@ -81,6 +103,7 @@ export function SceneInner({
   );
 
   const avatarUrl = getAvatarUrl(config.avatar.model, avatarRegistry, effectiveControls.meshConfig);
+  const defaultAvatarUrl = getAvatarUrl(DEFAULT_AVATARS[0].id, avatarRegistry, effectiveControls.meshConfig);
 
   /* Camera controls distance limits — from config or Visage CAMERA defaults */
   const controlsMinDistance = config.camera.controlsMinDistance ?? 0.5;
@@ -183,20 +206,40 @@ export function SceneInner({
           rotation={[config.avatar.rotation.x, config.avatar.rotation.y, config.avatar.rotation.z]}
           scale={config.avatar.scale}
         >
-          <Avatar
-            audioLevelRef={audioLevelRef}
-            avatarUrl={avatarUrl}
-            currentExpression={currentExpression}
-            skinPreset={skinPreset}
-            featureToggles={features}
-            emotionControl={effectiveControls.emotionControl}
-            ocularTuning={effectiveControls.ocularTuning}
-            meshPostProcessing={effectiveControls.meshPostProcessing}
-            headDynamics={effectiveControls.headDynamics}
-            anatomicalPostProcessing={effectiveControls.anatomicalPostProcessing}
-            visemeOverrides={effectiveControls.visemeOverrides}
-            aiStyleControl={effectiveControls.aiStyleControl}
-          />
+          <AvatarErrorBoundary
+            key={avatarUrl}
+            fallback={
+              <Avatar
+                audioLevelRef={audioLevelRef}
+                avatarUrl={defaultAvatarUrl}
+                currentExpression={currentExpression}
+                skinPreset={skinPreset}
+                featureToggles={features}
+                emotionControl={effectiveControls.emotionControl}
+                ocularTuning={effectiveControls.ocularTuning}
+                meshPostProcessing={effectiveControls.meshPostProcessing}
+                headDynamics={effectiveControls.headDynamics}
+                anatomicalPostProcessing={effectiveControls.anatomicalPostProcessing}
+                visemeOverrides={effectiveControls.visemeOverrides}
+                aiStyleControl={effectiveControls.aiStyleControl}
+              />
+            }
+          >
+            <Avatar
+              audioLevelRef={audioLevelRef}
+              avatarUrl={avatarUrl}
+              currentExpression={currentExpression}
+              skinPreset={skinPreset}
+              featureToggles={features}
+              emotionControl={effectiveControls.emotionControl}
+              ocularTuning={effectiveControls.ocularTuning}
+              meshPostProcessing={effectiveControls.meshPostProcessing}
+              headDynamics={effectiveControls.headDynamics}
+              anatomicalPostProcessing={effectiveControls.anatomicalPostProcessing}
+              visemeOverrides={effectiveControls.visemeOverrides}
+              aiStyleControl={effectiveControls.aiStyleControl}
+            />
+          </AvatarErrorBoundary>
         </group>
         <Environment preset="studio" />
       </Suspense>

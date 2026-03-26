@@ -11,6 +11,7 @@ import {
   computeBackoff,
 } from "@/lib/gemini-session-config";
 import type { GeminiSessionMode } from "@/lib/gemini-session-config";
+import { AUTO_GREET_PROMPT } from "@/lib/constants";
 
 const log = createLogger("useSessionManager");
 
@@ -618,11 +619,17 @@ export function useSessionManager() {
         );
       }
       log.info({ micActive: micStarted }, "Session started.");
+      
+      // Auto-greet on first connection
+      log.info("Triggering auto-greet prompt with slight delay.");
+      setTimeout(() => {
+        sendText(AUTO_GREET_PROMPT);
+      }, 200);
     } catch (error) {
       log.error({ err: error }, "Failed to start session.");
       setIsInitialized(false);
     }
-  }, [connect, ensureStreamer, startMic, resetMicCounters]);
+  }, [resetMicCounters, ensureStreamer, connect, startMic, sendText]);
 
   const stopSession = useCallback(() => {
     isManualStopRef.current = true;

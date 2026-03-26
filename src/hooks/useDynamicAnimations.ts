@@ -9,8 +9,8 @@ import { AnimationMeta } from "../lib/animationRegistry.types";
 
 const log = createLogger("useDynamicAnimations");
 
-const DEFAULT_IDLE_ANIMATION = "masculine_idle_f_standing_idle_001";
-const DEFAULT_IDLE_URL = "/animations/masculine/idle/F_Standing_Idle_001.glb";
+const DEFAULT_IDLE_ANIMATION = "both_idle_both-idle1";
+const DEFAULT_IDLE_URL = "/animations/both/idle/both-idle1.glb";
 
 // ─── Crossfade timing ────────────────────────────────────────────────────────
 //
@@ -118,8 +118,8 @@ export function useDynamicAnimations(): UseDynamicAnimationsResult {
     const idleMeta: AnimationMeta | undefined =
       registry[configuredIdle] ??
       registry[DEFAULT_IDLE_ANIMATION] ??
-      registry["male-idle"] ??
-      registry["idle"];
+      registry["both_idle_both-idle1"] ??
+      registry["both_idle_both-idle2"];
 
     if (!idleMeta?.url) {
       log.warn(

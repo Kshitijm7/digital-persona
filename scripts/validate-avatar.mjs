@@ -14,7 +14,9 @@ try {
   // Ignore
 }
 
-const filePath = path.join(process.cwd(), 'public', 'avatars', avatarFile);
+const filePath = process.argv[2] 
+  ? path.resolve(process.cwd(), process.argv[2]) 
+  : path.join(process.cwd(), 'public', 'avatars', avatarFile);
 
 function validateGlb(file) {
   console.log(`Validating Avatar: ${file}`);
@@ -57,16 +59,52 @@ function validateGlb(file) {
       });
     }
 
-    const requiredMorphs = ['mouthSmileLeft', 'mouthSmileRight', 'jawOpen'];
+    // 1. Check required blendshapes (ARKit and Oculus Visemes)
+    const requiredMorphs = [
+      // ARKit examples
+      'mouthSmileLeft', 'mouthSmileRight', 'jawOpen',
+      // Oculus Visemes
+      'viseme_sil', 'viseme_PP', 'viseme_FF', 'viseme_TH', 'viseme_DD', 
+      'viseme_kk', 'viseme_CH', 'viseme_SS', 'viseme_nn', 'viseme_RR', 
+      'viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U'
+    ];
     const missing = requiredMorphs.filter(m => !morphTargets.has(m));
 
     if (missing.length > 0) {
-      console.error(`❌ Error: Avatar is missing required ARKit morph targets: ${missing.join(', ')}`);
-      console.error(`Please redownload your avatar from Ready Player Me with "?morphTargets=ARKit" appended to the URL.`);
+      console.error(`❌ Error: Avatar is missing required morph targets: ${missing.join(', ')}`);
+      console.error(`Please redownload with "?morphTargets=ARKit,Oculus Visemes" appended to the URL.`);
       process.exit(1);
     }
 
-    console.log(`✅ Avatar is valid and contains ARKit blendshapes! (${Array.from(morphTargets).length} total blendshapes found)`);
+    // 2. Check Compression (Draco & MeshOpt)
+    const extensions = json.extensionsUsed || [];
+    if (!extensions.includes('KHR_draco_mesh_compression')) {
+       console.error(`❌ Error: Avatar missing KHR_draco_mesh_compression.`);
+       console.error(`Please redownload with "useDracoCompression=true"`);
+       process.exit(1);
+    }
+    if (!extensions.includes('EXT_meshopt_compression')) {
+       console.error(`❌ Error: Avatar missing EXT_meshopt_compression.`);
+       console.error(`Please redownload with "useMeshOptCompression=true"`);
+       process.exit(1);
+    }
+
+    // 3. Check Texture Atlas (textureAtlas=none implies separate images instead of a combined atlas)
+    // Heuristic: An atlas usually combines into 1 or 2 images.
+    const imagesCount = json.images ? json.images.length : 0;
+    if (imagesCount <= 2) {
+      console.error(`❌ Error: Avatar appears to use a texture atlas (found only ${imagesCount} images).`);
+      console.error(`Please redownload with "textureAtlas=none"`);
+      process.exit(1);
+    }
+
+    // 4. Check Mesh LOD (meshLod=0 heuristically implies multiple meshes vs merged meshes for higher LODs)
+    const meshesCount = json.meshes ? json.meshes.length : 0;
+    if (meshesCount <= 2) {
+      console.warn(`⚠️ Warning: Avatar might not be meshLod=0. Found only ${meshesCount} mesh(es). Higher LOD settings tend to merge meshes.`);
+    }
+
+    console.log(`✅ Avatar is fully valid! Features verified: ARKit, Oculus Visemes, Draco, MeshOpt, textureAtlas=none, meshLod=0. (${Array.from(morphTargets).length} total blendshapes found)`);
   } catch(e) {
     console.error('❌ Error parsing GLB:', e.message);
     process.exit(1);

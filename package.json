@@ -20,7 +20,8 @@
     "health-check": "ts-node scripts/health-check.ts",
     "pre-deploy": "npm run health-check && npm run test:run && npm run build && npm run docs:build",
     "validate-avatar": "node scripts/validate-avatar.mjs",
-    "setup-avatar": "node scripts/download-animations.mjs ; npm run validate-avatar"
+    "setup-avatar": "node scripts/download-animations.mjs ; npm run validate-avatar",
+    "convert-animations": "node public/animations/mixamo-to-glb.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.44.0",
@@ -67,6 +68,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "eslint-plugin-pino": "^1.0.3",
+    "fbx2gltf": "^0.9.7-p1",
     "happy-dom": "^20.8.3",
     "jsdom": "^28.1.0",
     "shadcn": "^3.8.5",

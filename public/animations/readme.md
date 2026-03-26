@@ -85,6 +85,33 @@ Because writing complex JSON arrays of descriptors for 250 animations is tedious
 3. Run `node public/animations/generate_registry.js` to crawl `.glb` files and merge the new semantics.
 4. The script outputs the enriched registry to `index.json` for the frontend to consume.
 
+## The Mixamo Conversion Pipeline (FBX to GLB)
+
+When integrating new animations from Mixamo, you absolutely must use **FBX Binary (.fbx)** formats encoded **Without Skin** (this provides just the skeleton and keyframes). Once downloaded, our automated scripts handle the entire ingestion pipeline to prepare the files for the app.
+
+### The Conversion Script (`mixamo-to-glb.mjs`)
+Located inside `public/animations/`, this is the entry point for the automation.
+1. **Recursion:** It climbs through `public/animations/` and all its subfolders hunting for raw `.fbx` files you've recently dropped in.
+2. **GLB Engine:** It hands each raw FBX file off to Autodesk's `fbx2gltf` binary inside our node dependencies.
+3. **Optimized Export:** A mathematically pure, tiny binary `.glb` is created right next to the source file. By relying on "Without Skin" FBX sources, these `.glb` files compile to as small as 100KB-500KB!
+4. **Cleanup:** It immediately permanently deletes the original `.fbx` file so your repository size doesn't artificially bloat.
+5. **Registry Hand-off:** At the very end of execution, it automatically launches `generate_registry.js` to ensure the app instantly acknowledges the new `.glb`.
+
+### The Registry Script (`generate_registry.js`)
+Triggered automatically by the conversion script (or ran manually), this file marries your raw binaries with the semantic LLM metadata.
+1. **Dynamic Scanning:** It scans the directory tree recursively, finding every `.glb` file currently available.
+2. **Path Mapping:** It maps exact relative browser URLs (e.g. `/animations/masculine/M_Dances_001.glb`).
+3. **Data Merging:** It grabs the manually curated `emotion_map_full.json` file. Whenever it identically string-matches an animation path, it injects the rich tags (`primary_emotion`, `valence`, `semantic_tags`) into the object.
+4. **Build Output:** It statically compiles all of this merged data directly into `index.json`, the only lightweight file the React app has to query.
+
+### Complete Guide: How to add new animations
+1. Navigate to Mixamo, select an animation, and click **Download**.
+2. **Format:** FBX Binary (.fbx)
+3. **Skin:** Without Skin
+4. Dump the downloaded `.fbx` into any folder or subfolder inside `public/animations/`.
+5. Run `npm run convert-animations` from the root directory.
+6. The scripts will transparently convert the FBX, clean the folder, and enrich `index.json`!
+
 ## Next-Generation Upgrades (Active Pipeline)
 
 To ensure the Avatar never falls out of sync or acts lifeless during long periods of conversation, the Semantic Matcher has been upgraded to a full "Gold Standard" architecture:

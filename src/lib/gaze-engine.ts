@@ -51,18 +51,18 @@ export class GazeEngine {
   ) {
     this.time += delta;
 
-    const eyeDrift    = options.eyeDrift    ?? true;
+    const eyeDrift = options.eyeDrift ?? true;
     const headMovement = options.headMovement ?? true;
     const saccadeStrength = THREE.MathUtils.clamp(
       options.ocularTuning?.saccadeStrength ?? 0.4, 0, 2
     );
-    const headDynamics  = options.headDynamics;
+    const headDynamics = options.headDynamics;
     const saccadeOffset = options.saccadeOffset;
 
-    const head     = nodes.Head     as THREE.Bone | undefined;
-    const neck     = nodes.Neck     as THREE.Bone | undefined;
+    const head = nodes.Head as THREE.Bone | undefined;
+    const neck = nodes.Neck as THREE.Bone | undefined;
     const rightEye = nodes.RightEye as THREE.Bone | undefined;
-    const leftEye  = nodes.LeftEye  as THREE.Bone | undefined;
+    const leftEye = nodes.LeftEye as THREE.Bone | undefined;
 
     if (!head || !neck || !rightEye || !leftEye) return;
 
@@ -72,18 +72,18 @@ export class GazeEngine {
     // reflect that so they don't conflict conceptually with the saccade system.
     const eyeDriftX = eyeDrift
       ? (this.noise2D(this.time * 2, 0) * 0.5 + this.noise2D(this.time * 5, 10) * 0.1)
-        * 0.03 * saccadeStrength
+      * 0.03 * saccadeStrength
       : 0;
     const eyeDriftY = eyeDrift
       ? (this.noise2D(10, this.time * 2) * 0.5 + this.noise2D(0, this.time * 5) * 0.1)
-        * 0.03 * saccadeStrength
+      * 0.03 * saccadeStrength
       : 0;
 
     // ── Head motion ─────────────────────────────────────────────────────────
     let speechHeadMotionX = 0;
     let speechHeadMotionY = 0;
     if (isSpeaking && headMovement) {
-      speechHeadMotionX = Math.sin(this.time * 2)   * 0.01;
+      speechHeadMotionX = Math.sin(this.time * 2) * 0.01;
       speechHeadMotionY = Math.sin(this.time * 1.5) * 0.015;
     } else if (headMovement && (headDynamics?.generateIdleMotion ?? true)) {
       speechHeadMotionX = Math.sin(this.time * 0.65) * 0.004;
@@ -95,8 +95,8 @@ export class GazeEngine {
     const rotationMargin = new THREE.Vector2(5, 10);
 
     if (eyeDrift || headMovement) {
-      this.targetPos.x = THREE.MathUtils.clamp(pointer.y, -0.5, 1)   * (-rotationMargin.x * rad);
-      this.targetPos.y = THREE.MathUtils.clamp(pointer.x, -0.5, 0.5) *  (rotationMargin.y * rad);
+      this.targetPos.x = THREE.MathUtils.clamp(pointer.y, -0.5, 1) * (-rotationMargin.x * rad);
+      this.targetPos.y = THREE.MathUtils.clamp(pointer.x, -0.5, 0.5) * (rotationMargin.y * rad);
     } else {
       this.targetPos.set(0, 0);
     }
@@ -105,19 +105,19 @@ export class GazeEngine {
     this.currentPos.y = THREE.MathUtils.damp(this.currentPos.y, this.targetPos.y, 3, delta);
 
     // ── Head and neck bones ─────────────────────────────────────────────────
-    const neckBoneRotationOffsetX = 10 * rad;
+    const neckBoneRotationOffsetX = 2 * rad;
 
     if (headMovement) {
       const accelLimit = Math.max(0.01, headDynamics?.headMotionAccelerationLimit ?? 0.15);
       const pitchRange = headDynamics?.pitchRange ?? [-15, 15];
-      const yawRange   = headDynamics?.yawRange   ?? [-20, 20];
+      const yawRange = headDynamics?.yawRange ?? [-20, 20];
       const minPitch = THREE.MathUtils.degToRad(Math.min(pitchRange[0], pitchRange[1]));
       const maxPitch = THREE.MathUtils.degToRad(Math.max(pitchRange[0], pitchRange[1]));
-      const minYaw   = THREE.MathUtils.degToRad(Math.min(yawRange[0],   yawRange[1]));
-      const maxYaw   = THREE.MathUtils.degToRad(Math.max(yawRange[0],   yawRange[1]));
+      const minYaw = THREE.MathUtils.degToRad(Math.min(yawRange[0], yawRange[1]));
+      const maxYaw = THREE.MathUtils.degToRad(Math.max(yawRange[0], yawRange[1]));
 
       const targetHeadX = THREE.MathUtils.clamp(this.currentPos.x + speechHeadMotionX, minPitch, maxPitch);
-      const targetHeadY = THREE.MathUtils.clamp(this.currentPos.y + speechHeadMotionY, minYaw,   maxYaw);
+      const targetHeadY = THREE.MathUtils.clamp(this.currentPos.y + speechHeadMotionY, minYaw, maxYaw);
       const maxStep = accelLimit * Math.max(delta, 1 / 120);
 
       const nextHeadX = this.lastHeadRotation.x +
@@ -163,26 +163,26 @@ export class GazeEngine {
 
       rightEye.rotation.x = eyeX;
       rightEye.rotation.y = eyeY;
-      leftEye.rotation.x  = eyeX;
-      leftEye.rotation.y  = eyeY;
+      leftEye.rotation.x = eyeX;
+      leftEye.rotation.y = eyeY;
 
       // lookAtIK as a soft additive pull — does not overwrite drift/saccade
       if (options.ocularTuning?.lookAtIK) {
         const lookAtStrength = 0.15; // blend factor: 0 = full drift, 1 = full lookAt
         const tmpRight = rightEye.rotation.clone();
-        const tmpLeft  = leftEye.rotation.clone();
+        const tmpLeft = leftEye.rotation.clone();
         rightEye.lookAt(camera.position);
         leftEye.lookAt(camera.position);
         rightEye.rotation.x = THREE.MathUtils.lerp(tmpRight.x, rightEye.rotation.x, lookAtStrength);
         rightEye.rotation.y = THREE.MathUtils.lerp(tmpRight.y, rightEye.rotation.y, lookAtStrength);
-        leftEye.rotation.x  = THREE.MathUtils.lerp(tmpLeft.x,  leftEye.rotation.x,  lookAtStrength);
-        leftEye.rotation.y  = THREE.MathUtils.lerp(tmpLeft.y,  leftEye.rotation.y,  lookAtStrength);
+        leftEye.rotation.x = THREE.MathUtils.lerp(tmpLeft.x, leftEye.rotation.x, lookAtStrength);
+        leftEye.rotation.y = THREE.MathUtils.lerp(tmpLeft.y, leftEye.rotation.y, lookAtStrength);
       }
     } else {
       rightEye.rotation.x = THREE.MathUtils.damp(rightEye.rotation.x, 0, 8, delta);
       rightEye.rotation.y = THREE.MathUtils.damp(rightEye.rotation.y, 0, 8, delta);
-      leftEye.rotation.x  = THREE.MathUtils.damp(leftEye.rotation.x,  0, 8, delta);
-      leftEye.rotation.y  = THREE.MathUtils.damp(leftEye.rotation.y,  0, 8, delta);
+      leftEye.rotation.x = THREE.MathUtils.damp(leftEye.rotation.x, 0, 8, delta);
+      leftEye.rotation.y = THREE.MathUtils.damp(leftEye.rotation.y, 0, 8, delta);
 
       // When drift is off, lookAtIK takes full control
       if (options.ocularTuning?.lookAtIK) {

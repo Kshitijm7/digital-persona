@@ -1,243 +1,1183 @@
 {
+  "both_expression_both_hand_upright_waving": {
+    "name": "both_expression_both_hand_upright_waving",
+    "url": "/animations/both/expression/both_hand_upright_Waving.glb",
+    "type": "expression",
+    "primary_emotion": "excited",
+    "valence": "positive",
+    "action": "waving",
+    "base_posture": "standing",
+    "intensity": 6,
+    "description": "An enthusiastic double-handed wave with both arms raised upright in a friendly greeting.",
+    "semantic_tags": [
+      "greeting",
+      "friendly",
+      "enthusiastic",
+      "both hands",
+      "waving",
+      "welcome",
+      "happy",
+      "expressive"
+    ]
+  },
+  "both_expression_full_fave_waving": {
+    "name": "both_expression_full_fave_waving",
+    "url": "/animations/both/expression/full_fave_Waving.glb",
+    "type": "expression",
+    "primary_emotion": "friendly",
+    "valence": "positive",
+    "action": "waving",
+    "base_posture": "standing",
+    "intensity": 5,
+    "description": "A broad and highly visible hand wave aimed directly toward the viewer.",
+    "semantic_tags": [
+      "greeting",
+      "waving",
+      "friendly",
+      "standard",
+      "social",
+      "hello",
+      "standing",
+      "casual"
+    ]
+  },
+  "both_expression_quick_informal_bow": {
+    "name": "both_expression_quick_informal_bow",
+    "url": "/animations/both/expression/Quick_Informal_Bow.glb",
+    "type": "expression",
+    "primary_emotion": "respectful",
+    "valence": "positive",
+    "action": "bowing",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "A slight, rapid forward tilt of the upper body to show polite acknowledgment or thanks.",
+    "semantic_tags": [
+      "polite",
+      "respect",
+      "greeting",
+      "formal",
+      "courtesy",
+      "acknowledgment",
+      "humble",
+      "social"
+    ]
+  },
+  "both_expression_salute": {
+    "name": "both_expression_salute",
+    "url": "/animations/both/expression/Salute.glb",
+    "type": "expression",
+    "primary_emotion": "disciplined",
+    "valence": "neutral",
+    "action": "saluting",
+    "base_posture": "standing",
+    "intensity": 5,
+    "description": "A crisp, formal military-style salute with the right hand raised to the temple.",
+    "semantic_tags": [
+      "formal",
+      "military",
+      "respect",
+      "disciplined",
+      "honor",
+      "greeting",
+      "authoritative",
+      "professional"
+    ]
+  },
+  "both_expression_simple_wave": {
+    "name": "both_expression_simple_wave",
+    "url": "/animations/both/expression/simple_wave.glb",
+    "type": "expression",
+    "primary_emotion": "casual",
+    "valence": "positive",
+    "action": "waving",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "A small, relaxed side-to-side hand gesture for a low-energy greeting or goodbye.",
+    "semantic_tags": [
+      "greeting",
+      "casual",
+      "relaxed",
+      "waving",
+      "social",
+      "hello",
+      "goodbye",
+      "simple"
+    ]
+  },
+  "both_expression_thankful": {
+    "name": "both_expression_thankful",
+    "url": "/animations/both/expression/Thankful.glb",
+    "type": "expression",
+    "primary_emotion": "grateful",
+    "valence": "positive",
+    "action": "bowing",
+    "base_posture": "standing",
+    "intensity": 4,
+    "description": "A sincere, humble gesture of gratitude involving a soft head bow and hand placement toward the chest.",
+    "semantic_tags": [
+      "gratitude",
+      "thankful",
+      "humble",
+      "respectful",
+      "appreciation",
+      "sincere",
+      "polite",
+      "emotional"
+    ]
+  },
+  "both_idle_both-idle1": {
+    "name": "both_idle_both-idle1",
+    "url": "/animations/both/idle/both-idle1.glb",
+    "type": "idle"
+  },
+  "both_idle_both-idle2": {
+    "name": "both_idle_both-idle2",
+    "url": "/animations/both/idle/both-idle2.glb",
+    "type": "idle"
+  },
   "feminine_dance_f_dances_001": {
     "name": "feminine_dance_f_dances_001",
     "url": "/animations/feminine/dance/F_Dances_001.glb",
-    "type": "dance"
+    "type": "dance",
+    "primary_emotion": "happy",
+    "valence": "positive",
+    "action": "dancing",
+    "base_posture": "standing",
+    "intensity": 6,
+    "description": "A rhythmic side-to-side step dance with coordinated arm swings and a joyful demeanor.",
+    "semantic_tags": [
+      "dance",
+      "rhythmic",
+      "joyful",
+      "coordinated",
+      "stepping",
+      "upbeat",
+      "energetic"
+    ]
   },
   "feminine_dance_f_dances_004": {
     "name": "feminine_dance_f_dances_004",
     "url": "/animations/feminine/dance/F_Dances_004.glb",
-    "type": "dance"
+    "type": "dance",
+    "primary_emotion": "playful",
+    "valence": "positive",
+    "action": "dancing",
+    "base_posture": "standing",
+    "intensity": 7,
+    "description": "An energetic dance featuring high-energy arm pumps and a consistent bouncing rhythm.",
+    "semantic_tags": [
+      "dance",
+      "energetic",
+      "bouncing",
+      "playful",
+      "arm-pumping",
+      "active",
+      "dynamic"
+    ]
   },
   "feminine_dance_f_dances_005": {
     "name": "feminine_dance_f_dances_005",
     "url": "/animations/feminine/dance/F_Dances_005.glb",
-    "type": "dance"
+    "type": "dance",
+    "primary_emotion": "confident",
+    "valence": "positive",
+    "action": "dancing",
+    "base_posture": "standing",
+    "intensity": 5,
+    "description": "A smooth, groovy dance with subtle hip movements and relaxed arm gestures.",
+    "semantic_tags": [
+      "dance",
+      "groovy",
+      "smooth",
+      "confident",
+      "relaxed",
+      "hip-movement",
+      "casual"
+    ]
   },
   "feminine_dance_f_dances_006": {
     "name": "feminine_dance_f_dances_006",
     "url": "/animations/feminine/dance/F_Dances_006.glb",
-    "type": "dance"
+    "type": "dance",
+    "primary_emotion": "excited",
+    "valence": "positive",
+    "action": "dancing",
+    "base_posture": "standing",
+    "intensity": 8,
+    "description": "A fast-paced dance involving rapid footwork and wide, expressive arm movements.",
+    "semantic_tags": [
+      "dance",
+      "excited",
+      "fast-paced",
+      "footwork",
+      "expressive",
+      "high-energy",
+      "vibrant"
+    ]
   },
   "feminine_dance_f_dances_007": {
     "name": "feminine_dance_f_dances_007",
     "url": "/animations/feminine/dance/F_Dances_007.glb",
-    "type": "dance"
+    "type": "dance",
+    "primary_emotion": "cheerful",
+    "valence": "positive",
+    "action": "dancing",
+    "base_posture": "standing",
+    "intensity": 6,
+    "description": "A cheerful dance with a repeating sequence of claps and side steps.",
+    "semantic_tags": [
+      "dance",
+      "clapping",
+      "cheerful",
+      "repeating",
+      "sidestep",
+      "friendly",
+      "rhythmic"
+    ]
   },
   "feminine_dance_m_dances_001": {
     "name": "feminine_dance_m_dances_001",
     "url": "/animations/feminine/dance/M_Dances_001.glb",
-    "type": "dance"
+    "type": "dance",
+    "primary_emotion": "cool",
+    "valence": "positive",
+    "action": "dancing",
+    "base_posture": "standing",
+    "intensity": 4,
+    "description": "A laid-back, rhythmic sway with slight head nods and relaxed hands.",
+    "semantic_tags": [
+      "dance",
+      "cool",
+      "laid-back",
+      "swaying",
+      "relaxed",
+      "subtle",
+      "rhythmic"
+    ]
   },
   "feminine_dance_m_dances_002": {
     "name": "feminine_dance_m_dances_002",
     "url": "/animations/feminine/dance/M_Dances_002.glb",
-    "type": "dance"
+    "type": "dance",
+    "primary_emotion": "enthusiastic",
+    "valence": "positive",
+    "action": "dancing",
+    "base_posture": "standing",
+    "intensity": 7,
+    "description": "An enthusiastic dance characterized by large arm circles and weight shifts.",
+    "semantic_tags": [
+      "dance",
+      "enthusiastic",
+      "arm-circles",
+      "active",
+      "weight-shift",
+      "spirited",
+      "bold"
+    ]
   },
   "feminine_dance_m_dances_003": {
     "name": "feminine_dance_m_dances_003",
     "url": "/animations/feminine/dance/M_Dances_003.glb",
-    "type": "dance"
+    "type": "dance",
+    "primary_emotion": "silly",
+    "valence": "positive",
+    "action": "dancing",
+    "base_posture": "standing",
+    "intensity": 6,
+    "description": "A lighthearted, silly dance with loose limb movements and a bouncy gait.",
+    "semantic_tags": [
+      "dance",
+      "silly",
+      "lighthearted",
+      "loose",
+      "bouncy",
+      "fun",
+      "whimsical"
+    ]
   },
   "feminine_dance_m_dances_004": {
     "name": "feminine_dance_m_dances_004",
     "url": "/animations/feminine/dance/M_Dances_004.glb",
-    "type": "dance"
+    "type": "dance",
+    "primary_emotion": "focused",
+    "valence": "positive",
+    "action": "dancing",
+    "base_posture": "standing",
+    "intensity": 5,
+    "description": "A rhythmic, focused dance involving precise stepping and controlled arm motions.",
+    "semantic_tags": [
+      "dance",
+      "focused",
+      "precise",
+      "controlled",
+      "stepping",
+      "rhythmic",
+      "steady"
+    ]
   },
   "feminine_dance_m_dances_005": {
     "name": "feminine_dance_m_dances_005",
     "url": "/animations/feminine/dance/M_Dances_005.glb",
-    "type": "dance"
+    "type": "dance",
+    "primary_emotion": "triumphant",
+    "valence": "positive",
+    "action": "dancing",
+    "base_posture": "standing",
+    "intensity": 8,
+    "description": "A high-intensity dance with celebratory arm raises and powerful leg movements.",
+    "semantic_tags": [
+      "dance",
+      "triumphant",
+      "celebratory",
+      "powerful",
+      "high-intensity",
+      "victorious",
+      "energetic"
+    ]
   },
   "feminine_dance_m_dances_006": {
     "name": "feminine_dance_m_dances_006",
     "url": "/animations/feminine/dance/M_Dances_006.glb",
-    "type": "dance"
+    "type": "dance",
+    "primary_emotion": "energetic",
+    "valence": "positive",
+    "action": "dancing",
+    "base_posture": "standing",
+    "intensity": 9,
+    "description": "A high-octane dance featuring explosive jumping movements and wide, rhythmic arm extensions.",
+    "semantic_tags": [
+      "energetic",
+      "jumping",
+      "explosive",
+      "rhythmic",
+      "active",
+      "workout",
+      "dynamic",
+      "intense"
+    ]
   },
   "feminine_dance_m_dances_007": {
     "name": "feminine_dance_m_dances_007",
     "url": "/animations/feminine/dance/M_Dances_007.glb",
-    "type": "dance"
+    "type": "dance",
+    "primary_emotion": "groovy",
+    "valence": "positive",
+    "action": "dancing",
+    "base_posture": "standing",
+    "intensity": 4,
+    "description": "A smooth, rhythmic side-to-side sway with relaxed arms and a steady, grounding beat.",
+    "semantic_tags": [
+      "groovy",
+      "smooth",
+      "swaying",
+      "relaxed",
+      "steady",
+      "calm",
+      "rhythmic",
+      "fluid"
+    ]
   },
   "feminine_dance_m_dances_008": {
     "name": "feminine_dance_m_dances_008",
     "url": "/animations/feminine/dance/M_Dances_008.glb",
-    "type": "dance"
+    "type": "dance",
+    "primary_emotion": "funky",
+    "valence": "positive",
+    "action": "dancing",
+    "base_posture": "standing",
+    "intensity": 7,
+    "description": "An exaggerated funky dance characterized by high knee lifts and rhythmic downward arm punches.",
+    "semantic_tags": [
+      "funky",
+      "quirky",
+      "rhythmic",
+      "high-knees",
+      "punching",
+      "energetic",
+      "expressive",
+      "unique"
+    ]
   },
   "feminine_dance_m_dances_009": {
     "name": "feminine_dance_m_dances_009",
     "url": "/animations/feminine/dance/M_Dances_009.glb",
-    "type": "dance"
+    "type": "dance",
+    "primary_emotion": "playful",
+    "valence": "positive",
+    "action": "dancing",
+    "base_posture": "standing",
+    "intensity": 6,
+    "description": "A quick-footed shuffle with nimble weight shifts and light, bouncy movements.",
+    "semantic_tags": [
+      "playful",
+      "shuffle",
+      "bouncy",
+      "nimble",
+      "light-footed",
+      "rhythmic",
+      "jig",
+      "coordinated"
+    ]
   },
   "feminine_dance_m_dances_011": {
     "name": "feminine_dance_m_dances_011",
     "url": "/animations/feminine/dance/M_Dances_011.glb",
-    "type": "dance"
+    "type": "dance",
+    "primary_emotion": "graceful",
+    "valence": "positive",
+    "action": "dancing",
+    "base_posture": "standing",
+    "intensity": 5,
+    "description": "A flowing, artistic dance with sweeping arm gestures and elegant full-body rotations.",
+    "semantic_tags": [
+      "graceful",
+      "flowing",
+      "elegant",
+      "artistic",
+      "sweeping",
+      "rhythmic",
+      "serene",
+      "expressive"
+    ]
   },
   "feminine_expression_f_talking_variations_001": {
     "name": "feminine_expression_f_talking_variations_001",
     "url": "/animations/feminine/expression/F_Talking_Variations_001.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "thoughtful",
+    "valence": "neutral",
+    "action": "talking",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "The avatar engages in moderate speech with frequent rhythmic nodding and hands held loosely at the sides, suggesting a reflective explanation.",
+    "semantic_tags": [
+      "talking",
+      "explaining",
+      "nodding",
+      "calm",
+      "steady",
+      "reflective",
+      "informative",
+      "neutral"
+    ]
   },
   "feminine_expression_f_talking_variations_002": {
     "name": "feminine_expression_f_talking_variations_002",
     "url": "/animations/feminine/expression/F_Talking_Variations_002.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "assertive",
+    "valence": "neutral",
+    "action": "talking",
+    "base_posture": "standing",
+    "intensity": 5,
+    "description": "A more animated speaking style characterized by outward palm gestures and intentional head tilts to emphasize specific points.",
+    "semantic_tags": [
+      "gesturing",
+      "direct",
+      "clarifying",
+      "persuasive",
+      "firm",
+      "active",
+      "communicative",
+      "focused"
+    ]
   },
   "feminine_expression_f_talking_variations_003": {
     "name": "feminine_expression_f_talking_variations_003",
     "url": "/animations/feminine/expression/F_Talking_Variations_003.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "sympathetic",
+    "valence": "positive",
+    "action": "talking",
+    "base_posture": "standing",
+    "intensity": 4,
+    "description": "A gentle communication loop featuring soft head sways and an open, relaxed posture indicating reassurance or listening.",
+    "semantic_tags": [
+      "kind",
+      "gentle",
+      "reassuring",
+      "soft",
+      "approachable",
+      "comforting",
+      "empathetic",
+      "warm"
+    ]
   },
   "feminine_expression_f_talking_variations_004": {
     "name": "feminine_expression_f_talking_variations_004",
     "url": "/animations/feminine/expression/F_Talking_Variations_004.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "analytical",
+    "valence": "neutral",
+    "action": "talking",
+    "base_posture": "standing",
+    "intensity": 4,
+    "description": "A technical speaking animation with precise hand-chopping motions used to break down complex information or list items.",
+    "semantic_tags": [
+      "describing",
+      "precise",
+      "logical",
+      "articulate",
+      "structured",
+      "methodical",
+      "didactic",
+      "explaining"
+    ]
   },
   "feminine_expression_f_talking_variations_005": {
     "name": "feminine_expression_f_talking_variations_005",
     "url": "/animations/feminine/expression/F_Talking_Variations_005.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "engaged",
+    "valence": "positive",
+    "action": "talking",
+    "base_posture": "standing",
+    "intensity": 6,
+    "description": "High-energy conversation involving larger arm spans and rapid facial muscle movements, suggesting excitement or storytelling.",
+    "semantic_tags": [
+      "enthusiastic",
+      "animated",
+      "dynamic",
+      "expressive",
+      "vivid",
+      "social",
+      "friendly",
+      "lively"
+    ]
   },
   "feminine_expression_f_talking_variations_006": {
     "name": "feminine_expression_f_talking_variations_006",
     "url": "/animations/feminine/expression/F_Talking_Variations_006.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "professional",
+    "valence": "neutral",
+    "action": "talking",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "A formal stance with minimal torso rotation and polite, controlled hand gestures suitable for a presentation or greeting.",
+    "semantic_tags": [
+      "formal",
+      "polite",
+      "controlled",
+      "business",
+      "serious",
+      "poised",
+      "reserved",
+      "orderly"
+    ]
   },
   "feminine_expression_m_standing_expressions_001": {
     "name": "feminine_expression_m_standing_expressions_001",
     "url": "/animations/feminine/expression/M_Standing_Expressions_001.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "confused",
+    "valence": "negative",
+    "action": "shrugging",
+    "base_posture": "standing",
+    "intensity": 4,
+    "description": "A classic shrug gesture with palms turned upward and a slight furrowing of the brow to indicate lack of knowledge.",
+    "semantic_tags": [
+      "uncertain",
+      "clueless",
+      "shrug",
+      "doubting",
+      "perplexed",
+      "questioning",
+      "hesitant",
+      "puzzled"
+    ]
   },
   "feminine_expression_m_standing_expressions_002": {
     "name": "feminine_expression_m_standing_expressions_002",
     "url": "/animations/feminine/expression/M_Standing_Expressions_002.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "skeptical",
+    "valence": "negative",
+    "action": "scoffing",
+    "base_posture": "standing",
+    "intensity": 5,
+    "description": "The avatar tilts the head back slightly with a sharp exhale and side-eye glance, conveying disbelief or judgment.",
+    "semantic_tags": [
+      "disbelief",
+      "judgmental",
+      "cynical",
+      "dismissive",
+      "scornful",
+      "unconvinced",
+      "mocking",
+      "critical"
+    ]
   },
   "feminine_expression_m_standing_expressions_004": {
     "name": "feminine_expression_m_standing_expressions_004",
     "url": "/animations/feminine/expression/M_Standing_Expressions_004.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "annoyed",
+    "valence": "negative",
+    "action": "grimacing",
+    "base_posture": "standing",
+    "intensity": 6,
+    "description": "Tightening of the jaw and a brief closing of the eyes accompanied by a sharp head shake, signaling mounting frustration.",
+    "semantic_tags": [
+      "irritated",
+      "impatient",
+      "frustrated",
+      "tense",
+      "displeased",
+      "stern",
+      "bothered",
+      "unhappy"
+    ]
   },
   "feminine_expression_m_standing_expressions_005": {
     "name": "feminine_expression_m_standing_expressions_005",
     "url": "/animations/feminine/expression/M_Standing_Expressions_005.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "satisfied",
+    "valence": "positive",
+    "action": "nodding",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "A slow, deep nod with a slight smirk and relaxed shoulders, signaling agreement or a successful conclusion.",
+    "semantic_tags": [
+      "approving",
+      "content",
+      "agreeing",
+      "resolved",
+      "convinced",
+      "proud",
+      "assured",
+      "confident"
+    ]
   },
   "feminine_expression_m_standing_expressions_006": {
     "name": "feminine_expression_m_standing_expressions_006",
     "url": "/animations/feminine/expression/M_Standing_Expressions_006.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "disgust",
+    "valence": "negative",
+    "action": "grimacing",
+    "base_posture": "standing",
+    "intensity": 4,
+    "description": "The avatar pulls a brief, localized grimace by wrinkling the nose and curling the upper lip upward in a classic 'ew' expression.",
+    "semantic_tags": [
+      "disgust",
+      "recoil",
+      "distaste",
+      "grimace",
+      "nose-wrinkle",
+      "unpleasant",
+      "stink",
+      "judgmental",
+      "repulsion",
+      "brief"
+    ]
   },
   "feminine_expression_m_standing_expressions_007": {
     "name": "feminine_expression_m_standing_expressions_007",
     "url": "/animations/feminine/expression/M_Standing_Expressions_007.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "arrogant",
+    "valence": "negative",
+    "action": "sneering",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "A subtle, one-sided curl of the lip into a sneer combined with a slight narrowing of the eyes to convey contempt or superiority.",
+    "semantic_tags": [
+      "sneer",
+      "contempt",
+      "arrogant",
+      "smug",
+      "disdain",
+      "sarcastic",
+      "judgmental",
+      "unimpressed",
+      "mocking",
+      "haughty"
+    ]
   },
   "feminine_expression_m_standing_expressions_008": {
     "name": "feminine_expression_m_standing_expressions_008",
     "url": "/animations/feminine/expression/M_Standing_Expressions_008.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "surprised",
+    "valence": "neutral",
+    "action": "blinking",
+    "base_posture": "standing",
+    "intensity": 5,
+    "description": "The avatar displays a sudden widening of the eyes followed by rapid blinking, suggesting a moment of realization or mild shock.",
+    "semantic_tags": [
+      "surprise",
+      "shock",
+      "blinking",
+      "alert",
+      "startled",
+      "curious",
+      "wide-eyed",
+      "realization",
+      "confused",
+      "reactive"
+    ]
   },
   "feminine_expression_m_standing_expressions_009": {
     "name": "feminine_expression_m_standing_expressions_009",
     "url": "/animations/feminine/expression/M_Standing_Expressions_009.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "determined",
+    "valence": "positive",
+    "action": "frowning",
+    "base_posture": "standing",
+    "intensity": 4,
+    "description": "A concentrated expression involving a lowered brow and set jaw, moving from neutral to a firm, determined look.",
+    "semantic_tags": [
+      "focused",
+      "determined",
+      "serious",
+      "stern",
+      "concentrating",
+      "resolute",
+      "thinking",
+      "intent",
+      "firm",
+      "brow-furrow"
+    ]
   },
   "feminine_expression_m_standing_expressions_010": {
     "name": "feminine_expression_m_standing_expressions_010",
     "url": "/animations/feminine/expression/M_Standing_Expressions_010.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "angry",
+    "valence": "negative",
+    "action": "scowling",
+    "base_posture": "standing",
+    "intensity": 6,
+    "description": "A clear aggressive shift where the eyebrows knit together sharply and the mouth tightens into a hard line of frustration.",
+    "semantic_tags": [
+      "angry",
+      "mad",
+      "scowl",
+      "frustrated",
+      "aggressive",
+      "annoyed",
+      "hostile",
+      "serious",
+      "threat",
+      "unhappy"
+    ]
   },
   "feminine_expression_m_standing_expressions_011": {
     "name": "feminine_expression_m_standing_expressions_011",
     "url": "/animations/feminine/expression/M_Standing_Expressions_011.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "sad",
+    "valence": "negative",
+    "action": "pouting",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "The corners of the mouth drop slightly and the lower lip pushes out in a soft, dejected pout.",
+    "semantic_tags": [
+      "sad",
+      "pout",
+      "disappointed",
+      "upset",
+      "hurt",
+      "unhappy",
+      "dejected",
+      "sulk",
+      "gloomy",
+      "melancholy"
+    ]
   },
   "feminine_expression_m_standing_expressions_012": {
     "name": "feminine_expression_m_standing_expressions_012",
     "url": "/animations/feminine/expression/M_Standing_Expressions_012.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "happy",
+    "valence": "positive",
+    "action": "smiling",
+    "base_posture": "standing",
+    "intensity": 4,
+    "description": "A gentle, closed-mouth smile that softens the features and causes the cheeks to rise slightly.",
+    "semantic_tags": [
+      "happy",
+      "smile",
+      "content",
+      "friendly",
+      "warm",
+      "pleasant",
+      "kind",
+      "satisfied",
+      "approving",
+      "peaceful"
+    ]
   },
   "feminine_expression_m_standing_expressions_013": {
     "name": "feminine_expression_m_standing_expressions_013",
     "url": "/animations/feminine/expression/M_Standing_Expressions_013.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "joyful",
+    "valence": "positive",
+    "action": "grinning",
+    "base_posture": "standing",
+    "intensity": 7,
+    "description": "An enthusiastic open-mouth grin that conveys genuine excitement and high-energy positivity.",
+    "semantic_tags": [
+      "joy",
+      "excited",
+      "grin",
+      "laughing",
+      "cheerful",
+      "beaming",
+      "elated",
+      "energetic",
+      "celebratory",
+      "radiant"
+    ]
   },
   "feminine_expression_m_standing_expressions_014": {
     "name": "feminine_expression_m_standing_expressions_014",
     "url": "/animations/feminine/expression/M_Standing_Expressions_014.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "amused",
+    "valence": "positive",
+    "action": "smirking",
+    "base_posture": "standing",
+    "intensity": 4,
+    "description": "A playful, knowing smirk with a slight squint in the eyes, suggesting the avatar is in on a joke.",
+    "semantic_tags": [
+      "smirk",
+      "amused",
+      "clever",
+      "witty",
+      "playful",
+      "cheeky",
+      "knowing",
+      "mischievous",
+      "confident",
+      "sly"
+    ]
   },
   "feminine_expression_m_standing_expressions_015": {
     "name": "feminine_expression_m_standing_expressions_015",
     "url": "/animations/feminine/expression/M_Standing_Expressions_015.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "shocked",
+    "valence": "negative",
+    "action": "gasping",
+    "base_posture": "standing",
+    "intensity": 8,
+    "description": "A high-intensity reaction where the mouth drops open and the eyebrows shoot up in total disbelief or horror.",
+    "semantic_tags": [
+      "shock",
+      "gasp",
+      "horror",
+      "disbelief",
+      "amazed",
+      "stunned",
+      "alarmed",
+      "jaw-drop",
+      "frightened",
+      "extreme"
+    ]
   },
   "feminine_expression_m_standing_expressions_016": {
     "name": "feminine_expression_m_standing_expressions_016",
     "url": "/animations/feminine/expression/M_Standing_Expressions_016.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "confused",
+    "valence": "neutral",
+    "action": "tilting head",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "The avatar tilts its head slightly to the side with a faint furrow in the brow, mimicking a classic 'puzzled' or questioning look.",
+    "semantic_tags": [
+      "confused",
+      "questioning",
+      "curious",
+      "puzzled",
+      "head-tilt",
+      "thinking",
+      "uncertain",
+      "skeptical",
+      "wondering",
+      "neutral"
+    ]
   },
   "feminine_expression_m_standing_expressions_017": {
     "name": "feminine_expression_m_standing_expressions_017",
     "url": "/animations/feminine/expression/M_Standing_Expressions_017.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "bored",
+    "valence": "negative",
+    "action": "sighing",
+    "base_posture": "standing",
+    "intensity": 2,
+    "description": "A slow, weary blink combined with a slight drop in the shoulders and a subtle exhale, conveying lack of interest or patience.",
+    "semantic_tags": [
+      "bored",
+      "uninterested",
+      "weary",
+      "tired",
+      "sigh",
+      "indifferent",
+      "apathetic",
+      "slow",
+      "passive",
+      "dull"
+    ]
   },
   "feminine_expression_m_standing_expressions_018": {
     "name": "feminine_expression_m_standing_expressions_018",
     "url": "/animations/feminine/expression/M_Standing_Expressions_018.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "contemplative",
+    "valence": "neutral",
+    "action": "looking away",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "The avatar shifts its gaze upward and to the side, eyes moving as if searching for a thought or word during a pause.",
+    "semantic_tags": [
+      "contemplative",
+      "thoughtful",
+      "searching",
+      "recalling",
+      "gaze-shift",
+      "thinking",
+      "dreamy",
+      "pensive",
+      "distracted",
+      "intellectual"
+    ]
   },
   "feminine_expression_m_talking_variations_001": {
     "name": "feminine_expression_m_talking_variations_001",
     "url": "/animations/feminine/expression/M_Talking_Variations_001.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "informative",
+    "valence": "neutral",
+    "action": "talking",
+    "base_posture": "standing",
+    "intensity": 4,
+    "description": "A steady, rhythmic lip-sync with minimal facial tension, suitable for delivering standard information or factual statements.",
+    "semantic_tags": [
+      "talking",
+      "speech",
+      "speaking",
+      "narrating",
+      "explaining",
+      "calm",
+      "steady",
+      "articulate",
+      "vocalizing",
+      "informative"
+    ]
   },
   "feminine_expression_m_talking_variations_002": {
     "name": "feminine_expression_m_talking_variations_002",
     "url": "/animations/feminine/expression/M_Talking_Variations_002.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "friendly",
+    "valence": "positive",
+    "action": "chatting",
+    "base_posture": "standing",
+    "intensity": 5,
+    "description": "Speaking with a pleasant, lifted expression; the mouth movements are accompanied by light, affirmative micro-nods.",
+    "semantic_tags": [
+      "friendly",
+      "chatting",
+      "engaging",
+      "warm",
+      "approachable",
+      "social",
+      "positive",
+      "welcoming",
+      "pleasant",
+      "conversational"
+    ]
   },
   "feminine_expression_m_talking_variations_003": {
     "name": "feminine_expression_m_talking_variations_003",
     "url": "/animations/feminine/expression/M_Talking_Variations_003.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "emphatic",
+    "valence": "neutral",
+    "action": "explaining",
+    "base_posture": "standing",
+    "intensity": 6,
+    "description": "Animated speech with wider mouth movements and increased eyebrow activity to emphasize specific points in a conversation.",
+    "semantic_tags": [
+      "emphatic",
+      "stressing",
+      "assertive",
+      "vocal",
+      "teaching",
+      "direct",
+      "passionate",
+      "convincing",
+      "articulated",
+      "intense"
+    ]
   },
   "feminine_expression_m_talking_variations_004": {
     "name": "feminine_expression_m_talking_variations_004",
     "url": "/animations/feminine/expression/M_Talking_Variations_004.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "uncertain",
+    "valence": "negative",
+    "action": "hesitating",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "Speech pattern characterized by frequent pauses, slight stutters in lip movement, and a downward cast gaze, suggesting doubt.",
+    "semantic_tags": [
+      "hesitant",
+      "uncertain",
+      "doubtful",
+      "mumbling",
+      "unsure",
+      "nervous",
+      "shy",
+      "tentative",
+      "pausing",
+      "reserved"
+    ]
   },
   "feminine_expression_m_talking_variations_005": {
     "name": "feminine_expression_m_talking_variations_005",
     "url": "/animations/feminine/expression/M_Talking_Variations_005.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "excited",
+    "valence": "positive",
+    "action": "exclaiming",
+    "base_posture": "standing",
+    "intensity": 8,
+    "description": "Fast-paced, energetic speech with wide-open mouth shapes and high-arched brows, indicating great news or enthusiasm.",
+    "semantic_tags": [
+      "excited",
+      "exclaiming",
+      "energetic",
+      "enthusiastic",
+      "joyful",
+      "vibrant",
+      "fast-talk",
+      "beaming",
+      "happy",
+      "thrilled"
+    ]
   },
   "feminine_expression_m_talking_variations_006": {
     "name": "feminine_expression_m_talking_variations_006",
     "url": "/animations/feminine/expression/M_Talking_Variations_006.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "serious",
+    "valence": "negative",
+    "action": "lecturing",
+    "base_posture": "standing",
+    "intensity": 5,
+    "description": "Firm lip movements with a steady, unblinking gaze and lowered brows, conveying a sense of authority or gravity.",
+    "semantic_tags": [
+      "serious",
+      "stern",
+      "authoritative",
+      "lecturing",
+      "formal",
+      "grave",
+      "commanding",
+      "strict",
+      "advising",
+      "focused"
+    ]
   },
   "feminine_expression_m_talking_variations_007": {
     "name": "feminine_expression_m_talking_variations_007",
     "url": "/animations/feminine/expression/M_Talking_Variations_007.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "cheerful",
+    "valence": "positive",
+    "action": "gossiping",
+    "base_posture": "standing",
+    "intensity": 5,
+    "description": "Lighthearted speaking with a constant smirk and frequent eye-darts, suggesting the sharing of something amusing or secret.",
+    "semantic_tags": [
+      "cheerful",
+      "playful",
+      "gossiping",
+      "amused",
+      "whispering",
+      "sly",
+      "friendly",
+      "interactive",
+      "dynamic",
+      "mischievous"
+    ]
   },
   "feminine_expression_m_talking_variations_008": {
     "name": "feminine_expression_m_talking_variations_008",
     "url": "/animations/feminine/expression/M_Talking_Variations_008.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "defensive",
+    "valence": "negative",
+    "action": "arguing",
+    "base_posture": "standing",
+    "intensity": 6,
+    "description": "Rapid, sharp lip movements combined with a slight backward tilt of the head and narrowing eyes, suggesting the avatar is defending a position or disagreeing.",
+    "semantic_tags": [
+      "defensive",
+      "arguing",
+      "disagreeing",
+      "sharp",
+      "tense",
+      "confrontational",
+      "speaking",
+      "resistant",
+      "stern",
+      "serious"
+    ]
   },
   "feminine_expression_m_talking_variations_009": {
     "name": "feminine_expression_m_talking_variations_009",
     "url": "/animations/feminine/expression/M_Talking_Variations_009.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "thoughtful",
+    "valence": "neutral",
+    "action": "musing",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "Slow, deliberate speech with frequent upward gaze shifts and subtle pauses between words, indicating the avatar is thinking while speaking.",
+    "semantic_tags": [
+      "thoughtful",
+      "musing",
+      "reflecting",
+      "slow-speech",
+      "contemplative",
+      "deliberate",
+      "intellectual",
+      "pausing",
+      "searching",
+      "neutral"
+    ]
   },
   "feminine_expression_m_talking_variations_010": {
     "name": "feminine_expression_m_talking_variations_010",
     "url": "/animations/feminine/expression/M_Talking_Variations_010.glb",
-    "type": "expression"
+    "type": "expression",
+    "primary_emotion": "sympathetic",
+    "valence": "positive",
+    "action": "comforting",
+    "base_posture": "standing",
+    "intensity": 4,
+    "description": "Softened facial features with a gentle tilt of the head and slower, smoother lip-syncing to convey empathy or reassurance.",
+    "semantic_tags": [
+      "sympathetic",
+      "comforting",
+      "gentle",
+      "kind",
+      "reassuring",
+      "empathetic",
+      "soft",
+      "caring",
+      "supportive",
+      "soothing"
+    ]
   },
   "feminine_feminine_tpose": {
     "name": "feminine_feminine_tpose",
@@ -247,112 +1187,466 @@
   "feminine_idle_f_standing_idle_001": {
     "name": "feminine_idle_f_standing_idle_001",
     "url": "/animations/feminine/idle/F_Standing_Idle_001.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "neutral",
+    "valence": "neutral",
+    "action": "standing",
+    "base_posture": "standing",
+    "intensity": 2,
+    "description": "A standard neutral idle where the character stands still with subtle weight shifts and natural breathing.",
+    "semantic_tags": [
+      "idle",
+      "neutral",
+      "standing",
+      "calm",
+      "waiting",
+      "passive",
+      "basic",
+      "standard"
+    ]
   },
   "feminine_idle_f_standing_idle_variations_001": {
     "name": "feminine_idle_f_standing_idle_variations_001",
     "url": "/animations/feminine/idle/F_Standing_Idle_Variations_001.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "attentive",
+    "valence": "neutral",
+    "action": "shifting weight",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "A subtle idle variation where the character shifts weight between legs and adjusts their head position slightly.",
+    "semantic_tags": [
+      "idle",
+      "variation",
+      "shifting",
+      "attentive",
+      "natural",
+      "subtle",
+      "standing",
+      "waiting"
+    ]
   },
   "feminine_idle_f_standing_idle_variations_002": {
     "name": "feminine_idle_f_standing_idle_variations_002",
     "url": "/animations/feminine/idle/F_Standing_Idle_Variations_002.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "observant",
+    "valence": "neutral",
+    "action": "looking around",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "The character remains standing but looks slowly from side to side as if scanning the environment.",
+    "semantic_tags": [
+      "idle",
+      "looking",
+      "observing",
+      "scanning",
+      "curious",
+      "standing",
+      "head-turn",
+      "aware"
+    ]
   },
   "feminine_idle_f_standing_idle_variations_003": {
     "name": "feminine_idle_f_standing_idle_variations_003",
     "url": "/animations/feminine/idle/F_Standing_Idle_Variations_003.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "relaxed",
+    "valence": "positive",
+    "action": "swaying",
+    "base_posture": "standing",
+    "intensity": 2,
+    "description": "A relaxed idle featuring a gentle side-to-side sway and a more open, comfortable posture.",
+    "semantic_tags": [
+      "idle",
+      "relaxed",
+      "sway",
+      "gentle",
+      "comfortable",
+      "peaceful",
+      "soft",
+      "standing"
+    ]
   },
   "feminine_idle_f_standing_idle_variations_004": {
     "name": "feminine_idle_f_standing_idle_variations_004",
     "url": "/animations/feminine/idle/F_Standing_Idle_Variations_004.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "bored",
+    "valence": "negative",
+    "action": "fidgeting",
+    "base_posture": "standing",
+    "intensity": 4,
+    "description": "The character displays signs of impatience by shifting weight frequently and looking down.",
+    "semantic_tags": [
+      "idle",
+      "bored",
+      "impatient",
+      "fidgety",
+      "restless",
+      "waiting",
+      "unsettled",
+      "standing"
+    ]
   },
   "feminine_idle_f_standing_idle_variations_005": {
     "name": "feminine_idle_f_standing_idle_variations_005",
     "url": "/animations/feminine/idle/F_Standing_Idle_Variations_005.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "confident",
+    "valence": "positive",
+    "action": "straightening posture",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "An idle where the character stands tall with shoulders back, exhaling slowly with a sense of composure.",
+    "semantic_tags": [
+      "idle",
+      "confident",
+      "composed",
+      "proud",
+      "steady",
+      "formal",
+      "upright",
+      "standing"
+    ]
   },
   "feminine_idle_f_standing_idle_variations_006": {
     "name": "feminine_idle_f_standing_idle_variations_006",
     "url": "/animations/feminine/idle/F_Standing_Idle_Variations_006.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "thoughtful",
+    "valence": "neutral",
+    "action": "tilting head",
+    "base_posture": "standing",
+    "intensity": 2,
+    "description": "The character tilts their head slightly and blinks, appearing to process information or listen intently.",
+    "semantic_tags": [
+      "idle",
+      "thoughtful",
+      "listening",
+      "pensive",
+      "contemplative",
+      "still",
+      "focused",
+      "standing"
+    ]
   },
   "feminine_idle_f_standing_idle_variations_007": {
     "name": "feminine_idle_f_standing_idle_variations_007",
     "url": "/animations/feminine/idle/F_Standing_Idle_Variations_007.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "tired",
+    "valence": "negative",
+    "action": "slumping",
+    "base_posture": "standing",
+    "intensity": 2,
+    "description": "The character's shoulders drop slightly and the head hangs lower, indicating fatigue or low energy.",
+    "semantic_tags": [
+      "idle",
+      "tired",
+      "fatigued",
+      "slumped",
+      "low-energy",
+      "exhausted",
+      "heavy",
+      "standing"
+    ]
   },
   "feminine_idle_f_standing_idle_variations_008": {
     "name": "feminine_idle_f_standing_idle_variations_008",
     "url": "/animations/feminine/idle/F_Standing_Idle_Variations_008.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "expectant",
+    "valence": "neutral",
+    "action": "adjusting hands",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "A variation where the hands move slightly at the sides, suggesting readiness to act or speak.",
+    "semantic_tags": [
+      "idle",
+      "expectant",
+      "ready",
+      "alert",
+      "waiting",
+      "prepared",
+      "active-idle",
+      "standing"
+    ]
   },
   "feminine_idle_f_standing_idle_variations_009": {
     "name": "feminine_idle_f_standing_idle_variations_009",
     "url": "/animations/feminine/idle/F_Standing_Idle_Variations_009.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "self-conscious",
+    "valence": "negative",
+    "action": "shrinking",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "The character pulls their arms closer to their body, exhibiting a slightly defensive or shy posture.",
+    "semantic_tags": [
+      "idle",
+      "shy",
+      "defensive",
+      "self-conscious",
+      "timid",
+      "guarded",
+      "introverted",
+      "standing"
+    ]
   },
   "feminine_idle_m_standing_idle_001": {
     "name": "feminine_idle_m_standing_idle_001",
     "url": "/animations/feminine/idle/M_Standing_Idle_001.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "neutral",
+    "valence": "neutral",
+    "action": "standing",
+    "base_posture": "standing",
+    "intensity": 2,
+    "description": "A standard male idle animation where the character stands with a wide base, featuring natural chest expansion from breathing and minimal weight shifting.",
+    "semantic_tags": [
+      "idle",
+      "neutral",
+      "masculine",
+      "standing",
+      "calm",
+      "steady",
+      "standard",
+      "basic"
+    ]
   },
   "feminine_idle_m_standing_idle_002": {
     "name": "feminine_idle_m_standing_idle_002",
     "url": "/animations/feminine/idle/M_Standing_Idle_002.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "neutral",
+    "valence": "neutral",
+    "action": "breathing",
+    "base_posture": "standing",
+    "intensity": 2,
+    "description": "A variation of the basic idle with a focus on a deeper, more rhythmic breathing cycle and slight micro-adjustments in the fingers.",
+    "semantic_tags": [
+      "idle",
+      "breathing",
+      "still",
+      "calm",
+      "neutral",
+      "masculine",
+      "standing",
+      "passive"
+    ]
   },
   "feminine_idle_m_standing_idle_variations_001": {
     "name": "feminine_idle_m_standing_idle_variations_001",
     "url": "/animations/feminine/idle/M_Standing_Idle_Variations_001.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "attentive",
+    "valence": "neutral",
+    "action": "weight shifting",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "The character shifts their center of gravity from the left to the right leg, resulting in a subtle tilt of the pelvis and a counter-adjustment of the shoulders.",
+    "semantic_tags": [
+      "idle",
+      "weight-shift",
+      "natural",
+      "subtle",
+      "standing",
+      "masculine",
+      "adjusting",
+      "waiting"
+    ]
   },
   "feminine_idle_m_standing_idle_variations_002": {
     "name": "feminine_idle_m_standing_idle_variations_002",
     "url": "/animations/feminine/idle/M_Standing_Idle_Variations_002.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "observant",
+    "valence": "neutral",
+    "action": "looking around",
+    "base_posture": "standing",
+    "intensity": 4,
+    "description": "The character rotates their neck to look toward the left periphery and then back to center, while maintaining a stable lower body stance.",
+    "semantic_tags": [
+      "idle",
+      "looking",
+      "scanning",
+      "head-turn",
+      "observant",
+      "aware",
+      "masculine",
+      "standing"
+    ]
   },
   "feminine_idle_m_standing_idle_variations_003": {
     "name": "feminine_idle_m_standing_idle_variations_003",
     "url": "/animations/feminine/idle/M_Standing_Idle_Variations_003.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "relaxed",
+    "valence": "positive",
+    "action": "swaying",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "A relaxed idle variation featuring a gentle side-to-side sway of the torso and slightly more fluid arm movement at the sides.",
+    "semantic_tags": [
+      "idle",
+      "relaxed",
+      "swaying",
+      "comfortable",
+      "easygoing",
+      "masculine",
+      "standing",
+      "loose"
+    ]
   },
   "feminine_idle_m_standing_idle_variations_004": {
     "name": "feminine_idle_m_standing_idle_variations_004",
     "url": "/animations/feminine/idle/M_Standing_Idle_Variations_004.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "bored",
+    "valence": "negative",
+    "action": "fidgeting",
+    "base_posture": "standing",
+    "intensity": 5,
+    "description": "The character exhibits restlessness through more frequent weight shifts and a slight drooping of the head, suggesting impatience.",
+    "semantic_tags": [
+      "idle",
+      "bored",
+      "impatient",
+      "restless",
+      "fidgeting",
+      "masculine",
+      "standing",
+      "waiting"
+    ]
   },
   "feminine_idle_m_standing_idle_variations_005": {
     "name": "feminine_idle_m_standing_idle_variations_005",
     "url": "/animations/feminine/idle/M_Standing_Idle_Variations_005.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "confident",
+    "valence": "positive",
+    "action": "straightening posture",
+    "base_posture": "standing",
+    "intensity": 4,
+    "description": "An idle where the character expands the chest and pulls the shoulders back slightly, projecting a sense of physical readiness and presence.",
+    "semantic_tags": [
+      "idle",
+      "confident",
+      "strong",
+      "posture",
+      "masculine",
+      "standing",
+      "proud",
+      "composed"
+    ]
   },
   "feminine_idle_m_standing_idle_variations_006": {
     "name": "feminine_idle_m_standing_idle_variations_006",
     "url": "/animations/feminine/idle/M_Standing_Idle_Variations_006.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "thoughtful",
+    "valence": "neutral",
+    "action": "nodding",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "The character performs a very subtle, slow vertical head movement, as if processing a thought or acknowledging something silently.",
+    "semantic_tags": [
+      "idle",
+      "nodding",
+      "thoughtful",
+      "pensive",
+      "contemplative",
+      "masculine",
+      "standing",
+      "focused"
+    ]
   },
   "feminine_idle_m_standing_idle_variations_007": {
     "name": "feminine_idle_m_standing_idle_variations_007",
     "url": "/animations/feminine/idle/M_Standing_Idle_Variations_007.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "fatigued",
+    "valence": "negative",
+    "action": "slumping",
+    "base_posture": "standing",
+    "intensity": 2,
+    "description": "The character allows the shoulders to roll forward and the chin to drop slightly toward the chest, indicating low energy or tiredness.",
+    "semantic_tags": [
+      "idle",
+      "tired",
+      "fatigued",
+      "heavy",
+      "low-energy",
+      "masculine",
+      "standing",
+      "slumped"
+    ]
   },
   "feminine_idle_m_standing_idle_variations_008": {
     "name": "feminine_idle_m_standing_idle_variations_008",
     "url": "/animations/feminine/idle/M_Standing_Idle_Variations_008.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "alert",
+    "valence": "neutral",
+    "action": "tensing",
+    "base_posture": "standing",
+    "intensity": 4,
+    "description": "A high-alert idle where the character remains extremely still but with tensed muscles and sharp, quick eye blinks.",
+    "semantic_tags": [
+      "idle",
+      "alert",
+      "tense",
+      "ready",
+      "watchful",
+      "masculine",
+      "standing",
+      "still"
+    ]
   },
   "feminine_idle_m_standing_idle_variations_009": {
     "name": "feminine_idle_m_standing_idle_variations_009",
     "url": "/animations/feminine/idle/M_Standing_Idle_Variations_009.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "self-conscious",
+    "valence": "negative",
+    "action": "shrinking",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "The male character pulls his elbows in closer to his torso and slightly lowers his chin, adopting a more protective and introverted stance.",
+    "semantic_tags": [
+      "idle",
+      "shy",
+      "defensive",
+      "self-conscious",
+      "timid",
+      "masculine",
+      "guarded",
+      "standing",
+      "introverted"
+    ]
   },
   "feminine_idle_m_standing_idle_variations_010": {
     "name": "feminine_idle_m_standing_idle_variations_010",
     "url": "/animations/feminine/idle/M_Standing_Idle_Variations_010.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "expectant",
+    "valence": "neutral",
+    "action": "hand micro-movements",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "A standing idle where the character's fingers curl and uncurl slightly while the weight shifts forward onto the balls of the feet.",
+    "semantic_tags": [
+      "idle",
+      "expectant",
+      "ready",
+      "anticipating",
+      "standing",
+      "masculine",
+      "waiting",
+      "prepared",
+      "active-idle"
+    ]
   },
   "feminine_locomotion_f_crouchedwalk_backwards_001": {
     "name": "feminine_locomotion_f_crouchedwalk_backwards_001",
@@ -407,207 +1701,821 @@
   "feminine_locomotion_f_jog_strafe_right_002": {
     "name": "feminine_locomotion_f_jog_strafe_right_002",
     "url": "/animations/feminine/locomotion/F_Jog_Strafe_Right_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "alert",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "walking",
+    "intensity": 5,
+    "description": "A rapid lateral jogging movement to the right, maintaining a forward-facing torso while the legs cross and push off to shift position sideways.",
+    "semantic_tags": [
+      "sideways",
+      "evasive",
+      "agile",
+      "tactical",
+      "side-step",
+      "mobility",
+      "active",
+      "combat-ready"
+    ]
   },
   "feminine_locomotion_f_run_001": {
     "name": "feminine_locomotion_f_run_001",
     "url": "/animations/feminine/locomotion/F_Run_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "determined",
+    "valence": "positive",
+    "action": "running",
+    "base_posture": "walking",
+    "intensity": 8,
+    "description": "A high-intensity forward sprint with significant arm drive and a large stride length, conveying speed and urgency.",
+    "semantic_tags": [
+      "sprint",
+      "fast",
+      "athletic",
+      "energetic",
+      "locomotion",
+      "urgent",
+      "powerful",
+      "forward"
+    ]
   },
   "feminine_locomotion_f_run_backwards_001": {
     "name": "feminine_locomotion_f_run_backwards_001",
     "url": "/animations/feminine/locomotion/F_Run_Backwards_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "alert",
+    "valence": "neutral",
+    "action": "running",
+    "base_posture": "walking",
+    "intensity": 7,
+    "description": "A fast-paced backward run where the avatar maintains balance while retreating quickly, keeping their gaze fixed on a point in front of them.",
+    "semantic_tags": [
+      "retreating",
+      "reverse",
+      "backward-sprint",
+      "defensive",
+      "fast-withdrawal",
+      "agility",
+      "athletic",
+      "backpedal"
+    ]
   },
   "feminine_locomotion_f_run_jump_001": {
     "name": "feminine_locomotion_f_run_jump_001",
     "url": "/animations/feminine/locomotion/F_Run_Jump_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "focused",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "walking",
+    "intensity": 9,
+    "description": "A powerful leap initiated from a high-speed run, involving a strong vertical and horizontal launch to clear a significant distance or gap.",
+    "semantic_tags": [
+      "leap",
+      "hurdle",
+      "powerful",
+      "athletic",
+      "parkour",
+      "dynamic",
+      "airborne",
+      "long-jump"
+    ]
   },
   "feminine_locomotion_f_run_strafe_left_001": {
     "name": "feminine_locomotion_f_run_strafe_left_001",
     "url": "/animations/feminine/locomotion/F_Run_Strafe_Left_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "focused",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "walking",
+    "intensity": 7,
+    "description": "A high-velocity lateral run to the left, used for quick repositioning or dodging while maintaining momentum and a forward perspective.",
+    "semantic_tags": [
+      "fast-strafe",
+      "evasive",
+      "lateral-move",
+      "agile",
+      "tactical-sprint",
+      "speed",
+      "dodge",
+      "side-run"
+    ]
   },
   "feminine_locomotion_f_run_strafe_right_001": {
     "name": "feminine_locomotion_f_run_strafe_right_001",
     "url": "/animations/feminine/locomotion/F_Run_Strafe_Right_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "focused",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "walking",
+    "intensity": 7,
+    "description": "An energetic sideways run to the right, characterized by quick footwork and a stable upper body to facilitate rapid lateral movement.",
+    "semantic_tags": [
+      "fast-strafe",
+      "evasive",
+      "lateral-move",
+      "agile",
+      "tactical-sprint",
+      "speed",
+      "dodge",
+      "side-run"
+    ]
   },
   "feminine_locomotion_f_walk_002": {
     "name": "feminine_locomotion_f_walk_002",
     "url": "/animations/feminine/locomotion/F_Walk_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "casual",
+    "valence": "positive",
+    "action": "walking",
+    "base_posture": "walking",
+    "intensity": 3,
+    "description": "A relaxed, natural forward walk with a slight sway in the hips and loose arm movements, typical of a leisurely stroll.",
+    "semantic_tags": [
+      "casual",
+      "leisurely",
+      "relaxed",
+      "natural",
+      "forward",
+      "stroll",
+      "peaceful",
+      "steady"
+    ]
   },
   "feminine_locomotion_f_walk_003": {
     "name": "feminine_locomotion_f_walk_003",
     "url": "/animations/feminine/locomotion/F_Walk_003.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "confident",
+    "valence": "positive",
+    "action": "walking",
+    "base_posture": "walking",
+    "intensity": 4,
+    "description": "A purposeful forward walk with a slightly more upright posture and more defined arm swings than a standard casual walk.",
+    "semantic_tags": [
+      "confident",
+      "purposeful",
+      "steady",
+      "forward",
+      "rhythmic",
+      "active-walk",
+      "deliberate",
+      "feminine"
+    ]
   },
   "feminine_locomotion_f_walk_backwards_001": {
     "name": "feminine_locomotion_f_walk_backwards_001",
     "url": "/animations/feminine/locomotion/F_Walk_Backwards_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "cautious",
+    "valence": "neutral",
+    "action": "walking",
+    "base_posture": "walking",
+    "intensity": 3,
+    "description": "A slow and controlled backward walk, suggesting a careful retreat or a desire to keep distance from something ahead.",
+    "semantic_tags": [
+      "retreating",
+      "reverse",
+      "cautious",
+      "backward",
+      "careful",
+      "defensive",
+      "wary",
+      "slow-move"
+    ]
   },
   "feminine_locomotion_f_walk_jump_001": {
     "name": "feminine_locomotion_f_walk_jump_001",
     "url": "/animations/feminine/locomotion/F_Walk_Jump_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "active",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "walking",
+    "intensity": 5,
+    "description": "A light, casual jump performed from a walking pace, involving a soft landing and immediate transition back into a walk.",
+    "semantic_tags": [
+      "hop",
+      "skip",
+      "lightweight",
+      "nimble",
+      "casual-jump",
+      "low-impact",
+      "dynamic",
+      "active"
+    ]
   },
   "feminine_locomotion_f_walk_jump_002": {
     "name": "feminine_locomotion_f_walk_jump_002",
     "url": "/animations/feminine/locomotion/F_Walk_Jump_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "active",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "walking",
+    "intensity": 5,
+    "description": "A rhythmic vertical hop integrated into a forward walking gait, showing a smooth transition from ground contact to mid-air and back to walking.",
+    "semantic_tags": [
+      "hop",
+      "skip",
+      "locomotion",
+      "dynamic",
+      "nimble",
+      "light",
+      "coordinated",
+      "rhythmic"
+    ]
   },
   "feminine_locomotion_f_walk_strafe_left_001": {
     "name": "feminine_locomotion_f_walk_strafe_left_001",
     "url": "/animations/feminine/locomotion/F_Walk_Strafe_Left_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "focused",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "walking",
+    "intensity": 3,
+    "description": "A controlled lateral walk to the left while maintaining a forward-facing torso, often used for repositioning while keeping eyes on a target.",
+    "semantic_tags": [
+      "sideways",
+      "lateral",
+      "tactical",
+      "evasive",
+      "deliberate",
+      "controlled",
+      "side-step",
+      "exploration"
+    ]
   },
   "feminine_locomotion_f_walk_strafe_right_001": {
     "name": "feminine_locomotion_f_walk_strafe_right_001",
     "url": "/animations/feminine/locomotion/F_Walk_Strafe_Right_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "focused",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "walking",
+    "intensity": 3,
+    "description": "A steady lateral walking movement to the right, stepping sideways while keeping the upper body oriented forward for situational awareness.",
+    "semantic_tags": [
+      "sideways",
+      "lateral",
+      "tactical",
+      "evasive",
+      "deliberate",
+      "controlled",
+      "side-step",
+      "exploration"
+    ]
   },
   "feminine_locomotion_m_crouchedwalk_backwards_002": {
     "name": "feminine_locomotion_m_crouchedwalk_backwards_002",
     "url": "/animations/feminine/locomotion/M_CrouchedWalk_Backwards_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "cautious",
+    "valence": "neutral",
+    "action": "walking",
+    "base_posture": "crouched",
+    "intensity": 3,
+    "description": "A tactical backward retreat while maintaining a low crouch, used for withdrawing from a situation without standing up or turning away.",
+    "semantic_tags": [
+      "retreat",
+      "stealth",
+      "backward",
+      "defensive",
+      "low-profile",
+      "wary",
+      "tactical-withdrawal",
+      "evasive"
+    ]
   },
   "feminine_locomotion_m_crouch_strafe_left_002": {
     "name": "feminine_locomotion_m_crouch_strafe_left_002",
     "url": "/animations/feminine/locomotion/M_Crouch_Strafe_Left_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "cautious",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "crouched",
+    "intensity": 4,
+    "description": "A low-profile lateral movement to the left, where the avatar stays in a deep crouch while stepping sideways to remain hidden or protected.",
+    "semantic_tags": [
+      "stealth",
+      "low-profile",
+      "tactical",
+      "sideways",
+      "sneaking",
+      "evasive",
+      "hidden",
+      "defensive"
+    ]
   },
   "feminine_locomotion_m_crouch_strafe_right_002": {
     "name": "feminine_locomotion_m_crouch_strafe_right_002",
     "url": "/animations/feminine/locomotion/M_Crouch_Strafe_Right_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "cautious",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "crouched",
+    "intensity": 4,
+    "description": "A deliberate sideways shift to the right performed from a crouched stance, minimizing visibility while navigating laterally.",
+    "semantic_tags": [
+      "stealth",
+      "low-profile",
+      "tactical",
+      "sideways",
+      "sneaking",
+      "evasive",
+      "hidden",
+      "defensive"
+    ]
   },
   "feminine_locomotion_m_crouch_walk_003": {
     "name": "feminine_locomotion_m_crouch_walk_003",
     "url": "/animations/feminine/locomotion/M_Crouch_Walk_003.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "sneaky",
+    "valence": "neutral",
+    "action": "walking",
+    "base_posture": "crouched",
+    "intensity": 3,
+    "description": "A slow, methodical forward walk in a crouched position, emphasizing stealth and careful foot placement.",
+    "semantic_tags": [
+      "stealth",
+      "sneaking",
+      "stalking",
+      "low-height",
+      "quiet",
+      "tactical",
+      "careful",
+      "hidden"
+    ]
   },
   "feminine_locomotion_m_falling_idle_002": {
     "name": "feminine_locomotion_m_falling_idle_002",
     "url": "/animations/feminine/locomotion/M_Falling_Idle_002.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "alarmed",
+    "valence": "negative",
+    "action": "falling",
+    "base_posture": "mid-air",
+    "intensity": 7,
+    "description": "A sustained mid-air falling pose with arms spread out to simulate wind resistance and a loss of ground contact.",
+    "semantic_tags": [
+      "falling",
+      "airborne",
+      "descending",
+      "gravity",
+      "drop",
+      "unstable",
+      "plummeting",
+      "suspension"
+    ]
   },
   "feminine_locomotion_m_jog_001": {
     "name": "feminine_locomotion_m_jog_001",
     "url": "/animations/feminine/locomotion/M_Jog_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "determined",
+    "valence": "positive",
+    "action": "jogging",
+    "base_posture": "walking",
+    "intensity": 5,
+    "description": "A continuous, rhythmic forward jog with a steady pace and natural arm swing, suitable for athletic or travel contexts.",
+    "semantic_tags": [
+      "running",
+      "athletic",
+      "steady",
+      "locomotion",
+      "active",
+      "fitness",
+      "forward-motion",
+      "cardio"
+    ]
   },
   "feminine_locomotion_m_jog_003": {
     "name": "feminine_locomotion_m_jog_003",
     "url": "/animations/feminine/locomotion/M_Jog_003.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "determined",
+    "valence": "positive",
+    "action": "jogging",
+    "base_posture": "walking",
+    "intensity": 6,
+    "description": "A slightly more vigorous jogging animation with a higher knee lift and stronger arm drive compared to a standard stroll.",
+    "semantic_tags": [
+      "running",
+      "athletic",
+      "energetic",
+      "locomotion",
+      "active",
+      "fitness",
+      "forward-motion",
+      "rhythmic"
+    ]
   },
   "feminine_locomotion_m_jog_backwards_001": {
     "name": "feminine_locomotion_m_jog_backwards_001",
     "url": "/animations/feminine/locomotion/M_Jog_Backwards_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "alert",
+    "valence": "neutral",
+    "action": "jogging",
+    "base_posture": "walking",
+    "intensity": 5,
+    "description": "A steady, rhythmic jogging motion performed in reverse, where the avatar maintains a balanced, upright torso while pushing off the balls of the feet to move backwards.",
+    "semantic_tags": [
+      "retreating",
+      "reverse",
+      "athletic",
+      "steady",
+      "backward-motion",
+      "coordinated",
+      "agile",
+      "locomotion"
+    ]
   },
   "feminine_locomotion_m_jog_jump_001": {
     "name": "feminine_locomotion_m_jog_jump_001",
     "url": "/animations/feminine/locomotion/M_Jog_Jump_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "focused",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "walking",
+    "intensity": 6,
+    "description": "A dynamic, mid-stride jump executed from a jogging pace, featuring a clear launch phase and a controlled landing that transitions back into forward movement.",
+    "semantic_tags": [
+      "hop",
+      "leap",
+      "nimble",
+      "active",
+      "dynamic",
+      "athletic",
+      "hurdle",
+      "forward-jump"
+    ]
   },
   "feminine_locomotion_m_jog_jump_002": {
     "name": "feminine_locomotion_m_jog_jump_002",
     "url": "/animations/feminine/locomotion/M_Jog_Jump_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "active",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "walking",
+    "intensity": 5,
+    "description": "A light, vertical hop performed while jogging, emphasizing a soft landing and the maintenance of forward momentum throughout the animation.",
+    "semantic_tags": [
+      "skip",
+      "bounce",
+      "locomotion",
+      "rhythmic",
+      "fluid",
+      "lightweight",
+      "low-impact",
+      "active"
+    ]
   },
   "feminine_locomotion_m_jog_strafe_left_001": {
     "name": "feminine_locomotion_m_jog_strafe_left_001",
     "url": "/animations/feminine/locomotion/M_Jog_Strafe_Left_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "focused",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "walking",
+    "intensity": 5,
+    "description": "A rapid lateral jog to the left where the avatar's torso remains facing forward while the legs cross and uncross to facilitate sideways travel.",
+    "semantic_tags": [
+      "sideways",
+      "lateral",
+      "evasive",
+      "tactical",
+      "agile",
+      "side-step",
+      "mobile",
+      "repositioning"
+    ]
   },
   "feminine_locomotion_m_jog_strafe_right_001": {
     "name": "feminine_locomotion_m_jog_strafe_right_001",
     "url": "/animations/feminine/locomotion/M_Jog_Strafe_Right_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "focused",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "walking",
+    "intensity": 5,
+    "description": "A continuous lateral movement to the right at a jogging pace, used for dodging or tactical repositioning while keeping a target in view.",
+    "semantic_tags": [
+      "sideways",
+      "lateral",
+      "evasive",
+      "tactical",
+      "agile",
+      "side-step",
+      "mobile",
+      "repositioning"
+    ]
   },
   "feminine_locomotion_m_run_001": {
     "name": "feminine_locomotion_m_run_001",
     "url": "/animations/feminine/locomotion/M_Run_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "determined",
+    "valence": "positive",
+    "action": "running",
+    "base_posture": "walking",
+    "intensity": 8,
+    "description": "A high-intensity sprint featuring deep forward leaning, aggressive arm swings, and a powerful stride to maximize forward velocity.",
+    "semantic_tags": [
+      "sprint",
+      "fast",
+      "energetic",
+      "powerful",
+      "urgent",
+      "athletic",
+      "velocity",
+      "locomotion"
+    ]
   },
   "feminine_locomotion_m_run_backwards_002": {
     "name": "feminine_locomotion_m_run_backwards_002",
     "url": "/animations/feminine/locomotion/M_Run_Backwards_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "alert",
+    "valence": "neutral",
+    "action": "running",
+    "base_posture": "walking",
+    "intensity": 7,
+    "description": "A high-speed backward run where the avatar leans slightly forward to maintain balance while retreating quickly from an oncoming threat.",
+    "semantic_tags": [
+      "retreating",
+      "backward-sprint",
+      "fast-withdrawal",
+      "defensive",
+      "agility",
+      "backpedal",
+      "reverse",
+      "alert"
+    ]
   },
   "feminine_locomotion_m_run_jump_001": {
     "name": "feminine_locomotion_m_run_jump_001",
     "url": "/animations/feminine/locomotion/M_Run_Jump_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "focused",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "walking",
+    "intensity": 9,
+    "description": "A powerful, long-distance leap initiated from a full sprint, designed to clear large obstacles or gaps with maximum physical effort.",
+    "semantic_tags": [
+      "leap",
+      "long-jump",
+      "powerful",
+      "parkour",
+      "extreme",
+      "dynamic",
+      "airborne",
+      "launch"
+    ]
   },
   "feminine_locomotion_m_run_jump_002": {
     "name": "feminine_locomotion_m_run_jump_002",
     "url": "/animations/feminine/locomotion/M_Run_Jump_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "focused",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "walking",
+    "intensity": 8,
+    "description": "An athletic hurdle-style jump performed during a run, where the avatar lifts their legs high to clear an object while maintaining high forward speed.",
+    "semantic_tags": [
+      "hurdle",
+      "vault",
+      "athletic",
+      "energetic",
+      "active",
+      "forward-motion",
+      "jump-cycle",
+      "nimble"
+    ]
   },
   "feminine_locomotion_m_run_strafe_left_002": {
     "name": "feminine_locomotion_m_run_strafe_left_002",
     "url": "/animations/feminine/locomotion/M_Run_Strafe_Left_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "alert",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "walking",
+    "intensity": 7,
+    "description": "A high-velocity lateral run to the left, characterized by aggressive footwork and a lowered center of gravity to dodge incoming projectiles or obstacles.",
+    "semantic_tags": [
+      "fast-strafe",
+      "evasive-maneuver",
+      "dodge",
+      "agile",
+      "tactical-sprint",
+      "side-run",
+      "combat-ready",
+      "quick-shift"
+    ]
   },
   "feminine_locomotion_m_run_strafe_right_002": {
     "name": "feminine_locomotion_m_run_strafe_right_002",
     "url": "/animations/feminine/locomotion/M_Run_Strafe_Right_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "focused",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "walking",
+    "intensity": 7,
+    "description": "A high-velocity lateral run to the right where the avatar maintains a forward-facing torso and head while the legs drive power sideways through rapid crossing steps.",
+    "semantic_tags": [
+      "sideways",
+      "lateral-run",
+      "evasive",
+      "tactical",
+      "agile",
+      "side-sprint",
+      "combat-movement",
+      "repositioning"
+    ]
   },
   "feminine_locomotion_m_walk_001": {
     "name": "feminine_locomotion_m_walk_001",
     "url": "/animations/feminine/locomotion/M_Walk_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "neutral",
+    "valence": "neutral",
+    "action": "walking",
+    "base_posture": "walking",
+    "intensity": 3,
+    "description": "A standard, balanced forward walk with natural arm swings and a steady cadence, representing a default locomotion state.",
+    "semantic_tags": [
+      "forward",
+      "locomotion",
+      "steady",
+      "standard-walk",
+      "balanced",
+      "regular",
+      "casual",
+      "movement"
+    ]
   },
   "feminine_locomotion_m_walk_002": {
     "name": "feminine_locomotion_m_walk_002",
     "url": "/animations/feminine/locomotion/M_Walk_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "casual",
+    "valence": "positive",
+    "action": "walking",
+    "base_posture": "walking",
+    "intensity": 3,
+    "description": "A relaxed forward walk characterized by a slightly lower shoulder tension and a smoother, less rigid stride compared to a formal march.",
+    "semantic_tags": [
+      "leisurely",
+      "stroll",
+      "relaxed",
+      "casual-walk",
+      "fluid",
+      "natural",
+      "forward",
+      "unhurried"
+    ]
   },
   "feminine_locomotion_m_walk_backwards_001": {
     "name": "feminine_locomotion_m_walk_backwards_001",
     "url": "/animations/feminine/locomotion/M_Walk_Backwards_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "cautious",
+    "valence": "neutral",
+    "action": "walking",
+    "base_posture": "walking",
+    "intensity": 3,
+    "description": "A methodical backward walking movement where the avatar carefully steps behind themselves while keeping eyes fixed on the path ahead.",
+    "semantic_tags": [
+      "retreating",
+      "reverse-walk",
+      "careful",
+      "defensive",
+      "backwards",
+      "wary",
+      "controlled",
+      "withdrawal"
+    ]
   },
   "feminine_locomotion_m_walk_jump_001": {
     "name": "feminine_locomotion_m_walk_jump_001",
     "url": "/animations/feminine/locomotion/M_Walk_Jump_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "active",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "walking",
+    "intensity": 5,
+    "description": "A rhythmic vertical hop executed during a walk, showing a brief moment of airtime followed by a seamless transition back into a forward gait.",
+    "semantic_tags": [
+      "skip",
+      "hop",
+      "light-jump",
+      "nimble",
+      "rhythmic",
+      "active",
+      "dynamic-walk",
+      "springy"
+    ]
   },
   "feminine_locomotion_m_walk_jump_002": {
     "name": "feminine_locomotion_m_walk_jump_002",
     "url": "/animations/feminine/locomotion/M_Walk_Jump_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "active",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "walking",
+    "intensity": 4,
+    "description": "A soft, low-impact hop integrated into a walk, focusing on a quiet landing and immediate resumption of forward progress.",
+    "semantic_tags": [
+      "bounce",
+      "small-jump",
+      "nimble",
+      "low-intensity",
+      "fluid",
+      "active",
+      "coordinated",
+      "skip"
+    ]
   },
   "feminine_locomotion_m_walk_jump_003": {
     "name": "feminine_locomotion_m_walk_jump_003",
     "url": "/animations/feminine/locomotion/M_Walk_Jump_003.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "active",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "walking",
+    "intensity": 5,
+    "description": "A slightly more energetic hop with a pronounced knee lift during the flight phase, suggesting clearing a small trip hazard while walking.",
+    "semantic_tags": [
+      "hurdle-hop",
+      "active",
+      "springy",
+      "forward-jump",
+      "agile",
+      "obstacle-clearance",
+      "rhythmic",
+      "nimble"
+    ]
   },
   "feminine_locomotion_m_walk_strafe_left_002": {
     "name": "feminine_locomotion_m_walk_strafe_left_002",
     "url": "/animations/feminine/locomotion/M_Walk_Strafe_Left_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "focused",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "walking",
+    "intensity": 3,
+    "description": "A controlled sideways walk to the left, used for maintaining situational awareness or aiming while shifting position laterally.",
+    "semantic_tags": [
+      "lateral-walk",
+      "sideways",
+      "tactical-move",
+      "controlled",
+      "side-step",
+      "exploration",
+      "evasive",
+      "repositioning"
+    ]
   },
   "feminine_locomotion_m_walk_strafe_right_002": {
     "name": "feminine_locomotion_m_walk_strafe_right_002",
     "url": "/animations/feminine/locomotion/M_Walk_Strafe_Right_002.glb",
-    "type": "misc"
-  },
-  "idle": {
-    "name": "idle",
-    "url": "/animations/male-idle.glb",
-    "type": "idle"
-  },
-  "male-idle": {
-    "name": "male-idle",
-    "url": "/animations/male-idle.glb",
-    "type": "idle"
+    "type": "misc",
+    "primary_emotion": "focused",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "walking",
+    "intensity": 3,
+    "description": "A deliberate sideways walking motion to the right, keeping the upper body oriented forward for defensive or investigative purposes.",
+    "semantic_tags": [
+      "lateral-walk",
+      "sideways",
+      "tactical-move",
+      "controlled",
+      "side-step",
+      "investigative",
+      "evasive",
+      "repositioning"
+    ]
   },
   "masculine_dance_f_dances_001": {
     "name": "masculine_dance_f_dances_001",
@@ -2005,247 +3913,1031 @@
   "masculine_locomotion_f_crouchedwalk_backwards_001": {
     "name": "masculine_locomotion_f_crouchedwalk_backwards_001",
     "url": "/animations/masculine/locomotion/F_CrouchedWalk_Backwards_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "defensive",
+    "valence": "neutral",
+    "action": "walking",
+    "base_posture": "crouched",
+    "intensity": 3,
+    "description": "A careful backward retreat while maintaining a low, crouched center of gravity.",
+    "semantic_tags": [
+      "retreat",
+      "backward",
+      "stealth",
+      "cautious",
+      "defensive",
+      "low-profile",
+      "tactical",
+      "withdrawal"
+    ]
   },
   "masculine_locomotion_f_crouch_strafe_left": {
     "name": "masculine_locomotion_f_crouch_strafe_left",
     "url": "/animations/masculine/locomotion/F_Crouch_Strafe_Left.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "cautious",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "crouched",
+    "intensity": 4,
+    "description": "A low-profile lateral movement to the left maintaining a tactical stance.",
+    "semantic_tags": [
+      "stealth",
+      "tactical",
+      "sideways",
+      "evasive",
+      "crouch",
+      "movement",
+      "alert",
+      "gaming"
+    ]
   },
   "masculine_locomotion_f_crouch_strafe_right": {
     "name": "masculine_locomotion_f_crouch_strafe_right",
     "url": "/animations/masculine/locomotion/F_Crouch_Strafe_Right.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "cautious",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "crouched",
+    "intensity": 4,
+    "description": "A low-profile lateral movement to the right while keeping the torso forward-facing.",
+    "semantic_tags": [
+      "stealth",
+      "tactical",
+      "sideways",
+      "evasive",
+      "crouch",
+      "movement",
+      "alert",
+      "combat"
+    ]
   },
   "masculine_locomotion_f_crouch_walk_001": {
     "name": "masculine_locomotion_f_crouch_walk_001",
     "url": "/animations/masculine/locomotion/F_Crouch_Walk_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "focused",
+    "valence": "neutral",
+    "action": "walking",
+    "base_posture": "crouched",
+    "intensity": 3,
+    "description": "A slow, deliberate forward walk in a crouched position to minimize visibility.",
+    "semantic_tags": [
+      "sneak",
+      "stealth",
+      "forward",
+      "low-profile",
+      "careful",
+      "stalking",
+      "quiet",
+      "tactical"
+    ]
   },
   "masculine_locomotion_f_falling_idle_000": {
     "name": "masculine_locomotion_f_falling_idle_000",
     "url": "/animations/masculine/locomotion/F_Falling_Idle_000.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "alarmed",
+    "valence": "negative",
+    "action": "falling",
+    "base_posture": "mid-air",
+    "intensity": 7,
+    "description": "A suspended mid-air animation with limbs extended to stabilize during a descent.",
+    "semantic_tags": [
+      "airborne",
+      "falling",
+      "gravity",
+      "unstable",
+      "descent",
+      "drop",
+      "reaction",
+      "flailing"
+    ]
   },
   "masculine_locomotion_f_falling_idle_001": {
     "name": "masculine_locomotion_f_falling_idle_001",
     "url": "/animations/masculine/locomotion/F_Falling_Idle_001.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "alarmed",
+    "valence": "negative",
+    "action": "falling",
+    "base_posture": "mid-air",
+    "intensity": 8,
+    "description": "A high-intensity falling loop with wind-resistance arm positioning for a vertical drop.",
+    "semantic_tags": [
+      "plummet",
+      "airborne",
+      "descent",
+      "freefall",
+      "unstable",
+      "gravity",
+      "emergency",
+      "motion"
+    ]
   },
   "masculine_locomotion_f_jog_001": {
     "name": "masculine_locomotion_f_jog_001",
     "url": "/animations/masculine/locomotion/F_Jog_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "determined",
+    "valence": "positive",
+    "action": "jogging",
+    "base_posture": "standing",
+    "intensity": 6,
+    "description": "A steady, rhythmic forward jog with natural arm swings and athletic posture.",
+    "semantic_tags": [
+      "running",
+      "exercise",
+      "athletic",
+      "cardio",
+      "forward",
+      "rhythmic",
+      "active",
+      "fitness"
+    ]
   },
   "masculine_locomotion_f_jog_backwards_001": {
     "name": "masculine_locomotion_f_jog_backwards_001",
     "url": "/animations/masculine/locomotion/F_Jog_Backwards_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "observant",
+    "valence": "neutral",
+    "action": "jogging",
+    "base_posture": "standing",
+    "intensity": 5,
+    "description": "A controlled backward jog used for maintaining visual contact while retreating.",
+    "semantic_tags": [
+      "retreat",
+      "backward",
+      "defensive",
+      "mobility",
+      "coordination",
+      "active",
+      "agility",
+      "athletic"
+    ]
   },
   "masculine_locomotion_f_jog_jump_small_001": {
     "name": "masculine_locomotion_f_jog_jump_small_001",
     "url": "/animations/masculine/locomotion/F_Jog_Jump_Small_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "energetic",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "running",
+    "intensity": 7,
+    "description": "A small hurdle-style jump performed while maintaining forward jogging momentum.",
+    "semantic_tags": [
+      "leap",
+      "hop",
+      "athletic",
+      "obstacle",
+      "momentum",
+      "active",
+      "agility",
+      "dynamic"
+    ]
   },
   "masculine_locomotion_f_jog_strafe_left_002": {
     "name": "masculine_locomotion_f_jog_strafe_left_002",
     "url": "/animations/masculine/locomotion/F_Jog_Strafe_Left_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "agile",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "standing",
+    "intensity": 6,
+    "description": "A high-speed lateral shuffle to the left while keeping the body oriented forward.",
+    "semantic_tags": [
+      "sidestep",
+      "athletic",
+      "lateral",
+      "evasive",
+      "mobility",
+      "agile",
+      "skipping",
+      "movement"
+    ]
   },
   "masculine_locomotion_f_jog_strafe_right_002": {
     "name": "masculine_locomotion_f_jog_strafe_right_002",
     "url": "/animations/masculine/locomotion/F_Jog_Strafe_Right_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "agile",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "standing",
+    "intensity": 6,
+    "description": "A high-speed lateral jogging movement to the right, maintaining forward torso orientation.",
+    "semantic_tags": [
+      "sidestep",
+      "athletic",
+      "lateral",
+      "evasive",
+      "agility",
+      "jogging",
+      "movement",
+      "active"
+    ]
   },
   "masculine_locomotion_f_run_001": {
     "name": "masculine_locomotion_f_run_001",
     "url": "/animations/masculine/locomotion/F_Run_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "urgent",
+    "valence": "positive",
+    "action": "running",
+    "base_posture": "standing",
+    "intensity": 8,
+    "description": "A high-velocity forward run with significant leg drive and aggressive arm pumping.",
+    "semantic_tags": [
+      "sprint",
+      "fast",
+      "athletic",
+      "urgent",
+      "forward",
+      "active",
+      "speed",
+      "energetic"
+    ]
   },
   "masculine_locomotion_f_run_backwards_001": {
     "name": "masculine_locomotion_f_run_backwards_001",
     "url": "/animations/masculine/locomotion/F_Run_Backwards_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "alert",
+    "valence": "neutral",
+    "action": "running",
+    "base_posture": "standing",
+    "intensity": 7,
+    "description": "A rapid backward running movement used for a quick tactical retreat while facing forward.",
+    "semantic_tags": [
+      "retreat",
+      "backward",
+      "fast",
+      "evasive",
+      "defensive",
+      "athletic",
+      "urgent",
+      "withdrawal"
+    ]
   },
   "masculine_locomotion_f_run_jump_001": {
     "name": "masculine_locomotion_f_run_jump_001",
     "url": "/animations/masculine/locomotion/F_Run_Jump_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "determined",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "running",
+    "intensity": 8,
+    "description": "A powerful, long-stride jump executed from a full running start to clear a gap.",
+    "semantic_tags": [
+      "leap",
+      "vault",
+      "athletic",
+      "momentum",
+      "dynamic",
+      "active",
+      "airborne",
+      "power"
+    ]
   },
   "masculine_locomotion_f_run_strafe_left_001": {
     "name": "masculine_locomotion_f_run_strafe_left_001",
     "url": "/animations/masculine/locomotion/F_Run_Strafe_Left_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "focused",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "standing",
+    "intensity": 7,
+    "description": "A rapid lateral run to the left, crossing feet slightly to maintain high-speed sideways momentum.",
+    "semantic_tags": [
+      "sideways",
+      "fast",
+      "evasive",
+      "agility",
+      "tactical",
+      "athletic",
+      "movement",
+      "shuffle"
+    ]
   },
   "masculine_locomotion_f_run_strafe_right_001": {
     "name": "masculine_locomotion_f_run_strafe_right_001",
     "url": "/animations/masculine/locomotion/F_Run_Strafe_Right_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "focused",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "standing",
+    "intensity": 7,
+    "description": "A rapid lateral run to the right, emphasizing quick footwork and directional agility.",
+    "semantic_tags": [
+      "sideways",
+      "fast",
+      "evasive",
+      "agility",
+      "tactical",
+      "athletic",
+      "movement",
+      "shuffle"
+    ]
   },
   "masculine_locomotion_f_walk_002": {
     "name": "masculine_locomotion_f_walk_002",
     "url": "/animations/masculine/locomotion/F_Walk_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "casual",
+    "valence": "positive",
+    "action": "walking",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "A natural, relaxed forward walk with a steady pace and casual arm swing.",
+    "semantic_tags": [
+      "casual",
+      "stroll",
+      "relaxed",
+      "forward",
+      "movement",
+      "standard",
+      "calm",
+      "steady"
+    ]
   },
   "masculine_locomotion_f_walk_003": {
     "name": "masculine_locomotion_f_walk_003",
     "url": "/animations/masculine/locomotion/F_Walk_003.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "confident",
+    "valence": "positive",
+    "action": "walking",
+    "base_posture": "standing",
+    "intensity": 4,
+    "description": "A purposeful forward walk with a slight bounce and upright, confident posture.",
+    "semantic_tags": [
+      "strut",
+      "confident",
+      "purposeful",
+      "active",
+      "forward",
+      "steady",
+      "upright",
+      "determined"
+    ]
   },
   "masculine_locomotion_f_walk_backwards_001": {
     "name": "masculine_locomotion_f_walk_backwards_001",
     "url": "/animations/masculine/locomotion/F_Walk_Backwards_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "cautious",
+    "valence": "neutral",
+    "action": "walking",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "A steady backward walk, keeping the weight centered for stability while retreating.",
+    "semantic_tags": [
+      "retreat",
+      "backward",
+      "cautious",
+      "slow",
+      "defensive",
+      "movement",
+      "steady",
+      "withdrawal"
+    ]
   },
   "masculine_locomotion_f_walk_jump_001": {
     "name": "masculine_locomotion_f_walk_jump_001",
     "url": "/animations/masculine/locomotion/F_Walk_Jump_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "playful",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "walking",
+    "intensity": 5,
+    "description": "A light, vertical hop integrated into a walking cycle, showing ease and agility.",
+    "semantic_tags": [
+      "hop",
+      "skip",
+      "casual",
+      "light",
+      "dynamic",
+      "active",
+      "movement",
+      "agile"
+    ]
   },
   "masculine_locomotion_f_walk_jump_002": {
     "name": "masculine_locomotion_f_walk_jump_002",
     "url": "/animations/masculine/locomotion/F_Walk_Jump_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "playful",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "walking",
+    "intensity": 5,
+    "description": "A light, agile hop performed mid-stride while walking, maintaining forward momentum with a graceful landing.",
+    "semantic_tags": [
+      "hop",
+      "skip",
+      "casual",
+      "agile",
+      "bounce",
+      "active",
+      "movement",
+      "graceful"
+    ]
   },
   "masculine_locomotion_f_walk_strafe_left_001": {
     "name": "masculine_locomotion_f_walk_strafe_left_001",
     "url": "/animations/masculine/locomotion/F_Walk_Strafe_Left_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "observant",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "A controlled lateral walk to the left, keeping the head and torso facing forward to track a target.",
+    "semantic_tags": [
+      "sidestep",
+      "lateral",
+      "walking",
+      "tracking",
+      "deliberate",
+      "movement",
+      "tactical",
+      "steady"
+    ]
   },
   "masculine_locomotion_f_walk_strafe_right_001": {
     "name": "masculine_locomotion_f_walk_strafe_right_001",
     "url": "/animations/masculine/locomotion/F_Walk_Strafe_Right_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "observant",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "A steady sideways walking movement to the right while maintaining a forward-facing gaze.",
+    "semantic_tags": [
+      "sidestep",
+      "lateral",
+      "walking",
+      "tracking",
+      "deliberate",
+      "movement",
+      "tactical",
+      "steady"
+    ]
   },
   "masculine_locomotion_m_crouchedwalk_backwards_002": {
     "name": "masculine_locomotion_m_crouchedwalk_backwards_002",
     "url": "/animations/masculine/locomotion/M_CrouchedWalk_Backwards_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "defensive",
+    "valence": "neutral",
+    "action": "walking",
+    "base_posture": "crouched",
+    "intensity": 3,
+    "description": "A careful backward retreat in a crouched stance, keeping the torso low and facing the front.",
+    "semantic_tags": [
+      "retreat",
+      "stealth",
+      "defensive",
+      "backward",
+      "crouch",
+      "low-profile",
+      "tactical",
+      "careful"
+    ]
   },
   "masculine_locomotion_m_crouch_strafe_left_002": {
     "name": "masculine_locomotion_m_crouch_strafe_left_002",
     "url": "/animations/masculine/locomotion/M_Crouch_Strafe_Left_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "cautious",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "crouched",
+    "intensity": 4,
+    "description": "A low-profile lateral shuffle to the left, keeping the body compact and the center of gravity low.",
+    "semantic_tags": [
+      "stealth",
+      "tactical",
+      "crouch",
+      "sideways",
+      "sneaking",
+      "gaming",
+      "alert",
+      "evasive"
+    ]
   },
   "masculine_locomotion_m_crouch_strafe_right_002": {
     "name": "masculine_locomotion_m_crouch_strafe_right_002",
     "url": "/animations/masculine/locomotion/M_Crouch_Strafe_Right_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "cautious",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "crouched",
+    "intensity": 4,
+    "description": "A tactical sideways movement to the right while maintaining a deep crouch to minimize the silhouette.",
+    "semantic_tags": [
+      "stealth",
+      "tactical",
+      "crouch",
+      "sideways",
+      "sneaking",
+      "gaming",
+      "alert",
+      "evasive"
+    ]
   },
   "masculine_locomotion_m_crouch_walk_003": {
     "name": "masculine_locomotion_m_crouch_walk_003",
     "url": "/animations/masculine/locomotion/M_Crouch_Walk_003.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "focused",
+    "valence": "neutral",
+    "action": "walking",
+    "base_posture": "crouched",
+    "intensity": 3,
+    "description": "A slow, methodical forward walk in a crouched position, designed for quiet approach and stealth.",
+    "semantic_tags": [
+      "sneaking",
+      "stealth",
+      "low-profile",
+      "tactical",
+      "quiet",
+      "stalking",
+      "crouched",
+      "forward"
+    ]
   },
   "masculine_locomotion_m_falling_idle_002": {
     "name": "masculine_locomotion_m_falling_idle_002",
     "url": "/animations/masculine/locomotion/M_Falling_Idle_002.glb",
-    "type": "idle"
+    "type": "idle",
+    "primary_emotion": "alarmed",
+    "valence": "negative",
+    "action": "falling",
+    "base_posture": "mid-air",
+    "intensity": 7,
+    "description": "A vertical descent animation with arms spread wide to stabilize the body during a long fall.",
+    "semantic_tags": [
+      "airborne",
+      "freefall",
+      "plummet",
+      "gravity",
+      "unstable",
+      "descent",
+      "reaction",
+      "drop"
+    ]
   },
   "masculine_locomotion_m_jog_001": {
     "name": "masculine_locomotion_m_jog_001",
     "url": "/animations/masculine/locomotion/M_Jog_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "determined",
+    "valence": "positive",
+    "action": "jogging",
+    "base_posture": "standing",
+    "intensity": 6,
+    "description": "A standard rhythmic forward jog with consistent arm drive and a steady, athletic pace.",
+    "semantic_tags": [
+      "running",
+      "exercise",
+      "athletic",
+      "cardio",
+      "forward",
+      "active",
+      "fitness",
+      "steady"
+    ]
   },
   "masculine_locomotion_m_jog_003": {
     "name": "masculine_locomotion_m_jog_003",
     "url": "/animations/masculine/locomotion/M_Jog_003.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "energetic",
+    "valence": "positive",
+    "action": "jogging",
+    "base_posture": "standing",
+    "intensity": 6,
+    "description": "A high-energy jog with a slight forward lean and emphasized knee lift for athletic movement.",
+    "semantic_tags": [
+      "running",
+      "active",
+      "athletic",
+      "fitness",
+      "cardio",
+      "forward",
+      "energetic",
+      "steady"
+    ]
   },
   "masculine_locomotion_m_jog_backwards_001": {
     "name": "masculine_locomotion_m_jog_backwards_001",
     "url": "/animations/masculine/locomotion/M_Jog_Backwards_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "alert",
+    "valence": "neutral",
+    "action": "jogging",
+    "base_posture": "standing",
+    "intensity": 5,
+    "description": "A rhythmic backward jogging motion with a steady pace, designed for maintaining visual focus on a target while retreating.",
+    "semantic_tags": [
+      "retreat",
+      "backward",
+      "athletic",
+      "defensive",
+      "active",
+      "coordination",
+      "rhythmic",
+      "movement"
+    ]
   },
   "masculine_locomotion_m_jog_jump_001": {
     "name": "masculine_locomotion_m_jog_jump_001",
     "url": "/animations/masculine/locomotion/M_Jog_Jump_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "agile",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "jogging",
+    "intensity": 6,
+    "description": "A light, athletic hurdle jump executed during a forward jog, clearing a small obstacle without breaking momentum.",
+    "semantic_tags": [
+      "leap",
+      "hop",
+      "athletic",
+      "hurdle",
+      "momentum",
+      "active",
+      "agility",
+      "jogging"
+    ]
   },
   "masculine_locomotion_m_jog_jump_002": {
     "name": "masculine_locomotion_m_jog_jump_002",
     "url": "/animations/masculine/locomotion/M_Jog_Jump_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "agile",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "jogging",
+    "intensity": 7,
+    "description": "A mid-stride vertical jump performed during a jog, featuring a controlled landing to immediately resume forward travel.",
+    "semantic_tags": [
+      "leap",
+      "vertical",
+      "athletic",
+      "dynamic",
+      "bounce",
+      "active",
+      "agility",
+      "coordination"
+    ]
   },
   "masculine_locomotion_m_jog_strafe_left_001": {
     "name": "masculine_locomotion_m_jog_strafe_left_001",
     "url": "/animations/masculine/locomotion/M_Jog_Strafe_Left_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "focused",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "standing",
+    "intensity": 6,
+    "description": "A lateral jogging movement to the left where the avatar crosses feet while keeping the chest facing forward.",
+    "semantic_tags": [
+      "sidestep",
+      "lateral",
+      "evasive",
+      "agility",
+      "tactical",
+      "athletic",
+      "shuffle",
+      "gaming"
+    ]
   },
   "masculine_locomotion_m_jog_strafe_right_001": {
     "name": "masculine_locomotion_m_jog_strafe_right_001",
     "url": "/animations/masculine/locomotion/M_Jog_Strafe_Right_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "focused",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "standing",
+    "intensity": 6,
+    "description": "A rhythmic sideways jog to the right, utilizing quick footwork to maintain speed while facing the primary orientation.",
+    "semantic_tags": [
+      "sidestep",
+      "lateral",
+      "evasive",
+      "agility",
+      "tactical",
+      "athletic",
+      "shuffle",
+      "movement"
+    ]
   },
   "masculine_locomotion_m_run_001": {
     "name": "masculine_locomotion_m_run_001",
     "url": "/animations/masculine/locomotion/M_Run_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "urgent",
+    "valence": "positive",
+    "action": "running",
+    "base_posture": "standing",
+    "intensity": 8,
+    "description": "A powerful forward sprint characterized by deep knee bends, aggressive arm swings, and a high-speed lean.",
+    "semantic_tags": [
+      "sprint",
+      "fast",
+      "athletic",
+      "urgent",
+      "forward",
+      "active",
+      "speed",
+      "energetic"
+    ]
   },
   "masculine_locomotion_m_run_backwards_002": {
     "name": "masculine_locomotion_m_run_backwards_002",
     "url": "/animations/masculine/locomotion/M_Run_Backwards_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "alert",
+    "valence": "neutral",
+    "action": "running",
+    "base_posture": "standing",
+    "intensity": 7,
+    "description": "A rapid backward running loop used for a quick tactical retreat while keeping the torso facing forward for defense.",
+    "semantic_tags": [
+      "retreat",
+      "backward",
+      "fast",
+      "evasive",
+      "defensive",
+      "athletic",
+      "urgent",
+      "withdrawal"
+    ]
   },
   "masculine_locomotion_m_run_jump_001": {
     "name": "masculine_locomotion_m_run_jump_001",
     "url": "/animations/masculine/locomotion/M_Run_Jump_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "determined",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "running",
+    "intensity": 8,
+    "description": "A high-momentum leap launched from a full sprint, intended to clear significant horizontal distance.",
+    "semantic_tags": [
+      "leap",
+      "vault",
+      "athletic",
+      "momentum",
+      "dynamic",
+      "active",
+      "airborne",
+      "long-jump"
+    ]
   },
   "masculine_locomotion_m_run_jump_002": {
     "name": "masculine_locomotion_m_run_jump_002",
     "url": "/animations/masculine/locomotion/M_Run_Jump_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "energetic",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "running",
+    "intensity": 9,
+    "description": "A powerful, explosive jump during a high-speed run with an extended air-time phase and a heavy landing transition.",
+    "semantic_tags": [
+      "leap",
+      "explosive",
+      "athletic",
+      "power",
+      "dynamic",
+      "airborne",
+      "agility",
+      "impact"
+    ]
   },
   "masculine_locomotion_m_run_strafe_left_002": {
     "name": "masculine_locomotion_m_run_strafe_left_002",
     "url": "/animations/masculine/locomotion/M_Run_Strafe_Left_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "agile",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "standing",
+    "intensity": 8,
+    "description": "A high-intensity lateral run to the left, using aggressive crossover steps to maintain maximum sideways velocity.",
+    "semantic_tags": [
+      "sideways",
+      "fast",
+      "evasive",
+      "agility",
+      "tactical",
+      "athletic",
+      "sprint",
+      "shuffle"
+    ]
   },
   "masculine_locomotion_m_run_strafe_right_002": {
     "name": "masculine_locomotion_m_run_strafe_right_002",
     "url": "/animations/masculine/locomotion/M_Run_Strafe_Right_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "agile",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "standing",
+    "intensity": 8,
+    "description": "A high-velocity lateral run to the right, utilizing aggressive crossover steps and a low center of gravity for maximum sideways speed.",
+    "semantic_tags": [
+      "sideways",
+      "fast",
+      "evasive",
+      "agility",
+      "tactical",
+      "athletic",
+      "sprint",
+      "shuffle"
+    ]
   },
   "masculine_locomotion_m_walk_001": {
     "name": "masculine_locomotion_m_walk_001",
     "url": "/animations/masculine/locomotion/M_Walk_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "casual",
+    "valence": "positive",
+    "action": "walking",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "A standard, relaxed forward walk with a natural arm swing and steady cadence.",
+    "semantic_tags": [
+      "casual",
+      "stroll",
+      "relaxed",
+      "forward",
+      "movement",
+      "standard",
+      "calm",
+      "steady"
+    ]
   },
   "masculine_locomotion_m_walk_002": {
     "name": "masculine_locomotion_m_walk_002",
     "url": "/animations/masculine/locomotion/M_Walk_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "casual",
+    "valence": "positive",
+    "action": "walking",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "A natural forward walking loop with a neutral expression and balanced weight distribution between strides.",
+    "semantic_tags": [
+      "walking",
+      "forward",
+      "standard",
+      "neutral",
+      "ambulate",
+      "steady",
+      "active",
+      "locomotion"
+    ]
   },
   "masculine_locomotion_m_walk_backwards_001": {
     "name": "masculine_locomotion_m_walk_backwards_001",
     "url": "/animations/masculine/locomotion/M_Walk_Backwards_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "cautious",
+    "valence": "neutral",
+    "action": "walking",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "A deliberate backward walk, keeping the torso upright and feet moving in a smooth, retreating rhythm.",
+    "semantic_tags": [
+      "retreat",
+      "backward",
+      "cautious",
+      "slow",
+      "defensive",
+      "movement",
+      "steady",
+      "withdrawal"
+    ]
   },
   "masculine_locomotion_m_walk_jump_001": {
     "name": "masculine_locomotion_m_walk_jump_001",
     "url": "/animations/masculine/locomotion/M_Walk_Jump_001.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "playful",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "walking",
+    "intensity": 4,
+    "description": "A casual, low-intensity hop performed mid-stride while walking forward, showing a light-hearted movement style.",
+    "semantic_tags": [
+      "hop",
+      "skip",
+      "casual",
+      "light",
+      "dynamic",
+      "active",
+      "movement",
+      "agile"
+    ]
   },
   "masculine_locomotion_m_walk_jump_002": {
     "name": "masculine_locomotion_m_walk_jump_002",
     "url": "/animations/masculine/locomotion/M_Walk_Jump_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "agile",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "walking",
+    "intensity": 5,
+    "description": "A rhythmic vertical hop integrated into a walk, clearing a small height with a controlled landing back into the stride.",
+    "semantic_tags": [
+      "leap",
+      "jump",
+      "athletic",
+      "coordinated",
+      "active",
+      "agile",
+      "bounce",
+      "locomotion"
+    ]
   },
   "masculine_locomotion_m_walk_jump_003": {
     "name": "masculine_locomotion_m_walk_jump_003",
     "url": "/animations/masculine/locomotion/M_Walk_Jump_003.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "active",
+    "valence": "positive",
+    "action": "jumping",
+    "base_posture": "walking",
+    "intensity": 5,
+    "description": "An energetic forward-moving jump executed during a walk, emphasizing foot-off and a balanced mid-air posture.",
+    "semantic_tags": [
+      "leap",
+      "jump",
+      "springy",
+      "coordinated",
+      "athletic",
+      "forward",
+      "active",
+      "dynamic"
+    ]
   },
   "masculine_locomotion_m_walk_strafe_left_002": {
     "name": "masculine_locomotion_m_walk_strafe_left_002",
     "url": "/animations/masculine/locomotion/M_Walk_Strafe_Left_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "observant",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "A lateral walk to the left where the avatar maintains a forward-facing chest orientation while stepping sideways.",
+    "semantic_tags": [
+      "sidestep",
+      "lateral",
+      "walking",
+      "tracking",
+      "deliberate",
+      "movement",
+      "tactical",
+      "steady"
+    ]
   },
   "masculine_locomotion_m_walk_strafe_right_002": {
     "name": "masculine_locomotion_m_walk_strafe_right_002",
     "url": "/animations/masculine/locomotion/M_Walk_Strafe_Right_002.glb",
-    "type": "misc"
+    "type": "misc",
+    "primary_emotion": "observant",
+    "valence": "neutral",
+    "action": "strafing",
+    "base_posture": "standing",
+    "intensity": 3,
+    "description": "A controlled sideways walk to the right, used for lateral repositioning while keeping eyes on a target ahead.",
+    "semantic_tags": [
+      "sidestep",
+      "lateral",
+      "walking",
+      "tracking",
+      "deliberate",
+      "movement",
+      "tactical",
+      "steady"
+    ]
   },
   "masculine_masculine_tpose": {
     "name": "masculine_masculine_tpose",
@@ -2254,7 +4946,7 @@
   },
   "wave": {
     "name": "wave",
-    "url": "/animations/wave.glb",
+    "url": "/animations/both/wave.glb",
     "type": "misc"
   }
 }
